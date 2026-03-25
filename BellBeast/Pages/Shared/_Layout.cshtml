@@ -1,0 +1,37 @@
+﻿<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - BellBeast</title>
+
+    <!-- ✅ ใช้ site.css ของเรา -->
+    <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+    <div class="app-shell">
+        <header class="topbar">
+            <div class="brand">BellBeast</div>
+            <nav class="nav">
+                <a asp-page="/Index">AquadatQuery</a>
+                <a asp-page="/MHxViewer/MHxView">MHxView</a>
+                <a asp-page="/MH_report">DailyReport</a>
+                <a asp-page="/CHEM_report">ChemReport</a>
+                <a asp-page="/Admin/AdminPage">AdminEntry</a>
+                <a asp-page="/Privacy">Privacy</a>
+            </nav>
+        </header>
+
+        <main class="content">
+            @RenderBody()
+        </main>
+
+        <footer class="footer">
+            © @DateTime.Now.Year - BellBeast
+        </footer>
+    </div>
+
+    @await RenderSectionAsync("Scripts", required: false)
+
+</body>
+</html>

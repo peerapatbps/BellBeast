@@ -1,0 +1,458 @@
+﻿<style>
+    /* ===== FIX: ปุ่ม Settings ต้องกดได้แน่ (กันโดนชั้นอื่นทับ) ===== */
+    section.chem-block .bb-section-h,
+    section.chem-block .bb-section-h .right-icons {
+        position: relative;
+        z-index: 99999 !important;
+        pointer-events: auto !important;
+    }
+
+    section.chem-block #btnSettings,
+    section.chem-block .bb-ico {
+        position: relative;
+        z-index: 100000 !important;
+        pointer-events: auto !important;
+    }
+</style>
+
+<section class="bb-section chem-block"
+         data-chem-summary-url="/api/chem/summary"
+         data-chem-refresh-sec="5">
+    <div class="bb-section-h">
+        <div class="left">
+            <div class="title">CHEM#1 & CHEM#2</div>
+        </div>
+
+        <div class="right-icons">
+            <button class="bb-ico" type="button" title="Bell" aria-label="Bell">
+                <span>🔔</span>
+            </button>
+            <button class="bb-ico" id="btnSettings" type="button" title="Settings" aria-label="Settings">
+                <span>⚙️</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="bb-section-b">
+        <div class="chem-grid2">
+
+            <!-- ALUM1 -->
+            <div class="chem-card ok" data-card="ALUM1">
+                <div class="hdr">
+                    <div class="chem-title">ALUM#1</div>
+                    <div class="chem-right">
+                        <span class="chem-pill" data-bind="ALUM1.OK_TEXT">OK</span>
+                        <span class="chem-chip stby" data-bind="ALUM1.TANKA">-</span>
+                        <span class="chem-chip stby" data-bind="ALUM1.TANKB">-</span>
+                    </div>
+                </div>
+
+                <div class="chem-body">
+                    <div class="chem-lines">
+                        <div class="chem-line">
+                            <span class="k">DOSE P1</span>
+                            <span class="v">
+                                <span data-bind="ALUM1.P1.MG">-</span> mg/L<br />
+                                <span data-bind="ALUM1.P1.LH">-</span> L/H
+                            </span>
+                        </div>
+                        <div class="chem-line">
+                            <span class="k">DOSE P2</span>
+                            <span class="v">
+                                <span data-bind="ALUM1.P2.MG">-</span> mg/L<br />
+                                <span data-bind="ALUM1.P2.LH">-</span> L/H
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="chem-eqbar">
+                        <div class="eq-line" style="grid-template-columns:max-content auto; column-gap:12px;">
+                            <div class="eq-label">PUMP</div>
+                            <div class="eq-slots eq-3" style="justify-self:start; margin-left:0;">
+                                <span class="eq-slot stby" data-bind="ALUM1.PUMP.1"></span>
+                                <span class="eq-slot stby" data-bind="ALUM1.PUMP.2"></span>
+                                <span class="eq-slot stby" data-bind="ALUM1.PUMP.3"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chem-gauges">
+                    <div class="chem-tank" style="--fill:0;" data-bind-fill="ALUM1.TANKA.FILL">
+                        <div class="chem-well">
+                            <div class="chem-fill"></div>
+                            <div class="chem-read" data-bind="ALUM1.TANKA.READ">-</div>
+                        </div>
+                        <div class="chem-cap"><b>TANK A</b><br />625 m³</div>
+                    </div>
+
+                    <div class="chem-tank" style="--fill:0;" data-bind-fill="ALUM1.TANKB.FILL">
+                        <div class="chem-well">
+                            <div class="chem-fill"></div>
+                            <div class="chem-read" data-bind="ALUM1.TANKB.READ">-</div>
+                        </div>
+                        <div class="chem-cap"><b>TANK B</b><br />625 m³</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PACL1 -->
+            <div class="chem-card ok" data-card="PACL1">
+                <div class="hdr">
+                    <div class="chem-title">PACL#1</div>
+                    <div class="chem-right">
+                        <span class="chem-pill" data-bind="PACL1.OK_TEXT">OK</span>
+                        <span class="chem-chip stby" data-bind="PACL1.TANKA">-</span>
+                        <span class="chem-chip stby" data-bind="PACL1.TANKB">-</span>
+                    </div>
+                </div>
+
+                <div class="chem-body">
+                    <div class="chem-lines">
+                        <div class="chem-line">
+                            <span class="k">DOSE P1</span>
+                            <span class="v">
+                                <span data-bind="PACL1.P1.MG">-</span> mg/L<br />
+                                <span data-bind="PACL1.P1.LH">-</span> L/H
+                            </span>
+                        </div>
+                        <div class="chem-line">
+                            <span class="k">DOSE P2</span>
+                            <span class="v">
+                                <span data-bind="PACL1.P2.MG">-</span> mg/L<br />
+                                <span data-bind="PACL1.P2.LH">-</span> L/H
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="chem-eqbar">
+                        <div class="eq-line" style="grid-template-columns:max-content auto; column-gap:12px;">
+                            <div class="eq-label">PUMP</div>
+                            <div class="eq-slots eq-3" style="justify-self:start; margin-left:0;">
+                                <span class="eq-slot stby" data-bind="PACL1.PUMP.1"></span>
+                                <span class="eq-slot stby" data-bind="PACL1.PUMP.2"></span>
+                                <span class="eq-slot stby" data-bind="PACL1.PUMP.3"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chem-gauges">
+                    <div class="chem-tank" style="--fill:0;" data-bind-fill="PACL1.TANKA.FILL">
+                        <div class="chem-well">
+                            <div class="chem-fill"></div>
+                            <div class="chem-read" data-bind="PACL1.TANKA.READ">-</div>
+                        </div>
+                        <div class="chem-cap"><b>TANK A</b><br />25 m³</div>
+                    </div>
+                    <div class="chem-tank" style="--fill:0;" data-bind-fill="PACL1.TANKB.FILL">
+                        <div class="chem-well">
+                            <div class="chem-fill"></div>
+                            <div class="chem-read" data-bind="PACL1.TANKB.READ">-</div>
+                        </div>
+                        <div class="chem-cap"><b>TANK B</b><br />25 m³</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CHLORINE1 -->
+            <div class="chem-card ok" data-card="CHLORINE1">
+                <div class="hdr">
+                    <div class="chem-title">CHLORINE#1</div>
+                    <div class="chem-right">
+                        <span class="chem-pill" data-bind="CHLORINE1.OK_TEXT">OK</span>
+                        <span class="chem-chip stby" data-bind="CHLORINE1.LINEA">-</span>
+                        <span class="chem-chip stby" data-bind="CHLORINE1.LINEB">-</span>
+                    </div>
+                </div>
+
+                <div class="chem-body">
+                    <div class="chem-lines chem-lines--cl">
+                        <div class="chem-line">
+                            <span class="k">PRE P1</span>
+                            <span class="v">
+                                <span class="mg"><span data-bind="CHLORINE1.PRE.P1.MG">-</span> mg/L</span>
+                                <span class="lh"><span data-bind="CHLORINE1.PRE.P1.KGH">-</span> kg/H</span>
+                            </span>
+                        </div>
+                        <div class="chem-line">
+                            <span class="k">POST P1</span>
+                            <span class="v">
+                                <span class="mg"><span data-bind="CHLORINE1.POST.P1.MG">-</span> mg/L</span>
+                                <span class="lh"><span data-bind="CHLORINE1.POST.P1.KGH">-</span> kg/H</span>
+                            </span>
+                        </div>
+                        <div class="chem-line">
+                            <span class="k">PRE P2</span>
+                            <span class="v">
+                                <span class="mg"><span data-bind="CHLORINE1.PRE.P2.MG">-</span> mg/L</span>
+                                <span class="lh"><span data-bind="CHLORINE1.PRE.P2.KGH">-</span> kg/H</span>
+                            </span>
+                        </div>
+                        <div class="chem-line">
+                            <span class="k">POST P2</span>
+                            <span class="v">
+                                <span class="mg"><span data-bind="CHLORINE1.POST.P2.MG">-</span> mg/L</span>
+                                <span class="lh"><span data-bind="CHLORINE1.POST.P2.KGH">-</span> kg/H</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="chem-eqbar">
+                        <div class="eq-line">
+                            <div class="eq-label">EVAP</div>
+                            <div class="eq-slots eq-4">
+                                <span class="eq-slot stby" data-bind="CHLORINE1.EVAP.1"></span>
+                                <span class="eq-slot stby" data-bind="CHLORINE1.EVAP.2"></span>
+                                <span class="eq-slot stby" data-bind="CHLORINE1.EVAP.3"></span>
+                                <span class="eq-slot stby" data-bind="CHLORINE1.EVAP.4"></span>
+                            </div>
+                        </div>
+
+                        <div class="eq-line">
+                            <div class="eq-label">CHLORINATOR</div>
+                            <div class="eq-slots eq-5">
+                                <span class="eq-slot rep" data-bind="CHLORINE1.CHLORINATOR.1"></span>
+                                <span class="eq-slot rep" data-bind="CHLORINE1.CHLORINATOR.2"></span>
+                                <span class="eq-slot rep" data-bind="CHLORINE1.CHLORINATOR.3"></span>
+                                <span class="eq-slot rep" data-bind="CHLORINE1.CHLORINATOR.4"></span>
+                                <span class="eq-slot rep" data-bind="CHLORINE1.CHLORINATOR.5"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chem-gauges">
+                    <div class="chem-tank" style="--fill:0;" data-bind-fill="CHLORINE1.LINEA.FILL">
+                        <div class="chem-well">
+                            <div class="chem-fill"></div>
+                            <div class="chem-read" data-bind="CHLORINE1.LINEA.READ">-</div>
+                        </div>
+                        <div class="chem-cap"><b>LINE A</b><br />6,000 kg</div>
+                    </div>
+                    <div class="chem-tank" style="--fill:0;" data-bind-fill="CHLORINE1.LINEB.FILL">
+                        <div class="chem-well">
+                            <div class="chem-fill"></div>
+                            <div class="chem-read" data-bind="CHLORINE1.LINEB.READ">-</div>
+                        </div>
+                        <div class="chem-cap"><b>LINE B</b><br />6,000 kg</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ALUM2 -->
+            <div class="chem-card ok" data-card="ALUM2">
+                <div class="hdr">
+                    <div class="chem-title">ALUM#2</div>
+                    <div class="chem-right">
+                        <span class="chem-pill" data-bind="ALUM2.OK_TEXT">OK</span>
+                        <span class="chem-chip stby" data-bind="ALUM2.TANKA">-</span>
+                        <span class="chem-chip stby" data-bind="ALUM2.TANKB">-</span>
+                    </div>
+                </div>
+
+                <div class="chem-body">
+                    <div class="chem-lines">
+                        <div class="chem-line">
+                            <span class="k">DOSE P3</span>
+                            <span class="v">
+                                <span data-bind="ALUM2.P3.MG">-</span> mg/L<br />
+                                <span data-bind="ALUM2.P3.LH">-</span> L/H
+                            </span>
+                        </div>
+                        <div class="chem-line">
+                            <span class="k">DOSE P4</span>
+                            <span class="v">
+                                <span data-bind="ALUM2.P4.MG">-</span> mg/L<br />
+                                <span data-bind="ALUM2.P4.LH">-</span> L/H
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="chem-eqbar">
+                        <div class="eq-line" style="grid-template-columns:max-content auto; column-gap:12px;">
+                            <div class="eq-label">PUMP P3</div>
+                            <div class="eq-slots eq-3" style="justify-self:start; margin-left:0;">
+                                <span class="eq-slot stby" data-bind="ALUM3.PUMP.1"></span>
+                                <span class="eq-slot stby" data-bind="ALUM3.PUMP.2"></span>
+                                <span class="eq-slot stby" data-bind="ALUM3.PUMP.3"></span>
+                            </div>
+                            <div class="eq-label">PUMP P4</div>
+                            <div class="eq-slots eq-3" style="justify-self:start; margin-left:0;">
+                                <span class="eq-slot stby" data-bind="ALUM4.PUMP.1"></span>
+                                <span class="eq-slot stby" data-bind="ALUM4.PUMP.2"></span>
+                                <span class="eq-slot stby" data-bind="ALUM4.PUMP.3"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chem-gauges">
+                    <div class="chem-tank" style="--fill:0;" data-bind-fill="ALUM2.TANKA.FILL">
+                        <div class="chem-well">
+                            <div class="chem-fill"></div>
+                            <div class="chem-read" data-bind="ALUM2.TANKA.READ">-</div>
+                        </div>
+                        <div class="chem-cap"><b>TANK A</b><br />625 m³</div>
+                    </div>
+
+                    <div class="chem-tank" style="--fill:0;" data-bind-fill="ALUM2.TANKB.FILL">
+                        <div class="chem-well">
+                            <div class="chem-fill"></div>
+                            <div class="chem-read" data-bind="ALUM2.TANKB.READ">-</div>
+                        </div>
+                        <div class="chem-cap"><b>TANK B</b><br />625 m³</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PACL2 -->
+            <div class="chem-card ok" data-card="PACL2">
+                <div class="hdr">
+                    <div class="chem-title">PACL#2</div>
+                    <div class="chem-right">
+                        <span class="chem-pill" data-bind="PACL2.OK_TEXT">OK</span>
+                        <span class="chem-chip stby" data-bind="PACL2.TANKC">-</span>
+                        <span class="chem-chip stby" data-bind="PACL2.TANKD">-</span>
+                    </div>
+                </div>
+
+                <div class="chem-body">
+                    <div class="chem-lines">
+                        <div class="chem-line">
+                            <span class="k">DOSE P3</span>
+                            <span class="v">
+                                <span data-bind="PACL2.P3.MG">-</span> mg/L<br />
+                                <span data-bind="PACL2.P3.LH">-</span> L/H
+                            </span>
+                        </div>
+                        <div class="chem-line">
+                            <span class="k">DOSE P4</span>
+                            <span class="v">
+                                <span data-bind="PACL2.P4.MG">-</span> mg/L<br />
+                                <span data-bind="PACL2.P4.LH">-</span> L/H
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="chem-eqbar">
+                        <div class="eq-line" style="grid-template-columns:max-content auto; column-gap:12px;">
+                            <div class="eq-label">PUMP</div>
+                            <div class="eq-slots eq-3" style="justify-self:start; margin-left:0;">
+                                <span class="eq-slot stby" data-bind="PACL2.PUMP.1"></span>
+                                <span class="eq-slot stby" data-bind="PACL2.PUMP.2"></span>
+                                <span class="eq-slot stby" data-bind="PACL2.PUMP.3"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chem-gauges">
+                    <div class="chem-tank" style="--fill:0;" data-bind-fill="PACL2.TANKA.FILL">
+                        <div class="chem-well">
+                            <div class="chem-fill"></div>
+                            <div class="chem-read" data-bind="PACL2.TANKA.READ">-</div>
+                        </div>
+                        <div class="chem-cap"><b>TANK A</b><br />25 m³</div>
+                    </div>
+
+                    <div class="chem-tank" style="--fill:0;" data-bind-fill="PACL2.TANKB.FILL">
+                        <div class="chem-well">
+                            <div class="chem-fill"></div>
+                            <div class="chem-read" data-bind="PACL2.TANKB.READ">-</div>
+                        </div>
+                        <div class="chem-cap"><b>TANK B</b><br />24 m³</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CHLORINE2 -->
+            <div class="chem-card ok" data-card="CHLORINE2">
+                <div class="hdr">
+                    <div class="chem-title">CHLORINE#2</div>
+                    <div class="chem-right">
+                        <span class="chem-pill" data-bind="CHLORINE2.OK_TEXT">OK</span>
+                        <span class="chem-chip stby" data-bind="CHLORINE2.LINEA">-</span>
+                        <span class="chem-chip stby" data-bind="CHLORINE2.LINEB">-</span>
+                    </div>
+                </div>
+
+                <div class="chem-body">
+                    <div class="chem-lines chem-lines--cl">
+                        <div class="chem-line">
+                            <span class="k">PRE P3</span>
+                            <span class="v">
+                                <span class="mg"><span data-bind="CHLORINE2.PRE.P3.MG">-</span> mg/L</span>
+                                <span class="lh"><span data-bind="CHLORINE2.PRE.P3.KGH">-</span> kg/H</span>
+                            </span>
+                        </div>
+                        <div class="chem-line">
+                            <span class="k">POST P3</span>
+                            <span class="v">
+                                <span class="mg"><span data-bind="CHLORINE2.POST.P3.MG">-</span> mg/L</span>
+                                <span class="lh"><span data-bind="CHLORINE2.POST.P3.KGH">-</span> kg/H</span>
+                            </span>
+                        </div>
+                        <div class="chem-line">
+                            <span class="k">PRE P4</span>
+                            <span class="v">
+                                <span class="mg"><span data-bind="CHLORINE2.PRE.P4.MG">-</span> mg/L</span>
+                                <span class="lh"><span data-bind="CHLORINE2.PRE.P4.KGH">-</span> kg/H</span>
+                            </span>
+                        </div>
+                        <div class="chem-line">
+                            <span class="k">POST P4</span>
+                            <span class="v">
+                                <span class="mg"><span data-bind="CHLORINE2.POST.P4.MG">-</span> mg/L</span>
+                                <span class="lh"><span data-bind="CHLORINE2.POST.P4.KGH">-</span> kg/H</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="chem-eqbar">
+                        <div class="eq-line">
+                            <div class="eq-label">EVAP</div>
+                            <div class="eq-slots eq-5">
+                                <span class="eq-slot stby" data-bind="CHLORINE2.EVAP.1"></span>
+                                <span class="eq-slot stby" data-bind="CHLORINE2.EVAP.2"></span>
+                                <span class="eq-slot stby" data-bind="CHLORINE2.EVAP.3"></span>
+                                <span class="eq-slot stby" data-bind="CHLORINE2.EVAP.4"></span>
+                                <span class="eq-slot stby" data-bind="CHLORINE2.EVAP.5"></span>
+                            </div>
+                        </div>
+
+                        <div class="eq-line">
+                            <div class="eq-label">CHLORINATOR</div>
+                            <div class="eq-slots eq-5">
+                                <span class="eq-slot rep" data-bind="CHLORINE2.CHLORINATOR.1"></span>
+                                <span class="eq-slot rep" data-bind="CHLORINE2.CHLORINATOR.2"></span>
+                                <span class="eq-slot rep" data-bind="CHLORINE2.CHLORINATOR.3"></span>
+                                <span class="eq-slot rep" data-bind="CHLORINE2.CHLORINATOR.4"></span>
+                                <span class="eq-slot rep" data-bind="CHLORINE2.CHLORINATOR.5"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chem-gauges">
+                    <div class="chem-tank" style="--fill:0;" data-bind-fill="CHLORINE2.LINEA.FILL">
+                        <div class="chem-well">
+                            <div class="chem-fill"></div>
+                            <div class="chem-read" data-bind="CHLORINE2.LINEA.READ">-</div>
+                        </div>
+                        <div class="chem-cap"><b>LINE A</b><br />6,000 kg</div>
+                    </div>
+
+                    <div class="chem-tank" style="--fill:0;" data-bind-fill="CHLORINE2.LINEB.FILL">
+                        <div class="chem-well">
+                            <div class="chem-fill"></div>
+                            <div class="chem-read" data-bind="CHLORINE2.LINEB.READ">-</div>
+                        </div>
+                        <div class="chem-cap"><b>LINE B</b><br />6,000 kg</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</section>

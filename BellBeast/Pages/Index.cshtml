@@ -1,0 +1,144 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "AQ Table";
+}
+
+<div class="card">
+    <div class="toolbar">
+        <div class="toolbar-left">
+            <div id="status" class="status">ผลลัพธ์ (- แถว)</div>
+        </div>
+
+        <!-- ✅ ลบปุ่มเพิ่มเข้าจาก toolbar ออก (กันซ้ำ id + ให้ไปอยู่แถว keyword ตามรูป 2) -->
+        <div class="toolbar-right">
+            <button id="btnLogout" class="btn btn-secondary" type="button">Logout</button>
+        </div>
+    </div>
+
+    <div class="filters">
+        <div class="filters-grid">
+
+            <!-- Plant block -->
+            <div class="filter-card">
+                <div class="filter-title">โรงงาน (Plant)</div>
+                <div class="chip-row" id="plantChips">
+                    <!-- JS จะเติมปุ่มให้ -->
+                </div>
+            </div>
+
+            <!-- Station block -->
+            <div class="filter-card">
+                <div class="filter-title">สถานี (Station – toggle)</div>
+                <div class="chip-row" id="stationChips">
+                    <!-- JS จะเติมปุ่มให้ -->
+                </div>
+            </div>
+
+            <!-- Keyword block (เต็มแถว) -->
+            <div class="filter-card span-2">
+                <div class="filter-title">คำค้น (เช่น Turbidity, RWS, Flow, 191)</div>
+
+                <!-- ✅ แถวเดียวแบบรูป 2 -->
+                <div class="kw-row">
+                    <input id="q" class="input kw-input"
+                           placeholder="พิมพ์ชื่อพารามิเตอร์ / สถานี / plant / equipment / หน่วย หรือ configID..." />
+
+                    <button id="btnReset" class="btn btn-secondary kw-reset" type="button">Reset</button>
+
+                    <div id="statusInline" class="status-inline">ผลลัพธ์ (- แถว)</div>
+
+                    <!-- ✅ ปุ่มเพิ่มเข้าอยู่แถวเดียวกับ Reset -->
+                    <!-- ✅ id ไม่ซ้ำแล้ว -->
+                    <button id="btnAddSelected" class="btn btn-success kw-add" type="button" disabled>
+                        เพิ่มเข้า “รายการที่เลือก” (<span id="selectedCount">0</span>)
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table id="tbl" class="aq-table">
+            <thead>
+                <tr>
+                    <th class="col-check">เลือก</th>
+                    <th class="col-id">configID</th>
+                    <th class="col-plant">Plant</th>
+                    <th class="col-station">Station</th>
+                    <th class="col-param">Param</th>
+                    <th class="col-equip">Equipment</th>
+                    <th class="col-measure">Measure (TH)</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <div class="pager">
+        <button id="btnPrev" class="btn" type="button">Prev</button>
+        <div id="pageInfo" class="pageinfo">Page -</div>
+        <button id="btnNext" class="btn" type="button">Next</button>
+    </div>
+
+    <div class="selected">
+        <div class="selected-bar">
+            <div class="selected-title">รายการที่เลือก</div>
+
+            <div class="selected-actions">
+                <button id="btnSaveTemplate" class="btn btn-success" type="button">
+                    Save template
+                </button>
+
+                <button id="btnLoadTemplate" class="btn-orange">
+                    Load template
+                </button>
+
+                <!-- file picker ซ่อนไว้ -->
+                <input id="fileTemplate" type="file" accept=".json,application/json" style="display:none" />
+            </div>
+        </div>
+
+        <div class="table-wrap small">
+            <table id="tblSelected" class="aq-table">
+                <thead>
+                    <tr>
+                        <th class="col-check">ลบ</th>
+                        <th class="col-id">configID</th>
+                        <th class="col-plant">Plant</th>
+                        <th class="col-station">Station</th>
+                        <th class="col-param">Param</th>
+                        <th class="col-equip">Equipment</th>
+                        <th class="col-measure">Measure (TH)</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="selected-head">
+        <div class="selected-actions">
+           
+
+            <div class="date-box">
+                <label>Begin</label>
+                <input id="beginDate" type="date" class="input date-input" />
+            </div>
+
+            <div class="date-box">
+                <label>End</label>
+                <input id="endDate" type="date" class="input date-input" />
+            </div>
+
+            <button id="btnProceed" class="btn-green">Proceed Query</button>
+            <button id="btnClearSelected" class="btn btn-danger">Clear All Selection</button>
+        </div>
+    </div>
+
+</div>
+
+@section Scripts {
+    <script src="~/js/site.js" asp-append-version="true"></script>
+}

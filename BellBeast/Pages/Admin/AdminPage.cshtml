@@ -1,0 +1,1133 @@
+﻿@page
+@model AdminPageModel
+@{
+    ViewData["Title"] = "Engine Admin";
+}
+
+<div class="bb-wrap">
+    <!-- Fixed-height header -->
+    <div class="bb-head">
+        <div class="bb-left">
+            <div class="bb-title" title="Engine Control Panel">Engine Control Panel</div>
+            <div class="bb-sub">
+                <span class="pill" id="pillPoll">poll: <span id="pollSecText">2</span>s</span>
+                <span class="pill" id="pillLast">last: <span id="lastTs">-</span></span>
+                <span class="pill" id="pillEngine">
+                    <span class="dot" id="engineDot"></span>
+                    <span id="engineText">unknown</span>
+                </span>
+            </div>
+        </div>
+
+        <div class="bb-actions">
+            <button class="btn warn" id="btnPause" type="button" onclick="pauseEngine()">Pause</button>
+            <button class="btn ok" id="btnResume" type="button" onclick="resumeEngine()">Resume</button>
+            <button class="btn danger" id="btnCancelAll" type="button" onclick="cancelAll()">Cancel All</button>
+            <button class="btn" type="button" onclick="clearConsole()">Clear</button>
+        </div>
+    </div>
+
+    <!-- Block 1: Console -->
+    <section class="panel">
+        <div class="panel-head">
+            <div class="panel-title">Console</div>
+            <div class="panel-right">
+                <span class="muted">backend:</span>
+                <code id="backendBase">loading...</code>
+            </div>
+        </div>
+        <div class="panel-body console" id="consoleBox"></div>
+        <div class="panel-foot">
+            <span class="muted">
+                ✓ auto refresh / ✓ toggle autosave / ✓ interval per task / ✓ next column (from status or computed)
+            </span>
+        </div>
+    </section>
+
+    <!-- Block 2: Tasks -->
+    <section class="panel">
+        <div class="panel-head">
+            <div class="panel-title">Tasks</div>
+            <div class="panel-right">
+                <button class="btn sm" type="button" onclick="forcerun()">Force run</button>
+                <button class="btn sm" type="button" onclick="forceRefresh()">Refresh now</button>
+            </div>
+        </div>
+
+        <div class="panel-body table-wrap" id="tableWrap">
+            <table class="tbl" id="tasksTable">
+                <thead>
+                    <tr>
+                        <th class="c-name">Name</th>
+                        <th class="c-group">Group</th>
+                        <th class="c-enabled">Enabled</th>
+                        <th class="c-interval">Interval (s)</th>
+                        <th class="c-next">Next</th>
+                        <th class="c-running">Running</th>
+                        <th class="c-last">Last OK / FAIL</th>
+                        <th class="c-actions">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="tasksBody">
+                    <tr><td colspan="8" class="muted">loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="panel-foot">
+            <span class="muted" id="statusHint">
+                * Interval ใส่ “วินาที” (ส่งไป backend เป็น ms) | * โฟกัส input ในตาราง = หยุด refresh ชั่วคราว
+            </span>
+        </div>
+    </section>
+</div>
+
+<style>
+    :root {
+        --bg0: #071018;
+        --bg1: #0a1520;
+        --line: rgba(255,255,255,.08);
+        --text: #e8f0ff;
+        --muted: rgba(232,240,255,.65);
+        --good: #2ee59d;
+        --warn: #ffcc66;
+        --bad: #ff667a;
+        --shadow: 0 12px 40px rgba(0,0,0,.45);
+        --radius: 18px;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans Thai", "Noto Sans", sans-serif;
+    }
+
+    body {
+        background: radial-gradient(1200px 600px at 50% 10%, rgba(70,120,255,.18), transparent 60%), radial-gradient(900px 450px at 20% 10%, rgba(46,229,157,.12), transparent 55%), radial-gradient(900px 450px at 80% 30%, rgba(255,102,122,.10), transparent 55%), linear-gradient(180deg, var(--bg0), var(--bg1));
+        color: var(--text);
+        font-family: var(--sans);
+    }
+
+    .bb-wrap {
+        width: min(1200px, calc(100% - 24px));
+        margin: 16px auto;
+        padding: 16px;
+    }
+
+    /* ✅ fixed-height header (กัน text ยาวดัน height) */
+    .bb-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+        min-height: 86px;
+        max-height: 86px;
+        overflow: hidden;
+    }
+
+    .bb-left {
+        min-width: 0;
+    }
+
+    .bb-title {
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: .2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+    }
+
+    .bb-sub {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: nowrap; /* ไม่ให้ดันลงหลายบรรทัด */
+        margin-top: 6px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+    }
+
+    .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.06);
+        border: 1px solid var(--line);
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--muted);
+        flex: 0 0 auto;
+    }
+
+    .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: rgba(255,255,255,.35);
+        box-shadow: 0 0 0 3px rgba(255,255,255,.06);
+    }
+
+    .bb-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        flex: 0 0 auto;
+    }
+
+    .panel {
+        background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.04));
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        margin-top: 12px;
+        backdrop-filter: blur(10px);
+    }
+
+    .panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(0,0,0,.18);
+    }
+
+    .panel-title {
+        font-weight: 800;
+        letter-spacing: .2px;
+    }
+
+    .panel-right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 12px;
+        color: var(--muted);
+    }
+
+        .panel-right code {
+            font-family: var(--mono);
+            padding: 4px 8px;
+            border-radius: 10px;
+            background: rgba(0,0,0,.25);
+            border: 1px solid var(--line);
+            color: rgba(232,240,255,.85);
+        }
+
+    .panel-body {
+        padding: 12px 14px;
+    }
+
+    .panel-foot {
+        padding: 10px 14px;
+        border-top: 1px solid var(--line);
+        background: rgba(0,0,0,.12);
+        color: var(--muted);
+        font-size: 12px;
+    }
+
+    .muted {
+        color: var(--muted);
+    }
+
+    .btn {
+        background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+        border: 1px solid var(--line);
+        color: var(--text);
+        padding: 9px 12px;
+        border-radius: 12px;
+        cursor: pointer;
+        font-weight: 700;
+        letter-spacing: .1px;
+        transition: transform .05s ease, background .15s ease, border-color .15s ease;
+        user-select: none;
+    }
+
+        .btn:hover {
+            background: rgba(255,255,255,.10);
+            border-color: rgba(255,255,255,.14);
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .btn.sm {
+            padding: 7px 10px;
+            border-radius: 10px;
+            font-size: 12px;
+        }
+
+        .btn.ok {
+            border-color: rgba(46,229,157,.35);
+        }
+
+        .btn.warn {
+            border-color: rgba(255,204,102,.35);
+        }
+
+        .btn.danger {
+            border-color: rgba(255,102,122,.35);
+        }
+
+        .btn:disabled {
+            opacity: .55;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+    .console {
+        font-family: var(--mono);
+        font-size: 13px;
+        line-height: 1.55;
+        min-height: 180px;
+        max-height: 260px;
+        overflow: auto;
+        background: rgba(0,0,0,.20);
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        padding: 10px 10px;
+        white-space: pre-wrap;
+    }
+
+    .log-line {
+        display: block;
+        margin: 2px 0;
+    }
+
+    .log-ts {
+        color: rgba(232,240,255,.55);
+        margin-right: 8px;
+    }
+
+    .log-ok {
+        color: var(--good);
+    }
+
+    .log-warn {
+        color: var(--warn);
+    }
+
+    .log-err {
+        color: var(--bad);
+    }
+
+    /* table */
+    .table-wrap {
+        padding: 0;
+        background: rgba(0,0,0,.16);
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+        max-height: 520px;
+        overflow: auto;
+    }
+
+    .tbl {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 13px;
+    }
+
+        .tbl thead th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background: rgba(10,18,28,.92);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--line);
+            padding: 10px 10px;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .tbl tbody td {
+            border-bottom: 1px solid rgba(255,255,255,.06);
+            padding: 8px 10px;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+        .tbl tbody tr:hover td {
+            background: rgba(255,255,255,.04);
+        }
+
+    .c-name {
+        width: 260px;
+    }
+
+    .c-group {
+        width: 110px;
+        color: var(--muted);
+    }
+
+    .c-enabled {
+        width: 120px;
+    }
+
+    .c-interval {
+        width: 170px;
+    }
+    /* ให้พอวาง input+save */
+    .c-next {
+        width: 190px;
+    }
+
+    .c-running {
+        width: 110px;
+    }
+
+    .c-last {
+        width: 220px;
+    }
+
+    .c-actions {
+        width: 120px;
+        text-align: right;
+    }
+
+    .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255,255,255,.06);
+        font-family: var(--mono);
+        font-size: 12px;
+        color: rgba(232,240,255,.85);
+    }
+
+        .tag.good {
+            border-color: rgba(46,229,157,.35);
+        }
+
+        .tag.warn {
+            border-color: rgba(255,204,102,.35);
+        }
+
+        .tag.bad {
+            border-color: rgba(255,102,122,.35);
+        }
+
+    .in {
+        width: 92px;
+        padding: 7px 8px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,.10);
+        background: rgba(0,0,0,.25);
+        color: var(--text);
+        font-family: var(--mono);
+        outline: none;
+        margin-right: 8px;
+    }
+
+        .in:focus {
+            border-color: rgba(70,120,255,.45);
+            box-shadow: 0 0 0 3px rgba(70,120,255,.15);
+        }
+
+    .row-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        align-items: center;
+    }
+
+    /* ✅ Toggle switch */
+    .sw {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        user-select: none;
+        font-family: var(--mono);
+        color: rgba(232,240,255,.75);
+        font-size: 12px;
+    }
+
+        .sw input {
+            display: none;
+        }
+
+    .sw-track {
+        width: 54px;
+        height: 28px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,.14);
+        background: rgba(255,255,255,.08);
+        position: relative;
+        transition: background .15s ease, border-color .15s ease;
+        box-shadow: inset 0 0 0 1px rgba(0,0,0,.25);
+        cursor: pointer;
+    }
+
+    .sw-knob {
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        background: rgba(232,240,255,.92);
+        position: absolute;
+        top: 2.5px;
+        left: 3px;
+        transition: left .18s ease, background .15s ease;
+        box-shadow: 0 6px 18px rgba(0,0,0,.35);
+    }
+
+    .sw.on .sw-track {
+        background: rgba(46,229,157,.22);
+        border-color: rgba(46,229,157,.35);
+    }
+
+    .sw.on .sw-knob {
+        left: 28px;
+        background: rgba(46,229,157,.95);
+    }
+
+    @@media (max-width: 900px) {
+        .bb-head {
+            flex-direction: column;
+            align-items: flex-start;
+            min-height: 110px;
+            max-height: 110px;
+        }
+
+        .bb-actions {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        .c-last {
+            display: none;
+        }
+
+        .c-next {
+            display: none;
+        }
+
+        .c-group {
+            display: none;
+        }
+
+        .c-actions {
+            width: 90px;
+        }
+
+        .c-name {
+            width: auto;
+        }
+    }
+</style>
+
+<script>
+    // ============================
+    // Settings
+    // ============================
+    const POLL_SEC = 2;
+    document.getElementById('pollSecText').textContent = String(POLL_SEC);
+
+    // pause refresh while editing
+    let pauseRefreshBecauseEditing = false;
+
+    // backend base (from /api/backend-config)  -> reads App_data/backend-config.json via your razor API
+    let backendBaseUrl = "";
+    function api(path) {
+        if (!path.startsWith("/")) path = "/" + path;
+        return (backendBaseUrl || "").replace(/\/+$/, "") + path;
+    }
+
+    // cached snapshots
+    let lastStatus = null;
+    let lastConfig = null;
+
+    // per-row dirty state
+    const dirty = new Map(); // name -> { enabled?, intervalSec? }
+
+    // ============================
+    // Console
+    // ============================
+    function nowHHMMSS(){
+        const d = new Date();
+        const hh = String(d.getHours()).padStart(2,'0');
+        const mm = String(d.getMinutes()).padStart(2,'0');
+        const ss = String(d.getSeconds()).padStart(2,'0');
+        return `${hh}:${mm}:${ss}`;
+    }
+
+    function logLine(level, msg){
+        const box = document.getElementById('consoleBox');
+        const line = document.createElement('span');
+        line.className = 'log-line';
+        const ts = document.createElement('span');
+        ts.className = 'log-ts';
+        ts.textContent = `[${nowHHMMSS()}]`;
+        const m = document.createElement('span');
+        m.className = (level === 'ok' ? 'log-ok' : level === 'warn' ? 'log-warn' : level === 'err' ? 'log-err' : '');
+        m.textContent = msg;
+        line.appendChild(ts);
+        line.appendChild(m);
+        box.appendChild(line);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function clearConsole(){
+        const box = document.getElementById('consoleBox');
+        box.innerHTML = '';
+        logLine('ok', 'console cleared');
+    }
+
+    // ============================
+    // Engine indicator
+    // ============================
+    function setEnginePill(state, text){
+        const dot = document.getElementById('engineDot');
+        const t = document.getElementById('engineText');
+        const pill = document.getElementById('pillEngine');
+
+        t.textContent = text;
+
+        dot.style.background = 'rgba(255,255,255,.35)';
+        pill.style.borderColor = 'rgba(255,255,255,.18)';
+
+        if (state === 'paused'){
+            dot.style.background = 'rgba(255,204,102,.95)';
+            pill.style.borderColor = 'rgba(255,204,102,.35)';
+        } else if (state === 'running'){
+            dot.style.background = 'rgba(46,229,157,.95)';
+            pill.style.borderColor = 'rgba(46,229,157,.35)';
+        } else if (state === 'error'){
+            dot.style.background = 'rgba(255,102,122,.95)';
+            pill.style.borderColor = 'rgba(255,102,122,.35)';
+        }
+    }
+
+    function setButtonsEnabled(paused){
+        document.getElementById('btnPause').disabled = paused === true;
+        document.getElementById('btnResume').disabled = paused === false;
+    }
+
+    // ============================
+    // HTTP helpers
+    // ============================
+    async function fetchJson(url, opt){
+        const r = await fetch(url, opt);
+        const ct = (r.headers.get('content-type') || '').toLowerCase();
+        const text = await r.text();
+
+        if (!ct.includes('application/json')){
+            throw new Error(`Non-JSON response (${r.status}) ct='${ct}' body='${(text||'').slice(0,120)}'`);
+        }
+
+        let j;
+        try { j = JSON.parse(text || '{}'); }
+        catch { throw new Error(`Bad JSON (${r.status}) body='${(text||'').slice(0,120)}'`); }
+
+        if (!r.ok){
+            const e = (j && (j.error || j.message)) ? (j.error || j.message) : `HTTP ${r.status}`;
+            throw new Error(e);
+        }
+        return j;
+    }
+
+    function fmtUtc(s){
+        if (!s) return "-";
+        try {
+            const d = new Date(s);
+            if (isNaN(d.getTime())) return String(s);
+            const yy = d.getFullYear();
+            const mo = String(d.getMonth()+1).padStart(2,'0');
+            const da = String(d.getDate()).padStart(2,'0');
+            const hh = String(d.getHours()).padStart(2,'0');
+            const mm = String(d.getMinutes()).padStart(2,'0');
+            const ss = String(d.getSeconds()).padStart(2,'0');
+            return `${yy}-${mo}-${da} ${hh}:${mm}:${ss}`;
+        } catch { return String(s); }
+    }
+
+    // ============================
+    // Backend calls
+    // ============================
+    async function loadBackendConfig(){
+        // your razor endpoint should read App_data/backend-config.json and return json
+        const j = await fetchJson('/api/backend-config', { method: 'GET' });
+        backendBaseUrl = (j.backendBaseUrl || '').trim().replace(/\/+$/,'');
+        document.getElementById('backendBase').textContent = backendBaseUrl || '(empty)';
+        logLine('ok', `backendBaseUrl = ${backendBaseUrl}`);
+    }
+
+    async function getStatus(){
+        return await fetchJson(api('/admin/tasks/status'), { method: 'GET' });
+    }
+
+    async function getConfig(){
+        return await fetchJson(api('/admin/tasks/config'), { method: 'GET' });
+    }
+
+    async function postConfigUpdates(updates){
+        return await fetchJson(api('/admin/tasks/config'), {
+            method: 'POST',
+            headers: { 'Content-Type':'application/json' },
+            body: JSON.stringify({ updates })
+        });
+    }
+
+    async function pauseEngine(){
+        try{
+            await fetchJson(api('/admin/pause'), { method:'POST' });
+            logLine('warn', 'engine paused');
+            await forceRefresh();
+        }catch(ex){
+            logLine('err', `pause error: ${ex.message}`);
+        }
+    }
+
+    async function resumeEngine(){
+        try{
+            await fetchJson(api('/admin/resume'), { method:'POST' });
+            logLine('ok', 'engine resumed');
+            await forceRefresh();
+        }catch(ex){
+            logLine('err', `resume error: ${ex.message}`);
+        }
+    }
+
+    async function cancelAll(){
+        try{
+            await fetchJson(api('/admin/cancelall'), { method:'POST' });
+            logLine('warn', 'cancelAll requested');
+            await forceRefresh();
+        }catch(ex){
+            logLine('err', `cancelAll error: ${ex.message}`);
+        }
+    }
+
+    // ============================
+    // Data helpers
+    // ============================
+    function findStatusRow(name){
+        const arr = (lastStatus && lastStatus.tasks) ? lastStatus.tasks : [];
+        const key = String(name||'').toLowerCase();
+        return arr.find(x => String(x.name||'').toLowerCase() === key) || null;
+    }
+
+    function findConfigRow(name){
+        const arr = (lastConfig && lastConfig.tasks) ? lastConfig.tasks : [];
+        const key = String(name||'').toLowerCase();
+        return arr.find(x => String(x.name||'').toLowerCase() === key) || null;
+    }
+
+    function makeTag(text, kind){
+        const span = document.createElement('span');
+        span.className = 'tag ' + (kind || '');
+        span.textContent = text;
+        return span;
+    }
+
+    // ✅ Next: use status field if present, else compute from lastOk + interval
+    function resolveNextUtc(configRow, statusRow){
+        statusRow = statusRow || {};
+        configRow = configRow || {};
+
+        // อ่าน updatedAtUnixMs (เผื่อ serializer casing)
+        const updMs = (configRow.updatedAtUnixMs ?? configRow.UpdatedAtUnixMs ?? 0) || 0;
+        const now = Date.now();
+
+        // ✅ ถ้า updMs เป็น "forcerun" (ใกล้ตอนนี้) ให้ override แม้ status จะมี next
+        // window: now-2s .. now+10min (ปรับได้)
+        const isForceDue = (updMs > 0 && updMs >= (now - 2000) && updMs <= (now + 10 * 60 * 1000));
+
+        if (isForceDue && !statusRow.running){
+            const d = new Date(updMs);
+            if (!isNaN(d.getTime())) return d.toISOString();
+        }
+
+        // 1) backend status has explicit next -> trust it
+        const candidates = [
+            statusRow.nextRunAtUtc,
+            statusRow.nextRunUtc,
+            statusRow.nextAtUtc,
+            statusRow.nextRunAt,
+            statusRow.next
+        ].filter(Boolean);
+        if (candidates.length) return candidates[0];
+
+        // 2) fallback: compute from lastOk/lastFail + interval
+        const intervalMs = (configRow.intervalMs ?? 0) || 0;
+        if (intervalMs <= 0) return null;
+        if (statusRow.running) return null;
+
+        const anchor = statusRow.lastOkAtUtc || statusRow.lastFailAtUtc || statusRow.startedAtUtc || null;
+        if (!anchor) return null;
+
+        const d = new Date(anchor);
+        if (isNaN(d.getTime())) return null;
+
+        return new Date(d.getTime() + intervalMs).toISOString();
+    }
+
+    // ============================
+    // Dirty + Save
+    // ============================
+    function markDirty(name, patch){
+        const cur = dirty.get(name) || {};
+        dirty.set(name, { ...cur, ...patch });
+    }
+
+    async function saveRow(name, reason){
+        try{
+            const base = findConfigRow(name);
+            if (!base){
+                logLine('err', `save: task not found in config (${name})`);
+                return;
+            }
+
+            const patch = dirty.get(name) || {};
+            const enabled = (patch.enabled ?? base.enabled) === true;
+
+            const baseSec = Math.round(((base.intervalMs || 0) / 1000));
+            const intervalSec = (patch.intervalSec ?? baseSec);
+            const secInt = Math.max(0, (parseInt(intervalSec, 10) || 0));
+            const intervalMs = secInt * 1000;
+
+            await postConfigUpdates([{ name, enabled, intervalMs }]);
+            dirty.delete(name);
+
+            logLine('ok', `saved(${reason||'manual'}): ${name} enabled=${enabled} intervalSec=${secInt}`);
+            await forceRefresh();
+        }catch(ex){
+            logLine('err', `save error (${name}): ${ex.message}`);
+        }
+    }
+
+    // ============================
+    // Render
+    // ============================
+    function render(){
+        const body = document.getElementById('tasksBody');
+        body.innerHTML = '';
+
+        const st = lastStatus || {};
+        const paused = !!st.paused;
+        setButtonsEnabled(paused);
+
+        if (!backendBaseUrl){
+            setEnginePill('error', 'no backendBaseUrl');
+        } else {
+            setEnginePill(paused ? 'paused' : 'running', paused ? 'paused' : 'running');
+        }
+
+        const tasks = Array.isArray(lastConfig && lastConfig.tasks) ? lastConfig.tasks : [];
+        if (tasks.length === 0){
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 8;
+            td.className = 'muted';
+            td.textContent = 'no tasks';
+            tr.appendChild(td);
+            body.appendChild(tr);
+            return;
+        }
+
+        for (const t of tasks){
+            const name = t.name || '';
+            const srow = findStatusRow(name) || {};
+
+            const intervalMs = (t.intervalMs ?? 0) || 0;
+            const intervalSec = intervalMs ? Math.max(0, Math.round(intervalMs / 1000)) : 0;
+
+            const patch = dirty.get(name) || {};
+            const effectiveEnabled = (patch.enabled ?? !!t.enabled);
+            const effectiveIntervalSec = (patch.intervalSec ?? intervalSec);
+
+            const nextUtc = resolveNextUtc(t, srow);
+            const running = !!srow.running;
+            const runningId = srow.runningId || null;
+
+            const lastOk = srow.lastOkAtUtc || null;
+            const lastFail = srow.lastFailAtUtc || null;
+            const lastErr = srow.lastError || null;
+
+            const tr = document.createElement('tr');
+
+            // name
+            {
+                const td = document.createElement('td');
+                td.className = 'c-name';
+                td.textContent = name;
+                tr.appendChild(td);
+            }
+
+            // group
+            {
+                const td = document.createElement('td');
+                td.className = 'c-group';
+                td.textContent = (t.group || '-');
+                tr.appendChild(td);
+            }
+
+            // enabled (toggle switch) + autosave immediately
+            {
+                const td = document.createElement('td');
+                td.className = 'c-enabled';
+
+                const label = document.createElement('label');
+                label.className = 'sw ' + (effectiveEnabled ? 'on' : '');
+                label.title = 'Toggle enabled (autosave)';
+
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.checked = !!effectiveEnabled;
+
+                const track = document.createElement('span');
+                track.className = 'sw-track';
+
+                const knob = document.createElement('span');
+                knob.className = 'sw-knob';
+
+                const txt = document.createElement('span');
+                txt.textContent = effectiveEnabled ? 'ON' : 'OFF';
+
+                track.appendChild(knob);
+                label.appendChild(input);
+                label.appendChild(track);
+                label.appendChild(txt);
+
+                // pause refresh while toggling (กันโดนทับ UI)
+                label.addEventListener('click', () => { pauseRefreshBecauseEditing = true; });
+
+                input.addEventListener('change', async () => {
+                    const v = input.checked;
+                    label.classList.toggle('on', v);
+                    txt.textContent = v ? 'ON' : 'OFF';
+
+                    markDirty(name, { enabled: v });
+
+                    // ✅ autosave stage immediately (ส่ง enabled + ถ้ามี interval ที่แก้ค้างอยู่ก็ส่งไปด้วย)
+                    await saveRow(name, 'toggle');
+
+                    // resume
+                    setTimeout(() => { pauseRefreshBecauseEditing = false; }, 250);
+                });
+
+                td.appendChild(label);
+                tr.appendChild(td);
+            }
+
+            // interval seconds + save (manual)
+            {
+                const td = document.createElement('td');
+                td.className = 'c-interval';
+
+                const inp = document.createElement('input');
+                inp.className = 'in';
+                inp.type = 'number';
+                inp.min = '0';
+                inp.step = '1';
+                inp.value = String(effectiveIntervalSec);
+
+                inp.addEventListener('focus', () => { pauseRefreshBecauseEditing = true; });
+                inp.addEventListener('blur', () => { setTimeout(() => { pauseRefreshBecauseEditing = false; }, 250); });
+
+                inp.addEventListener('input', () => {
+                    const v = parseInt(inp.value || '0', 10);
+                    markDirty(name, { intervalSec: (isFinite(v) ? Math.max(0, v) : 0) });
+                    // ไม่ re-render ตอนกำลังพิมพ์
+                });
+
+                const btnSave = document.createElement('button');
+                btnSave.className = 'btn sm ok';
+                btnSave.type = 'button';
+                btnSave.textContent = 'Save';
+
+                btnSave.addEventListener('click', async () => {
+                    await saveRow(name, 'interval');
+                });
+
+                td.appendChild(inp);
+                td.appendChild(btnSave);
+                tr.appendChild(td);
+            }
+
+            // next
+            {
+                const td = document.createElement('td');
+                td.className = 'c-next';
+                td.textContent = fmtUtc(nextUtc);
+                tr.appendChild(td);
+            }
+
+            // running
+            {
+                const td = document.createElement('td');
+                td.className = 'c-running';
+
+                if (running){
+                    td.appendChild(makeTag('RUNNING', 'warn'));
+                    if (runningId){
+                        const id = document.createElement('div');
+                        id.style.marginTop = '4px';
+                        id.style.fontFamily = 'var(--mono)';
+                        id.style.fontSize = '11px';
+                        id.style.color = 'rgba(232,240,255,.55)';
+                        id.textContent = String(runningId).slice(0, 8) + '...';
+                        td.appendChild(id);
+                    }
+                } else {
+                    td.appendChild(makeTag('IDLE', 'good'));
+                }
+
+                tr.appendChild(td);
+            }
+
+            // last ok/fail + error
+            {
+                const td = document.createElement('td');
+                td.className = 'c-last';
+
+                const okTxt = lastOk ? `OK  ${fmtUtc(lastOk)}` : 'OK  -';
+                const failTxt = lastFail ? `FAIL ${fmtUtc(lastFail)}` : 'FAIL -';
+
+                const line1 = document.createElement('div');
+                line1.style.color = 'rgba(46,229,157,.90)';
+                line1.style.fontFamily = 'var(--mono)';
+                line1.textContent = okTxt;
+
+                const line2 = document.createElement('div');
+                line2.style.color = lastFail ? 'rgba(255,102,122,.95)' : 'rgba(232,240,255,.45)';
+                line2.style.fontFamily = 'var(--mono)';
+                line2.textContent = failTxt;
+
+                td.appendChild(line1);
+                td.appendChild(line2);
+
+                if (lastErr){
+                    const err = document.createElement('div');
+                    err.style.marginTop = '4px';
+                    err.style.color = 'rgba(255,102,122,.95)';
+                    err.style.fontFamily = 'var(--mono)';
+                    err.style.fontSize = '11px';
+                    err.style.whiteSpace = 'normal';
+                    err.textContent = String(lastErr).slice(0, 140);
+                    td.appendChild(err);
+                }
+
+                tr.appendChild(td);
+            }
+
+            // action (kept for future; currently blank)
+            {
+                const td = document.createElement('td');
+                td.className = 'c-actions';
+                td.innerHTML = '<span class="muted">-</span>';
+                tr.appendChild(td);
+            }
+
+            body.appendChild(tr);
+        }
+    }
+
+    // ============================
+    // Refresh loop (skip while editing)
+    // ============================
+    function setLastTs(){
+        document.getElementById('lastTs').textContent = nowHHMMSS();
+    }
+
+    async function tick(force){
+        if (!force && pauseRefreshBecauseEditing) return;
+        if (!backendBaseUrl) return;
+
+        try{
+            const [cfg, st] = await Promise.all([getConfig(), getStatus()]);
+            lastConfig = cfg;
+            lastStatus = st;
+            setLastTs();
+
+            if (typeof st.paused === 'boolean'){
+                setEnginePill(st.paused ? 'paused' : 'running', st.paused ? 'paused' : 'running');
+                setButtonsEnabled(st.paused);
+            }
+
+            if (!pauseRefreshBecauseEditing) render();
+        }catch(ex){
+            setEnginePill('error', 'error');
+            logLine('err', `refresh error: ${ex.message}`);
+        }
+    }
+
+    // ✅ single definition (ไม่มีซ้ำแล้ว)
+    async function forceRefresh(){
+        await tick(true);
+    }
+
+    function bindEditingGuards(){
+        const wrap = document.getElementById('tableWrap');
+        wrap.addEventListener('focusin', (e) => {
+            const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+            if (tag === 'input' || tag === 'textarea' || tag === 'select'){
+                pauseRefreshBecauseEditing = true;
+            }
+        });
+        wrap.addEventListener('focusout', (e) => {
+            const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+            if (tag === 'input' || tag === 'textarea' || tag === 'select'){
+                setTimeout(() => { pauseRefreshBecauseEditing = false; }, 250);
+            }
+        });
+    }
+
+    async function forcerun(){
+    if (!backendBaseUrl){
+        logLine('err', 'forcerun: no backendBaseUrl');
+        return;
+    }
+
+    try{
+        // ส่ง now+3s ให้ backend (กัน clock skew เล็กน้อย)
+        const dueUnixMs = Date.now() + 3000;
+
+        await fetchJson(api('/admin/tasks/forcerun'), {
+            method: 'POST',
+            headers: { 'Content-Type':'application/json' },
+            body: JSON.stringify({
+                dueUnixMs,           // เป้าหมาย updated_at_unixms
+                enabledOnly: true    // ชัดเจน: เฉพาะ enabled=1
+            })
+        });
+
+        logLine('ok', `Force run requested: enabled=1, updated_at_unixms=${dueUnixMs} (now+3s)`);
+
+        // refresh UI หลังสั่งงาน
+        await forceRefresh();
+    }catch(ex){
+        logLine('err', `forcerun error: ${ex.message}`);
+    }
+}
+
+    // ============================
+    // Boot
+    // ============================
+    (async function boot(){
+        clearConsole();
+        logLine('ok', 'AdminPage loaded');
+
+        try{
+            await loadBackendConfig();
+        }catch(ex){
+            logLine('err', `backend-config error: ${ex.message}`);
+            setEnginePill('error', 'no config');
+            return;
+        }
+
+        bindEditingGuards();
+
+        await tick(true);
+        setInterval(() => tick(false), POLL_SEC * 1000);
+    })();
+</script>

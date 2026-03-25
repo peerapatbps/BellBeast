@@ -1,0 +1,183 @@
+﻿<style>
+    /* ===== FIX: ปุ่ม Settings ต้องกดได้แน่ (กันโดนชั้นอื่นทับ) ===== */
+    section.tps-block .bb-section-h,
+    section.tps-block .bb-section-h .right-icons {
+        position: relative;
+        z-index: 99999 !important;
+        pointer-events: auto !important;
+    }
+
+    section.tps-block #tpsBtnSettings,
+    section.tps-block .bb-ico {
+        position: relative;
+        z-index: 100000 !important;
+        pointer-events: auto !important;
+    }
+</style>
+
+<section class="bb-section tps-block"
+         data-tps-summary-url="/api/tps/summary"
+         data-tps-refresh-sec="5">
+    <div class="bb-section-h">
+        <div class="left">
+            <div class="title">TPS</div>
+        </div>
+
+        <div class="right-icons">
+            <button class="bb-ico" type="button" title="Bell" aria-label="Bell">
+                <span>🔔</span>
+            </button>
+            <button class="bb-ico" id="tpsBtnSettings" type="button" title="Settings" aria-label="Settings">
+                <span>⚙️</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="bb-section-b">
+        <div class="zone">
+            <!-- Pumps -->
+            <div class="pump-col">
+                <div class="pump"><span class="tag">Pump1</span><span class="st stby" data-pump="Pump1">-</span></div>
+                <div class="pump"><span class="tag">Pump2</span><span class="st stby" data-pump="Pump2">-</span></div>
+                <div class="pump"><span class="tag">Pump3</span><span class="st stby" data-pump="Pump3">-</span></div>
+                <div class="pump"><span class="tag">Pump4</span><span class="st stby" data-pump="Pump4">-</span></div>
+            </div>
+
+            <!-- KPI grid -->
+            <div class="kpi-grid">
+                <!-- TR FLOW -->
+                <div class="kpi">
+                    <div class="ov-top">
+                        <div class="ov-title">TR FLOW (m³/h)</div>
+                        <div class="ov-status ok" id="tpsTrFlowStatus">OK</div>
+                    </div>
+                    <div class="val-center" id="tpsTrFlow">-</div>
+
+                    <div class="ov-sub"><span class="dot g"></span>Total Daily Flow</div>
+                    <div class="ov-value">
+                        <span id="tpsTotalDailyFlow">-</span> <span class="ov-unit">m³/day</span>
+                    </div>
+                </div>
+
+                <!-- Pressure -->
+                <div class="kpi">
+                    <div class="ov-top">
+                        <div class="ov-title">Pressure (kg/cm²)</div>
+                        <div class="ov-status ok" id="tpsPressureStatus">OK</div>
+                    </div>
+                    <div class="val-center" id="tpsPressure">-</div>
+                </div>
+
+                <!-- CWT -->
+                <div class="kpi">
+                    <div class="ov-top">
+                        <div class="ov-title">CWT level (m)</div>
+                        <div class="ov-status ok" id="tpsCwtStatus">OK</div>
+                    </div>
+                    <div class="val-center" id="tpsCwtLevel">-</div>
+                </div>
+
+                <!-- Overview -->
+                <div class="mini-card ov-card">
+                    <div class="ov-top">
+                        <div class="ov-title">Overview</div>
+                        <div class="ov-status ok" id="tpsOverviewStatus">OK</div>
+                    </div>
+
+                    <div class="ov-sub"><span class="dot g"></span>Service Water</div>
+                    <div class="ov-value">
+                        <span id="tpsSvcWater">-</span> <span class="ov-unit">m³/h</span>
+                    </div>
+
+                    <div class="ov-sub"><span class="dot g"></span>Service Water Totalizer</div>
+                    <div class="ov-value">
+                        <span id="tpsSvcWaterTot">-</span> <span class="ov-unit">m³</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row4 tanks + chart -->
+        <div class="row4">
+            <!-- Tank: PK -->
+            <div class="mini-card tank-kpi ok" data-tank="PK">
+                <div class="hdr">
+                    <div class="name">Phet Kasem: PK</div>
+                    <div class="max">Max: <span id="tpsPkMax">6.70</span> m.</div>
+                </div>
+
+                <div class="kpis">
+                    <div class="ov-status ok" id="tpsPkStatus">OK</div>
+                    <div class="kv"><div class="k">ΔQ</div><div class="v" id="tpsPkDQ">-</div><div class="u">m³/h</div></div>
+                    <div class="kv"><div class="k">Pin</div><div class="v" id="tpsPkPin">-</div><div class="u">m</div></div>
+                    <div class="kv"><div class="k">Pout</div><div class="v" id="tpsPkPout">-</div><div class="u">m</div></div>
+                </div>
+
+                <div class="gauge" id="tpsPkGauge" style="--fill:0">
+                    <div class="g-top"><div class="p" id="tpsPkPct">-</div></div>
+                    <div class="well">
+                        <div class="fill"></div>
+                        <div class="read"><div class="val" id="tpsPkLevel">-</div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tank: TP -->
+            <div class="mini-card tank-kpi warn" data-tank="TP">
+                <div class="hdr">
+                    <div class="name">Tha Phra: TP</div>
+                    <div class="max">Max: <span id="tpsTpMax">5.63</span> m.</div>
+                </div>
+
+                <div class="kpis">
+                    <div class="ov-status ok" id="tpsTpStatus">OK</div>
+                    <div class="kv"><div class="k">ΔQ</div><div class="v" id="tpsTpDQ">-</div><div class="u">m³/h</div></div>
+                    <div class="kv"><div class="k">Pin</div><div class="v" id="tpsTpPin">-</div><div class="u">m</div></div>
+                    <div class="kv"><div class="k">Pout</div><div class="v" id="tpsTpPout">-</div><div class="u">m</div></div>
+                </div>
+
+                <div class="gauge" id="tpsTpGauge" style="--fill:0">
+                    <div class="g-top"><div class="p" id="tpsTpPct">-</div></div>
+                    <div class="well">
+                        <div class="fill"></div>
+                        <div class="read"><div class="val" id="tpsTpLevel">-</div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tank: RB -->
+            <div class="mini-card tank-kpi bad" data-tank="RB">
+                <div class="hdr">
+                    <div class="name">Ratchaburana: RB</div>
+                    <div class="max">Max: <span id="tpsRbMax">5.60</span> m.</div>
+                </div>
+
+                <div class="kpis">
+                    <div class="ov-status ok" id="tpsRbStatus">OK</div>
+                    <div class="kv"><div class="k">ΔQ</div><div class="v" id="tpsRbDQ">-</div><div class="u">m³/h</div></div>
+                    <div class="kv"><div class="k">Pin</div><div class="v" id="tpsRbPin">-</div><div class="u">m</div></div>
+                    <div class="kv"><div class="k">Pout</div><div class="v" id="tpsRbPout">-</div><div class="u">m</div></div>
+                </div>
+
+                <div class="gauge" id="tpsRbGauge" style="--fill:0">
+                    <div class="g-top"><div class="p" id="tpsRbPct">-</div></div>
+                    <div class="well">
+                        <div class="fill"></div>
+                        <div class="read"><div class="val" id="tpsRbLevel">-</div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart placeholder -->
+            <div class="mini-card">
+                <div class="ov-top">
+                    <div class="ov-title">RCV38 (ข้ามแม่น้ำ)</div>
+                    <div class="ov-status ok" id="tpsRcv38Status">OK</div>
+                </div>
+                <div class="chart">
+                    <canvas id="tpsRcv38Chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

@@ -1,0 +1,377 @@
+﻿<style>
+    .mini-card .chart {
+        position: relative;
+        height: 110px;
+        min-height: 110px;
+        border-radius: 10px;
+        border: 1px dashed rgba(255,255,255,.18);
+        background: rgba(255,255,255,.04);
+        overflow: hidden;
+    }
+
+        .mini-card .chart canvas {
+            width: 100% !important;
+            height: 100% !important;
+            display: block !important;
+        }
+
+    .mini-card .mini-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0px;
+        margin-bottom: -5px;
+    }
+
+    /* ===== FIX: ปุ่ม Settings ต้องกดได้แน่ (กันโดนชั้นอื่นทับ) ===== */
+    section.rws-block .bb-section-h,
+    section.rws-block .bb-section-h .right-icons {
+        position: relative;
+        z-index: 99999 !important;
+        pointer-events: auto !important;
+    }
+
+    section.rws-block #rwsBtnSettings,
+    section.rws-block .bb-ico {
+        position: relative;
+        z-index: 100000 !important;
+        pointer-events: auto !important;
+    }
+</style>
+
+<section class="bb-section rws-block"
+         data-rws-summary-url="/api/rws/summary"
+         data-rws-refresh-sec="5"
+         data-rws-pumps='{"1P01A":10,"1P01B":15,"1P01C":20,"1P02A":25,"1P02B":29,"Pump1":46,"Pump2":52,"Pump3":58,"Pump4":63,"Pump5":69}'
+         data-rws-metrics='{"flow1":"rwp1_flowp1","flow2":"rwp1_flowp2","sum1":"rwp1_sumflowp1","sum2":"rwp1_sumflowp2","flow3":"rwp2_flowp3","flow4":"rwp2_flowp4","sum3":"rwp2_sumflowp3","sum4":"rwp2_sumflowp4"}'>
+
+    <div class="bb-section-h">
+        <div class="left">
+            <div class="title">RWS#1 & RWS#2</div>
+        </div>
+
+        <div class="right-icons">
+            <button class="bb-ico" type="button" title="Bell" aria-label="Bell">
+                <span>🔔</span>
+            </button>
+            <button class="bb-ico" id="rwsBtnSettings" type="button" title="Settings" aria-label="Settings">
+                <span>⚙️</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="bb-section-b">
+        <div class="rps-grid">
+
+            <!-- =======================
+                 RWS1 pumps
+            ======================== -->
+            <div class="pump-col r1">
+                <div class="pump"><span class="tag">1P01A</span><span class="st stby" data-pump="1P01A">-</span></div>
+                <div class="pump"><span class="tag">1P01B</span><span class="st stby" data-pump="1P01B">-</span></div>
+                <div class="pump"><span class="tag">1P01C</span><span class="st stby" data-pump="1P01C">-</span></div>
+                <div class="pump"><span class="tag">1P02A</span><span class="st stby" data-pump="1P02A">-</span></div>
+                <div class="pump"><span class="tag">1P02B</span><span class="st stby" data-pump="1P02B">-</span></div>
+            </div>
+
+            <div class="kpi small r1c2">
+                <div class="ov-top">
+                    <div class="ov-title">RW#1 (m³/h)</div>
+                    <div class="ov-status ok" id="rwsFlow1Status">OK</div>
+                </div>
+                <div class="val-center" id="rwsFlow1">-</div>
+                <div class="sub"><span>ΣFLOW1</span><span id="rwsSum1">-</span><span class="ov-unit">m³/day</span></div>
+            </div>
+
+            <div class="kpi small r1c3">
+                <div class="ov-top">
+                    <div class="ov-title">RW#2 (m³/h)</div>
+                    <div class="ov-status ok" id="rwsFlow2Status">OK</div>
+                </div>
+                <div class="val-center" id="rwsFlow2">-</div>
+                <div class="sub"><span>ΣFLOW2</span><span id="rwsSum2">-</span><span class="ov-unit">m³/day</span></div>
+            </div>
+
+            <div class="mini-card r1c4">
+                <div class="ov-top"><div class="ov-title">RW TURBID (NTU)</div><div class="ov-status ok" id="rwsNtuStatus">OK</div></div>
+                <div class="chart"><canvas id="RW_NTU"></canvas></div>
+            </div>
+
+            <div class="mini-card r1c5">
+                <div class="ov-top"><div class="ov-title">RW COND (μS/cm)</div><div class="ov-status ok" id="rwsCondStatus">OK</div></div>
+                <div class="chart"><canvas id="RW_COND"></canvas></div>
+            </div>
+
+            <!-- =======================
+                 RWS2 pumps
+            ======================== -->
+            <div class="pump-col r2">
+                <div class="pump"><span class="tag">Pump1</span><span class="st stby" data-pump="Pump1">-</span></div>
+                <div class="pump"><span class="tag">Pump2</span><span class="st stby" data-pump="Pump2">-</span></div>
+                <div class="pump"><span class="tag">Pump3</span><span class="st stby" data-pump="Pump3">-</span></div>
+                <div class="pump"><span class="tag">Pump4</span><span class="st stby" data-pump="Pump4">-</span></div>
+                <div class="pump"><span class="tag">Pump5</span><span class="st stby" data-pump="Pump5">-</span></div>
+            </div>
+
+            <div class="kpi small r2c2">
+                <div class="ov-top">
+                    <div class="ov-title">RW#3 (m³/h)</div>
+                    <div class="ov-status ok" id="rwsFlow3Status">OK</div>
+                </div>
+                <div class="val-center" id="rwsFlow3">-</div>
+                <div class="sub"><span>ΣFLOW3</span><span id="rwsSum3">-</span><span class="ov-unit">m³/day</span></div>
+            </div>
+
+            <div class="kpi small r2c3">
+                <div class="ov-top">
+                    <div class="ov-title">RW#4 (m³/h)</div>
+                    <div class="ov-status ok" id="rwsFlow4Status">OK</div>
+                </div>
+                <div class="val-center" id="rwsFlow4">-</div>
+                <div class="sub"><span>ΣFLOW4</span><span id="rwsSum4">-</span><span class="ov-unit">m³/day</span></div>
+            </div>
+
+            <div class="mini-card r2c4">
+                <div class="ov-top"><div class="ov-title">RW DO (mg/L)</div><div class="ov-status ok" id="rwsDoStatus">OK</div></div>
+                <div class="chart"><canvas id="RW_DO"></canvas></div>
+            </div>
+
+            <div class="mini-card r2c5">
+                <div class="ov-top"><div class="ov-title">RW TEMP (°C)</div><div class="ov-status ok" id="rwsTempStatus">OK</div></div>
+                <div class="chart"><canvas id="RW_TEMP"></canvas></div>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+<script>
+    // Init DPS smartmap overlay (single poller)
+    window.DPSSmartmapOverlay?.initWithin(document.currentScript?.closest("section.rws-block") || document);
+</script>
+
+<script>
+    window.BBTrend?.initWithin(document.currentScript?.closest("section") || document);
+</script>
+
+<script>
+    /**
+     * RWS Summary Updater (frontend) - POST
+     * - POST /api/rws/summary (text/plain to avoid preflight)
+     * - pumps from data.Aq (configId -> value_text)
+     * - metrics current: rwp1_flowp1/... (rows[] หรือ Metrics{})
+     * - all constants are variables via section data-attributes
+     */
+    (function () {
+        "use strict";
+
+        const section = document.currentScript?.closest("section.rws-block");
+        if (!section) return;
+
+        // guard: prevent double start
+        if (section._rwsSummaryStarted) return;
+        section._rwsSummaryStarted = true;
+
+        const url = section.getAttribute("data-rws-summary-url") || "/api/rws/summary";
+        const refreshSec = Math.max(2, parseInt(section.getAttribute("data-rws-refresh-sec") || "5", 10) || 5);
+        const pollMs = refreshSec * 1000;
+
+        // --- config from data-attributes ---
+        function safeJsonParse(txt, fallback) {
+            try { return JSON.parse(txt); } catch { return fallback; }
+        }
+        const pumpToConfigId = safeJsonParse(section.getAttribute("data-rws-pumps") || "{}", {});
+        const metricMap = safeJsonParse(section.getAttribute("data-rws-metrics") || "{}", {});
+
+        // --- elements ---
+        const pumpEls = Array.from(section.querySelectorAll("[data-pump]"));
+
+        const el = {
+            flow1: section.querySelector("#rwsFlow1"),
+            flow2: section.querySelector("#rwsFlow2"),
+            flow3: section.querySelector("#rwsFlow3"),
+            flow4: section.querySelector("#rwsFlow4"),
+            sum1: section.querySelector("#rwsSum1"),
+            sum2: section.querySelector("#rwsSum2"),
+            sum3: section.querySelector("#rwsSum3"),
+            sum4: section.querySelector("#rwsSum4"),
+            s1: section.querySelector("#rwsFlow1Status"),
+            s2: section.querySelector("#rwsFlow2Status"),
+            s3: section.querySelector("#rwsFlow3Status"),
+            s4: section.querySelector("#rwsFlow4Status"),
+        };
+
+        function setStatus(elStatus, ok) {
+            if (!elStatus) return;
+            elStatus.classList.remove("ok", "bad");
+            elStatus.classList.add(ok ? "ok" : "bad");
+            elStatus.textContent = ok ? "OK" : "ERR";
+        }
+
+        function fmtNumber(v, decimals) {
+            if (v === null || v === undefined) return null;
+            const n = (typeof v === "number") ? v : Number(String(v).replace(/,/g, "").trim());
+            if (!Number.isFinite(n)) return null;
+            const d = (decimals ?? 0);
+            return n.toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
+        }
+
+        // normalize AQ pump text
+        function normalizePumpText(raw) {
+            const s = String(raw ?? "").trim().toUpperCase();
+            if (s === "ON") return "ON";
+            if (s === "STANDBY" || s === "STBY") return "STBY";
+            if (s === "REP" || s === "REPAIR") return "REP";
+            if (s === "OFF") return "OFF"; // เผื่อมี
+            return "-";
+        }
+
+        function applyPumpStatus(pumpEl, text) {
+            const t = normalizePumpText(text);
+            pumpEl.classList.remove("on", "stby", "rep");
+
+            if (t === "ON") {
+                pumpEl.classList.add("on");
+                pumpEl.textContent = "ON";
+            } else if (t === "STBY" || t === "OFF") {
+                pumpEl.classList.add("stby");
+                pumpEl.textContent = (t === "OFF" ? "OFF" : "STBY");
+            } else if (t === "REP") {
+                pumpEl.classList.add("rep");
+                pumpEl.textContent = "REP";
+            } else {
+                pumpEl.classList.add("stby");
+                pumpEl.textContent = "-";
+            }
+        }
+
+        // Build lookup for metrics from possible payload shapes
+        function buildMetricLookup(data) {
+            // 1) Metrics: { paramName: {value_real/value_text/...} }
+            const metricsObj = data?.Metrics || data?.metricsObj || data?.metrics_map || null;
+            if (metricsObj && typeof metricsObj === "object" && !Array.isArray(metricsObj)) {
+                return (param) => {
+                    const row = metricsObj[param] || metricsObj[String(param)] || null;
+                    if (!row) return null;
+                    const vr = row.value_real ?? row.valueReal ?? row.value ?? null;
+                    const vt = row.value_text ?? row.valueText ?? null;
+                    return { value_real: vr, value_text: vt };
+                };
+            }
+
+            // 2) rows: [{param,value_real,value_text,ts_utc}, ...]
+            const rows = data?.rows || data?.Rows || data?.metrics || data?.Metrics || null;
+            if (Array.isArray(rows)) {
+                const map = Object.create(null);
+                for (const r of rows) {
+                    const p = String(r?.param ?? r?.Param ?? "").trim();
+                    if (!p) continue;
+                    map[p] = r;
+                }
+                return (param) => {
+                    const r = map[param] || map[String(param)] || null;
+                    if (!r) return null;
+                    return {
+                        value_real: r.value_real ?? r.valueReal ?? r.value ?? null,
+                        value_text: r.value_text ?? r.valueText ?? null
+                    };
+                };
+            }
+
+            // unknown shape
+            return (_) => null;
+        }
+
+        let inFlight = false;
+
+        async function tick() {
+            if (inFlight) return;
+            inFlight = true;
+
+            try {
+                // ✅ payload ที่ส่งไป backend (ปรับเพิ่มได้)
+                const payloadObj = {
+                    // ช่วย backend filter metrics_current
+                    want: [
+                        metricMap.flow1, metricMap.flow2, metricMap.sum1, metricMap.sum2,
+                        metricMap.flow3, metricMap.flow4, metricMap.sum3, metricMap.sum4
+                    ].filter(Boolean),
+                    // ช่วย backend query AQ pump states
+                    pumps: pumpToConfigId
+                };
+
+                const res = await fetch(url, {
+                    method: "POST",
+                    headers: { "content-type": "text/plain;charset=UTF-8" }, // ✅ simple request
+                    cache: "no-store",
+                    body: JSON.stringify(payloadObj)
+                });
+
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const data = await res.json();
+
+                // ---------- pumps from data.Aq ----------
+                const aq = data?.Aq || data?.aq || null;
+                for (const pe of pumpEls) {
+                    const pumpName = pe.getAttribute("data-pump") || "";
+                    const cfg = pumpToConfigId[pumpName];
+                    const vt = (cfg && aq)
+                        ? (aq[cfg]?.value_text ?? aq[String(cfg)]?.value_text ?? aq[cfg]?.valueText ?? aq[String(cfg)]?.valueText)
+                        : null;
+                    applyPumpStatus(pe, vt);
+                }
+
+                // ---------- metrics ----------
+                const getMetric = buildMetricLookup(data);
+
+                function setKpiValue(elVal, elStatus, paramName, decimals) {
+                    const row = paramName ? getMetric(paramName) : null;
+                    const raw = row?.value_real ?? row?.value_text ?? null;
+                    const text = fmtNumber(raw, decimals);
+                    if (elVal) elVal.textContent = (text ?? "-");
+                    if (elStatus) setStatus(elStatus, text !== null);
+                    return text !== null;
+                }
+
+                // flows (0 decimals)
+                setKpiValue(el.flow1, el.s1, metricMap.flow1, 0);
+                setKpiValue(el.flow2, el.s2, metricMap.flow2, 0);
+                setKpiValue(el.flow3, el.s3, metricMap.flow3, 0);
+                setKpiValue(el.flow4, el.s4, metricMap.flow4, 0);
+
+                // sumflows (0 decimals)
+                const sum1 = fmtNumber((getMetric(metricMap.sum1)?.value_real ?? getMetric(metricMap.sum1)?.value_text), 0);
+                const sum2 = fmtNumber((getMetric(metricMap.sum2)?.value_real ?? getMetric(metricMap.sum2)?.value_text), 0);
+                const sum3 = fmtNumber((getMetric(metricMap.sum3)?.value_real ?? getMetric(metricMap.sum3)?.value_text), 0);
+                const sum4 = fmtNumber((getMetric(metricMap.sum4)?.value_real ?? getMetric(metricMap.sum4)?.value_text), 0);
+                if (el.sum1) el.sum1.textContent = (sum1 ?? "-");
+                if (el.sum2) el.sum2.textContent = (sum2 ?? "-");
+                if (el.sum3) el.sum3.textContent = (sum3 ?? "-");
+                if (el.sum4) el.sum4.textContent = (sum4 ?? "-");
+
+            } catch {
+                // error => reset
+                for (const pe of pumpEls) applyPumpStatus(pe, null);
+
+                if (el.flow1) el.flow1.textContent = "-";
+                if (el.flow2) el.flow2.textContent = "-";
+                if (el.flow3) el.flow3.textContent = "-";
+                if (el.flow4) el.flow4.textContent = "-";
+                if (el.sum1) el.sum1.textContent = "-";
+                if (el.sum2) el.sum2.textContent = "-";
+                if (el.sum3) el.sum3.textContent = "-";
+                if (el.sum4) el.sum4.textContent = "-";
+
+                setStatus(el.s1, false);
+                setStatus(el.s2, false);
+                setStatus(el.s3, false);
+                setStatus(el.s4, false);
+            } finally {
+                inFlight = false;
+            }
+        }
+
+        tick();
+        section._rwsSummaryTimer = setInterval(tick, pollMs);
+    })();
+</script>

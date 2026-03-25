@@ -1,0 +1,455 @@
+﻿@page
+@model BellBeast.Pages.CHEM_reportModel
+@{
+    ViewData["Title"] = "CHEM Receive Report";
+}
+
+<style>
+    /* ===== Force layout full width (กันโดน bootstrap/container จัดกลาง) ===== */
+    .container,
+    .container-sm,
+    .container-md,
+    .container-lg,
+    .container-xl,
+    .container-xxl {
+        max-width: 100% !important;
+        padding-left: 12px !important;
+        padding-right: 12px !important;
+    }
+
+    /* ✅ สำคัญ: กัน wrapper ถูก max-width/margin auto จาก css กลาง */
+    .bb-wrap {
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 16px;
+    }
+
+    .bb-grid {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 240px minmax(0, 1fr); /* ซ้ายคงที่ / ขวากินที่เหลือ */
+        gap: 14px;
+        align-items: start;
+    }
+
+    /* จอเล็กให้เรียงลง */
+    @@media (max-width: 900px) {
+        .bb-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .bb-card {
+        background: rgba(20, 25, 35, .72);
+        border: 1px solid rgba(255,255,255,.10);
+        border-radius: 14px;
+        box-shadow: 0 10px 30px rgba(0,0,0,.25);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        padding: 14px;
+        overflow: hidden; /* กันล้น */
+    }
+
+    .bb-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: #e8eefc;
+        margin: 0 0 10px 0;
+    }
+
+    .bb-row {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .bb-field label {
+        display: block;
+        font-size: 12px;
+        color: rgba(232,238,252,.8);
+        margin-bottom: 6px;
+    }
+
+    .bb-field input, .bb-field select {
+        width: 100%;
+        padding: 9px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,.12);
+        background: rgba(0,0,0,.25);
+        color: #e8eefc;
+        outline: none;
+    }
+
+        /* จำกัดเฉพาะ input date ใน bb-field เท่านั้น */
+    .bb-field input[type="date"]::-webkit-calendar-picker-indicator {
+        filter: invert(1) brightness(1.4);
+        opacity: 0.85;
+        cursor: pointer;
+    }
+
+
+    .bb-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 6px;
+    }
+
+    .bb-btn {
+        padding: 9px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,.12);
+        background: rgba(80, 110, 255, .18);
+        color: #e8eefc;
+        cursor: pointer;
+    }
+
+        .bb-btn:hover {
+            background: rgba(80,110,255,.28);
+        }
+
+        .bb-btn.secondary {
+            background: rgba(255,255,255,.08);
+        }
+
+            .bb-btn.secondary:hover {
+                background: rgba(255,255,255,.12);
+            }
+
+    .bb-status {
+        margin-top: 10px;
+        font-size: 12px;
+        color: rgba(232,238,252,.75);
+        white-space: pre-wrap;
+    }
+
+    /* ===== RESULT HEADER ===== */
+    .bb-result-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+    }
+
+    .bb-result-total {
+        font-size: 13px;
+        font-weight: 600;
+        color: #e8eefc;
+        opacity: .9;
+        white-space: nowrap;
+    }
+
+    /* ===== TABLE: ✅ เต็ม 100% และ “ไม่มี scroll แนวนอน” ===== */
+    .bb-table-wrap {
+        width: 100%;
+        overflow-x: hidden; /* ตัดแนวนอน */
+        overflow-y: auto;
+        max-height: calc(100vh - 190px);
+    }
+
+    table.bb-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed; /* บังคับไม่ให้ตารางดันกว้าง */
+    }
+
+    .bb-table th, .bb-table td {
+        border-bottom: 1px solid rgba(255,255,255,.08);
+        padding: 8px 10px;
+        font-size: 12px;
+        color: #e8eefc;
+        text-align: left;
+        overflow: hidden; /* ตัด ... */
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .bb-table th {
+        position: sticky;
+        top: 0;
+        background: rgba(20, 25, 35, .92);
+        z-index: 2;
+    }
+
+        .bb-table td.num, .bb-table th.num {
+            text-align: right;
+        }
+
+        .bb-table td.center, .bb-table th.center {
+            text-align: center;
+        }
+
+    /* ✅ สัดส่วนคอลัมน์รวม ~100% */
+    col.c-no {width: 5%;}
+    col.c-date {width: 10%;}
+    col.c-prod {width: 17%;}
+    col.c-comp {width: 25%;}
+    col.c-truck {width: 10%;}
+    col.c-type {width: 6%;}
+    col.c-in {width: 9%;}
+    col.c-out {width: 9%;}
+    col.c-net {width: 9%;}
+</style>
+
+<div class="bb-wrap">
+    <div class="bb-grid">
+
+        <!-- LEFT -->
+        <div class="bb-card">
+            <h2 class="bb-title">CHEM Receive Report</h2>
+
+            <div class="bb-row">
+                <div class="bb-field">
+                    <label>Start Date (yyyy-MM-dd)</label>
+                    <input id="startDate" type="date" value="@Model.DefaultStartYmd" />
+                </div>
+
+                <div class="bb-field">
+                    <label>End Date (yyyy-MM-dd)</label>
+                    <input id="endDate" type="date" value="@Model.DefaultEndYmd" />
+                </div>
+
+                <div class="bb-field">
+                    <label>Product</label>
+                    <select id="product">
+                        <option value="">(All)</option>
+                        @foreach (var it in Model.Products)
+                        {
+                            <option value="@it.Code">@it.Name</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="bb-field">
+                    <label>Company</label>
+                    <select id="company">
+                        <option value="">(All)</option>
+                        @foreach (var it in Model.Companies)
+                        {
+                            <option value="@it.Code">@it.Name</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="bb-actions">
+                    <button type="button" class="bb-btn" id="btnLoad">Load</button>
+                    <button type="button" class="bb-btn secondary" id="btnExport">Export CSV</button>
+                </div>
+
+                <div class="bb-status" id="status">Ready.</div>
+            </div>
+        </div>
+
+        <!-- RIGHT -->
+        <div class="bb-card">
+            <div class="bb-result-header">
+                <h2 class="bb-title" style="margin:0;">Result</h2>
+                <div class="bb-result-total" id="totalNet">Total NetWeight: -</div>
+            </div>
+
+            <div class="bb-table-wrap">
+                <table class="bb-table" id="tbl">
+                    <colgroup>
+                        <col class="c-no" />
+                        <col class="c-date" />
+                        <col class="c-prod" />
+                        <col class="c-comp" />
+                        <col class="c-truck" />
+                        <col class="s
+                        <col class="c-type" />
+                        <col class="c-in" />
+                        <col class="c-out" />
+                        <col class="c-net" />
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th class="center">No.</th>
+                            <th>Date</th>
+                            <th>Product</th>
+                            <th>Company</th>
+                            <th>Truck</th>
+                            <th>Type</th>
+                            <th class="num">Gross(In)</th>
+                            <th class="num">Gross(Out)</th>
+                            <th class="num">NetWeight</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody">
+                        <tr><td colspan="9" style="color: rgba(232,238,252,.6);">No data.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    const BACKEND_BASE_URL = "@(Model.BackendBaseUrl ?? "")";
+    const CHEM_REPORT_PATH = "@(Model.ChemReportPath ?? "/api/chem_report")";
+    const CHEM_EXPORT_PATH = "@(Model.ChemExportPath ?? "/api/chem_report/export")";
+
+    function combineUrl(baseUrl, path) {
+        baseUrl = (baseUrl || "").replace(/\/+$/, "");
+        path = (path || "").trim();
+        if (!path.startsWith("/")) path = "/" + path;
+        return baseUrl + path;
+    }
+
+    function setStatus(msg) {
+        document.getElementById("status").textContent = msg;
+    }
+
+    function setTotalNet(text) {
+        document.getElementById("totalNet").textContent = `Total NetWeight: ${text} Kg.`;
+    }
+
+    function getSelectedTextOrAll(selId) {
+        const sel = document.getElementById(selId);
+        if (!sel) return "(All)";
+        const opt = sel.options[sel.selectedIndex];
+        const text = (opt ? opt.text : "").trim();
+        return text ? text : "(All)";
+    }
+
+    function buildPayload() {
+        const startDate = document.getElementById("startDate").value;
+        const endDate = document.getElementById("endDate").value;
+
+        const productCode = document.getElementById("product").value || "";
+        const companyCode = document.getElementById("company").value || "";
+
+        const productText = productCode ? getSelectedTextOrAll("product") : "(All)";
+        const companyText = companyCode ? getSelectedTextOrAll("company") : "(All)";
+
+        return { startDate, endDate, productCode, companyCode, productText, companyText };
+    }
+
+    function escapeHtml(s) {
+        return (s ?? "").toString()
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
+    }
+
+    function parseNetWeight(v) {
+        if (v === null || v === undefined) return 0;
+        const s = String(v).replaceAll(",", "").trim();
+        const n = Number(s);
+        return isNaN(n) ? 0 : n;
+    }
+
+    function formatNumber(n) {
+        return new Intl.NumberFormat("en-US").format(n);
+    }
+
+    function renderRows(rows) {
+        const tbody = document.getElementById("tbody");
+
+        if (!rows || rows.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="9" style="color: rgba(232,238,252,.6);">No data.</td></tr>`;
+            setTotalNet("-");
+            return;
+        }
+
+        let total = 0;
+        let html = "";
+
+        for (const r of rows) {
+            const net = parseNetWeight(r.NetWeight);
+            total += net;
+
+            html += `<tr>
+                <td class="center">${escapeHtml(r.No)}</td>
+                <td>${escapeHtml(r.Date)}</td>
+                <td>${escapeHtml(r.Product)}</td>
+                <td title="${escapeHtml(r.Company)}">${escapeHtml(r.Company)}</td>
+                <td>${escapeHtml(r.Truck)}</td>
+                <td>${escapeHtml(r.Type)}</td>
+                <td class="num">${escapeHtml(r.GrossIn)}</td>
+                <td class="num">${escapeHtml(r.GrossOut)}</td>
+                <td class="num">${escapeHtml(r.NetWeight)}</td>
+            </tr>`;
+        }
+
+        tbody.innerHTML = html;
+        setTotalNet(formatNumber(total));
+    }
+
+    async function postJson(url, payload) {
+        return fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+    }
+
+    document.getElementById("btnLoad").addEventListener("click", async () => {
+        try {
+            const payload = buildPayload();
+            setStatus("Loading...");
+
+            const url = combineUrl(BACKEND_BASE_URL, CHEM_REPORT_PATH);
+            const res = await postJson(url, payload);
+
+            if (!res.ok) {
+                const txt = await res.text();
+                setStatus("Error: " + txt);
+                return;
+            }
+
+            const data = await res.json();
+            if (!data || data.ok !== true) {
+                setStatus("Error: invalid response");
+                return;
+            }
+
+            const rows = data.rows || [];
+            renderRows(rows);
+            setStatus(`OK. Rows = ${rows.length}`);
+        } catch (e) {
+            setStatus("Exception: " + (e?.message || e));
+        }
+    });
+
+    document.getElementById("btnExport").addEventListener("click", async () => {
+        try {
+            const payload = buildPayload();
+            setStatus("Exporting CSV...");
+
+            const url = combineUrl(BACKEND_BASE_URL, CHEM_EXPORT_PATH);
+            const res = await postJson(url, payload);
+
+            if (!res.ok) {
+                const txt = await res.text();
+                setStatus("Error: " + txt);
+                return;
+            }
+
+            const blob = await res.blob();
+
+            let filename = "CHEM_receive.csv";
+            const cd = res.headers.get("Content-Disposition");
+            if (cd) {
+                const m = /filename="([^"]+)"/i.exec(cd);
+                if (m && m[1]) filename = m[1];
+            }
+
+            const objUrl = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = objUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(objUrl);
+
+            setStatus("Export done: " + filename);
+        } catch (e) {
+            setStatus("Exception: " + (e?.message || e));
+        }
+    });
+</script>

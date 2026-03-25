@@ -1,0 +1,371 @@
+﻿<style>
+    .mini-card .chart {
+        position: relative;
+        height: 110px;
+        min-height: 110px;
+        border-radius: 10px;
+        border: 1px dashed rgba(255,255,255,.18);
+        background: rgba(255,255,255,.04);
+        overflow: hidden;
+    }
+
+        .mini-card .chart canvas {
+            width: 100% !important;
+            height: 100% !important;
+            display: block !important;
+        }
+
+    .mini-card .mini-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0px;
+        margin-bottom: -5px;
+    }
+
+    /* ===== FIX: ปุ่ม Settings ต้องกดได้แน่ (กันโดนชั้นอื่นทับ) ===== */
+    section.dps-block .bb-section-h,
+    section.dps-block .bb-section-h .right-icons {
+        position: relative;
+        z-index: 99999 !important;
+        pointer-events: auto !important;
+    }
+
+    section.dps-block #btnSettings,
+    section.dps-block .bb-ico {
+        position: relative;
+        z-index: 100000 !important;
+        pointer-events: auto !important;
+    }
+</style>
+
+<section class="bb-section dps-block"
+         data-dps-summary-url="/api/dps/summary"
+         data-dps-refresh-sec="5">
+    <div class="bb-section-h">
+        <div class="left">
+            <div class="title">DPS</div>
+        </div>
+
+        <div class="right-icons">
+            <button class="bb-ico" type="button" title="Bell" aria-label="Bell">
+                <span>🔔</span>
+            </button>
+            <button class="bb-ico" id="btnSettings" type="button" title="Settings" aria-label="Settings">
+                <span>⚙️</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="bb-section-b">
+        <div class="zone">
+            <div class="pump-col">
+                <div class="pump"><span class="tag">7P01A</span><span class="st stby" data-pump="7P01A">-</span></div>
+                <div class="pump"><span class="tag">7P01B</span><span class="st stby" data-pump="7P01B">-</span></div>
+                <div class="pump"><span class="tag">7P02A</span><span class="st stby" data-pump="7P02A">-</span></div>
+                <div class="pump"><span class="tag">7P02B</span><span class="st stby" data-pump="7P02B">-</span></div>
+            </div>
+
+            <div class="kpi-grid">
+
+                <div class="kpi">
+                    <div class="ov-top">
+                        <div class="ov-title">DPS Line FLOW (m³/h)</div>
+                        <div class="ov-status ok" id="dpsFlowStatus">OK</div>
+                    </div>
+                    <div class="val-center" id="dpsFlowAB">-</div>
+                    <div class="ov-sub"><span class="dot g"></span>Total Daily Flow</div>
+                    <div class="ov-value">
+                        <span id="dpsSumFlowAB">-</span> <span class="ov-unit">m³</span>
+                    </div>
+                </div>
+
+
+
+                <div class="mini-card ov-card">
+                    <div class="ov-top">
+                        <div class="ov-title">AIR COMPRESSOR</div>
+                        <div class="ov-status ok" id="AircompStatus">OK</div>
+                    </div>
+
+                    <div class="ov-sub"><span class="dot g"></span>AIR COMPRESSOR# 1</div>
+                    <div class="ov-value">
+                        <span id="AIR1">-</span> <span class="ov-unit">Bar</span>
+                    </div>
+
+                    <div class="ov-sub"><span class="dot g"></span>AIR COMPRESSOR# 2</div>
+                    <div class="ov-value">
+                        <span id="AIR2">-</span> <span class="ov-unit">Bar</span>
+                    </div>
+                </div>
+
+                <!-- Trend Card #1 -->
+                <div class="mini-card">
+                    <div class="mini-head">
+                        <div class="lab">Trend</div>
+                        <select id="dpsTrendSel1" class="bb-dd" aria-label="Select series">
+                            <option value="P046">P046</option>
+                            <option value="P050">P050</option>
+                            <option value="U017P">U017P</option>
+                            <option value="U018P">U018P</option>
+                            <option value="U022P">U022P</option>
+                            <option value="U029P">U029P</option>
+                            <option value="U039P">U039P</option>
+                            <option value="U040P">U040P</option>
+                            <option value="UZ0106P">UZ0106P</option>
+                            <option value="UZ0108P">UZ0108P</option>
+                            <option value="UZ5407P">UZ5407P</option>
+                            <option value="UZ5408P">UZ5408P</option>
+                            <option value="UZ5410P">UZ5410P</option>
+                            <option value="UZ5411P" selected="true">UZ5411P</option>
+                            <option value="UZ5412P">UZ5412P</option>
+                            <option value="UZ5413P">UZ5413P</option>
+                            <option value="UZ5415P">UZ5415P</option>
+                            <option value="UZ5601P">UZ5601P</option>
+                        </select>
+                    </div>
+
+                    <div class="chart">
+                        <canvas id="dpsTrend1"
+                                class="bb-trend-chart-ptc"
+                                data-select="dpsTrendSel1"
+                                data-backend-port="8888"
+                                data-default="UZ5411P"
+                                data-y-top="0.15"
+                                data-y-band="0.70"
+                                data-y-bot="0.15"></canvas>
+                    </div>
+                </div>
+
+                <!-- Trend Card #2 -->
+                <div class="mini-card">
+                    <div class="mini-head">
+                        <div class="lab">Trend</div>
+                        <select id="dpsTrendSel2" class="bb-dd" aria-label="Select series">
+                            <option value="P046">P046</option>
+                            <option value="P050">P050</option>
+                            <option value="U017P">U017P</option>
+                            <option value="U018P">U018P</option>
+                            <option value="U022P">U022P</option>
+                            <option value="U029P">U029P</option>
+                            <option value="U039P">U039P</option>
+                            <option value="U040P">U040P</option>
+                            <option value="UZ0106P">UZ0106P</option>
+                            <option value="UZ0108P">UZ0108P</option>
+                            <option value="UZ5407P">UZ5407P</option>
+                            <option value="UZ5408P">UZ5408P</option>
+                            <option value="UZ5410P">UZ5410P</option>
+                            <option value="UZ5411P" selected="true">UZ5411P</option>
+                            <option value="UZ5412P">UZ5412P</option>
+                            <option value="UZ5413P">UZ5413P</option>
+                            <option value="UZ5415P">UZ5415P</option>
+                            <option value="UZ5601P">UZ5601P</option>
+                        </select>
+                    </div>
+
+                    <div class="chart">
+                        <canvas id="dpsTrend2"
+                                class="bb-trend-chart-ptc"
+                                data-select="dpsTrendSel2"
+                                data-backend-port="8888"
+                                data-default="UZ5411P"
+                                data-y-top="0.15"
+                                data-y-band="0.70"
+                                data-y-bot="0.15"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="row4">
+            <div class="mini-card">
+                <div class="ov-top">
+                    <div class="ov-title">Post Chlorination# 1</div>
+                    <div class="ov-status ok">OK</div>
+                </div>
+                <div class="chart"><canvas id="dpsPostTrend1"></canvas></div>
+            </div>
+
+            <div class="mini-card">
+                <div class="ov-top">
+                    <div class="ov-title">Post Chlorination# 2</div>
+                    <div class="ov-status ok">OK</div>
+                </div>
+                <div class="chart"><canvas id="dpsPostTrend2"></canvas></div>
+            </div>
+
+            <div class="mini-card">
+                <div class="ov-top">
+                    <div class="ov-title">Post Chlorination# 3</div>
+                    <div class="ov-status ok">OK</div>
+                </div>
+                <div class="chart"><canvas id="dpsPostTrend3"></canvas></div>
+            </div>
+
+            <div class="mini-card">
+                <div class="ov-top">
+                    <div class="ov-title">Post Chlorination# 4</div>
+                    <div class="ov-status ok">OK</div>
+                </div>
+                <div class="chart"><canvas id="dpsPostTrend4"></canvas></div>
+            </div>
+        </div>
+
+    </div>
+</section>
+
+<script>
+    // Init DPS smartmap overlay (single poller)
+    window.DPSSmartmapOverlay?.initWithin(document.currentScript?.closest("section.dps-block") || document);
+</script>
+
+<script>
+    window.BBTrend?.initWithin(document.currentScript?.closest("section") || document);
+</script>
+
+<script>
+    /**
+     * DPS Summary Updater (frontend)
+     * - GET /api/dps/summary
+     * - เติมค่า: FlowAB, SumFlowAB, SS1A (ถ้ามี), และ pump statuses จาก data.Aq
+     * - Pump mapping:
+     *   816->7P01A, 829->7P01B, 842->7P02A, 857->7P02B
+     */
+    (function () {
+        "use strict";
+
+        const section = document.currentScript?.closest("section.dps-block");
+        if (!section) return;
+
+        // กัน start ซ้ำ + กันตั้ง timer ซ้ำ
+        if (section._dpsSummaryStarted) return;
+        section._dpsSummaryStarted = true;
+
+        const url = section.getAttribute("data-dps-summary-url") || "/api/dps/summary";
+        const refreshSec = Math.max(2, parseInt(section.getAttribute("data-dps-refresh-sec") || "5", 10) || 5);
+        const pollMs = refreshSec * 1000;
+
+        const elFlow = section.querySelector("#dpsFlowAB");
+        const elFlowStatus = section.querySelector("#dpsFlowStatus");
+        const elSumFlow = section.querySelector("#dpsSumFlowAB");
+        const elSS1A = section.querySelector("#dpsSS1A");
+        const elOverviewStatus = section.querySelector("#dpsOverviewStatus");
+
+        // pump spans: <span class="st ..." data-pump="7P01A">-</span>
+        const pumpEls = Array.from(section.querySelectorAll("[data-pump]"));
+
+        // mapping ตามที่สั่ง
+        const pumpToConfigId = {
+            "7P01A": 816,
+            "7P01B": 829,
+            "7P02A": 842,
+            "7P02B": 857
+        };
+
+        function setStatus(el, ok) {
+            if (!el) return;
+            el.classList.remove("ok", "bad");
+            el.classList.add(ok ? "ok" : "bad");
+            el.textContent = ok ? "OK" : "ERR";
+        }
+
+        function fmtNumber(v, decimals) {
+            if (v === null || v === undefined) return null;
+            const n = (typeof v === "number") ? v : Number(String(v).replace(/,/g, "").trim());
+            if (!Number.isFinite(n)) return null;
+            const d = (decimals ?? 0);
+            return n.toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
+        }
+
+        // normalize จาก AQ: ON / STANDBY / STBY / REP
+        function normalizePumpText(raw) {
+            const s = String(raw ?? "").trim().toUpperCase();
+            if (s === "ON") return "ON";
+            if (s === "STANDBY" || s === "STBY") return "STBY";
+            if (s === "REP" || s === "REPAIR") return "REP";
+            return "-";
+        }
+
+        function applyPumpStatus(pumpEl, text) {
+            const t = normalizePumpText(text);
+            pumpEl.classList.remove("on", "stby", "rep");
+
+            if (t === "ON") {
+                pumpEl.classList.add("on");
+                pumpEl.textContent = "ON";
+            } else if (t === "STBY") {
+                pumpEl.classList.add("stby");
+                pumpEl.textContent = "STBY";
+            } else if (t === "REP") {
+                pumpEl.classList.add("rep");
+                pumpEl.textContent = "REP";
+            } else {
+                // default: unknown/missing
+                pumpEl.classList.add("stby");
+                pumpEl.textContent = "-";
+            }
+        }
+
+        let inFlight = false;
+
+        async function tick() {
+            if (inFlight) return;
+            inFlight = true;
+
+            try {
+                const res = await fetch(url, { method: "GET", cache: "no-store" });
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const data = await res.json();
+
+                // ---------- pumps from data.Aq ----------
+                // backend: { Aq: { "816": { value_text:"ON"... }, ... } }
+                const aq = data?.Aq || null;
+
+                for (const pe of pumpEls) {
+                    const pumpName = pe.getAttribute("data-pump") || "";
+                    const cfg = pumpToConfigId[pumpName];
+                    const vt = (cfg && aq) ? (aq[cfg]?.value_text ?? aq[String(cfg)]?.value_text) : null;
+                    applyPumpStatus(pe, vt);
+                }
+
+                // ---------- FlowAB ----------
+                const flowText = fmtNumber(data?.FlowAB, 0);
+                if (elFlow) elFlow.textContent = (flowText ?? "-");
+                setStatus(elFlowStatus, flowText !== null);
+
+                // ---------- Overview (SumFlowAB + SS1A) ----------
+                const sumFlowText = fmtNumber(data?.SumFlowAB, 0);
+                if (elSumFlow) elSumFlow.textContent = (sumFlowText ?? "-");
+
+                // SS1A อาจยังไม่มีใน payload -> อย่าให้ทำ overview fail ถ้ายังไม่ส่งมา
+                let okOverview = (sumFlowText !== null);
+
+                const ss1aText = fmtNumber(data?.SS1A, 2);
+                if (elSS1A) elSS1A.textContent = (ss1aText ?? "-");
+                // ถ้า backend เริ่มส่ง SS1A เมื่อไหร่ ค่อยเอามารวมเงื่อนไข OK
+                if (data && Object.prototype.hasOwnProperty.call(data, "SS1A"))
+                    okOverview = okOverview && (ss1aText !== null);
+
+                setStatus(elOverviewStatus, okOverview);
+
+            } catch {
+                // error => reset
+                for (const pe of pumpEls) applyPumpStatus(pe, null);
+
+                if (elFlow) elFlow.textContent = "-";
+                if (elSumFlow) elSumFlow.textContent = "-";
+                if (elSS1A) elSS1A.textContent = "-";
+                setStatus(elFlowStatus, false);
+                setStatus(elOverviewStatus, false);
+            } finally {
+                inFlight = false;
+            }
+        }
+
+        tick();
+
+        // เก็บ timer ไว้ที่ section เพื่อไม่ให้ซ้อน
+        section._dpsSummaryTimer = setInterval(tick, pollMs);
+    })();
+</script>

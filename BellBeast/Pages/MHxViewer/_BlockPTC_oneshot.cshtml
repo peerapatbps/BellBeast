@@ -1,0 +1,277 @@
+﻿﻿@{
+// dropdown options (ต้องตรงกับ key ที่ backend :8888 รองรับ)
+var series = new[] {
+        "P046",
+        "P050",
+        "U017P",
+        "U018P",
+        "U022P",
+        "U029P",
+        "U039P",
+        "U040P",
+        "UZ0106P",
+        "UZ0108P",
+        "UZ5407P",
+        "UZ5408P",
+        "UZ5410P",
+        "UZ5411P",
+        "UZ5412P",
+        "UZ5413P",
+        "UZ5415P",
+        "UZ5601P",
+    };
+
+// กัน id ชนกรณีมีหลาย slot
+var uid = Guid.NewGuid().ToString("N")[..8];
+
+var selL = $"ptcSelL_{uid}";
+var selR = $"ptcSelR_{uid}";
+var latestL = $"ptcLatestL_{uid}";
+var latestR = $"ptcLatestR_{uid}";
+}
+
+<style>
+    /* ===== PTC oneshot (slot-safe, DPS-like) ===== */
+
+    .ptc-block {
+        height: 100%;
+        min-height: 0;
+        padding: 10px;
+    }
+
+        .ptc-block .bb-section-b {
+            height: 100%;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+    /* ===== FIX: ปุ่ม Settings ต้องกดได้แน่ (กันโดนชั้นอื่นทับ) ===== */
+    section.ptc-block .bb-section-h,
+    section.ptc-block .bb-section-h .right-icons {
+        position: relative;
+        z-index: 99999 !important;
+        pointer-events: auto !important;
+    }
+
+    section.ptc-block #btnSettings,
+    section.ptc-block .bb-ico {
+        position: relative;
+        z-index: 100000 !important;
+        pointer-events: auto !important;
+    }
+
+    /* 2 คอลัมน์ 50:50, แถวบน fixed, แถวล่างกินที่เหลือ */
+    .ptc-one {
+        flex: 1;
+        min-height: 200px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 44px 1fr;
+        gap: 10px;
+        min-width: 10px;
+    }
+
+    .ptc-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        min-width: 0;
+        background: rgba(0,0,0,.12);
+        border: 1px solid rgba(255,255,255,.10);
+        border-radius: 10px;
+        padding: 8px 10px;
+        box-sizing: border-box;
+    }
+
+        .ptc-top .left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+
+        .ptc-top .lbl {
+            font-size: 12px;
+            font-weight: 900;
+            opacity: .90;
+            white-space: nowrap;
+        }
+
+    .ptc-dd {
+        height: 28px;
+        padding: 0 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,.10);
+        background: rgba(0,0,0,.22);
+        color: rgba(255,255,255,.92);
+        font-size: 12px;
+        font-weight: 900;
+        outline: none;
+        cursor: pointer;
+        max-width: 180px;
+    }
+
+        .ptc-dd:focus {
+            box-shadow: 0 0 0 2px rgba(51,209,255,.18);
+        }
+
+        .ptc-dd option {
+            background: #22282c;
+            color: rgba(255,255,255,.92);
+        }
+
+    .ptc-top .right {
+        font-size: 12px;
+        font-weight: 900;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        opacity: .92;
+    }
+
+        .ptc-top .right b {
+            color: #eaf6ff;
+        }
+
+    /* ✅ สำคัญ: chart ต้องมี “ความสูงจริง” */
+    .ptc-chart {
+        position: relative;
+        height: 100%;
+        min-height: 210px;
+        border-radius: 12px;
+        border: 1px dashed rgba(255,255,255,.18);
+        background: rgba(255,255,255,.04);
+        overflow: hidden;
+        min-width: 0;
+    }
+
+        .ptc-chart canvas {
+            width: 100% !important;
+            height: 100% !important;
+            display: block !important;
+        }
+
+    .ptc-a-top {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .ptc-b-top {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .ptc-a-chart {
+        grid-column: 1;
+        grid-row: 2;
+    }
+
+    .ptc-b-chart {
+        grid-column: 2;
+        grid-row: 2;
+    }
+
+    @@media (max-width:1100px) {
+        .ptc-one {
+            grid-template-columns: 1fr;
+            grid-template-rows: 44px 1fr 44px 1fr;
+        }
+
+        .ptc-b-top {
+            grid-column: 1;
+            grid-row: 3;
+        }
+
+        .ptc-b-chart {
+            grid-column: 1;
+            grid-row: 4;
+        }
+    }
+</style>
+
+<section class="bb-section ptc-block">
+    <div class="bb-section-h">
+        <div class="left">
+            <div class="title">DPS</div>
+        </div>
+
+        <div class="right-icons">
+            <button class="bb-ico" type="button" title="Bell" aria-label="Bell">
+                <span>🔔</span>
+            </button>
+            <button class="bb-ico" id="btnSettings" type="button" title="Settings" aria-label="Settings">
+                <span>⚙️</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="bb-section-b">
+        <div class="ptc-one">
+
+            <div class="ptc-top ptc-a-top">
+                <div class="left">
+                    <div class="lbl">Trend:</div>
+                    <select class="ptc-dd" id="@selL" aria-label="Select series (left)">
+                        @foreach (var s in series)
+                        {
+                            <option value="@s" selected="@(s == "UZ5411P")">@s</option>
+                        }
+                    </select>
+                </div>
+                <div class="right" id="@latestL">Latest <b>--:--:--</b> : <b>--</b></div>
+            </div>
+
+            <div class="ptc-top ptc-b-top">
+                <div class="left">
+                    <div class="lbl">Trend:</div>
+                    <select class="ptc-dd" id="@selR" aria-label="Select series (right)">
+                        @foreach (var s in series)
+                        {
+                            <option value="@s" selected="@(s == "UZ5411P")">@s</option>
+                        }
+                    </select>
+                </div>
+                <div class="right" id="@latestR">Latest <b>--:--:--</b> : <b>--</b></div>
+            </div>
+
+            <div class="ptc-chart ptc-a-chart">
+                <canvas class="bb-trend-chart-ptc"
+                        data-default="UZ5411P"
+                        data-select="@selL"
+                        data-latest="@latestL"
+                        data-backend-port="8888"
+                        data-y-top="0.20"
+                        data-y-band="0.60"
+                        data-y-bot="0.20"></canvas>
+            </div>
+
+            <div class="ptc-chart ptc-b-chart">
+                <canvas class="bb-trend-chart-ptc"
+                        data-default="UZ5411P"
+                        data-select="@selR"
+                        data-latest="@latestR"
+                        data-backend-port="8888"
+                        data-y-top="0.20"
+                        data-y-band="0.60"
+                        data-y-bot="0.20"></canvas>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+<script>
+  // Init PTC smartmap overlay (single poller)
+  window.PTCSmartmapOverlay?.initWithin(
+    document.currentScript?.closest("section.ptc-block") || document
+  );
+</script>
+
+<script>
+  // Init PTC chart (series only on init / key change)
+  window.BBTrendPTC?.initWithin(
+    document.currentScript?.closest("section.ptc-block") || document
+  );
+</script>

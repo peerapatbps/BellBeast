@@ -1,0 +1,14 @@
+{
+  "backendBaseUrl": "http://172.22.46.54:8888",
+  "queryCsvPath": "/api/process",
+  "dailyReportPath": "/api/dailyreport",
+  "chemReportPath": "/api/chem_report",
+  "chemExportPath": "/api/chem_report/export",
+  "lookupProductsPath": "/api/lookup/products",
+  "lookupCompaniesPath": "/api/lookup/companies",
+  "DpsSummaryPath": "/api/dps/summary",
+  "tpsSummaryPath": "/api/tps/summary",
+  "rwsSummaryPath": "/api/rws/summary",
+  "chemSummaryPath": "/api/chem/summary",
+  "eventSummaryPath": "/api/event/summary"
+}

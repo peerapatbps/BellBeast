@@ -1,0 +1,946 @@
+﻿@page
+@model MH_reportModel
+@{
+    ViewData["Title"] = "MH Report";
+}
+
+<style>
+    .mh-page { width: 1100px; min-width: 1100px; max-width: 1100px; margin: 0 auto; }
+
+    .mh-card {
+        border: 1px solid rgba(255,255,255,0.20);
+        border-radius: 10px;
+        padding: 12px;
+        background: rgba(0,0,0,0.10);
+        backdrop-filter: blur(4px);
+        box-sizing: border-box;
+    }
+
+    .mh-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+
+    .mh-left { display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; }
+    .mh-right { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; margin-left: auto; }
+
+    .mh-btn {
+        appearance: none;
+        border: 1px solid rgba(255,255,255,0.22);
+        border-radius: 10px;
+        padding: 8px 12px;
+        font-weight: 700;
+        letter-spacing: .2px;
+        cursor: pointer;
+        user-select: none;
+        background: rgba(255,255,255,0.08);
+        color: #fff;
+        transition: transform .05s ease, background .15s ease, border-color .15s ease;
+    }
+    .mh-btn:active { transform: translateY(1px); }
+    .mh-btn:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.35); }
+
+    .mh-btn-primary { background: rgba(50, 170, 255, 0.28); border-color: rgba(50, 170, 255, 0.55); }
+    .mh-btn-primary:hover { background: rgba(50, 170, 255, 0.36); border-color: rgba(50, 170, 255, 0.75); }
+
+    .mh-btn-danger { background: rgba(255, 80, 80, 0.20); border-color: rgba(255, 80, 80, 0.45); }
+    .mh-btn-danger:hover { background: rgba(255, 80, 80, 0.28); border-color: rgba(255, 80, 80, 0.65); }
+
+    .mh-params { height: 600px !important; min-height: 600px !important; max-height: 600px !important; overflow: hidden !important; }
+
+    .mh-topline {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+    .mh-topline .left { font-weight: 700; }
+    .mh-topline .right { color: rgba(255,255,255,0.65); font-size: 12px; }
+
+    .mh-blocklist {
+        height: 560px;
+        min-height: 560px;
+        max-height: 560px;
+        overflow: auto;
+        box-sizing: border-box;
+        padding-right: 4px;
+    }
+
+    .sec-block {
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 10px;
+        padding: 10px;
+        margin-bottom: 10px;
+        background: rgba(255,255,255,0.03);
+        box-sizing: border-box;
+    }
+
+    .sec-title { font-weight: 800; margin-bottom: 6px; letter-spacing: .3px; }
+
+    .grp-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin: 6px 0 4px 6px;
+    }
+
+    .grp-title { font-weight: 700; color: rgba(255,255,255,0.90); }
+
+    .grp-actions { display: flex; gap: 8px; margin-left: auto; }
+
+    .mh-btn-mini {
+        appearance: none;
+        border: 1px solid rgba(255,255,255,0.18);
+        border-radius: 8px;
+        padding: 3px 8px;
+        font-weight: 700;
+        cursor: pointer;
+        background: rgba(255,255,255,0.06);
+        color: rgba(255,255,255,0.90);
+        font-size: 12px;
+        line-height: 1.2;
+    }
+    .mh-btn-mini:hover { background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.30); }
+
+    .mh-items { margin-left: 14px; }
+
+    .mh-item { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+    .mh-item input[type="checkbox"] { transform: translateY(1px); }
+
+    .result-wrap { margin-top: 12px; width: 100%; }
+    .result-title { margin-bottom: 8px; font-weight: 700; }
+
+    pre.mh-result {
+        height: 200px !important;
+        min-height: 200px !important;
+        max-height: 200px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        display: block !important;
+        box-sizing: border-box !important;
+        margin: 0 !important;
+        overflow-y: auto !important;
+        overflow-x: auto !important;
+        white-space: pre !important;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.35;
+    }
+
+    .mh-params, pre.mh-result { flex: 0 0 auto !important; }
+</style>
+
+<div class="mh-page">
+    <h2>MH Report</h2>
+
+    <div class="mh-toolbar">
+        <div class="mh-left">
+            <label>
+                Start:
+                <input type="date" id="startDate" />
+            </label>
+
+            <label>
+                End:
+                <input type="date" id="endDate" />
+            </label>
+        </div>
+
+        <div class="mh-right">
+            <button type="button" class="mh-btn" onclick="selectAll(true)">Select All</button>
+            <button type="button" class="mh-btn mh-btn-danger" onclick="selectAll(false)">Clear</button>
+            <button type="button" id="btnGenerate" class="mh-btn mh-btn-primary" onclick="submitDailyReport()">Generate</button>
+        </div>
+    </div>
+
+    <section class="mh-card mh-params">
+        <div class="mh-topline">
+            <div class="left">Parameters</div>
+            <div class="right" id="selCount">Selected: 0/0</div>
+        </div>
+
+        <div class="mh-blocklist" id="blockContainer"></div>
+    </section>
+
+    <section class="result-wrap">
+        <div class="result-title">Result</div>
+        <pre id="out" class="mh-card mh-result"></pre>
+    </section>
+</div>
+
+@section Scripts {
+<script>
+(() => {
+  "use strict";
+
+        const CHECKBOX_SCHEMA = [
+          {
+            title: "สรุปต้นทุน",
+            groups: [
+              {
+                title: "สรุปต้นทุน",
+                items: [
+                  { key: "Total_cost", label: "ต้นทุนรวม" },
+                  { key: "Chem_cost", label: "ต้นทุนสารเคมี" },
+                  { key: "Energy_cost", label: "ต้นทุนพลังงาน" },
+                  { key: "Sludge_disposal_cost", label: "ต้นทุนกำจัดตะกอน" }
+                ]
+              },
+              {
+                title: "รายละเอียดต้นทุน",
+                items: [
+                  { key: "pacl_baht", label: "ราคาต้นทุน PACl" },
+                  { key: "alum_baht", label: "ราคาต้นทุน Alum" },
+                  { key: "chlorine_baht", label: "ราคาต้นทุน Chlorine" },
+                  { key: "polymer_baht", label: "ราคาต้นทุน Polymer" }
+                ]
+              },
+              {
+                title: "ราคาต่อหน่วยสารเคมี",
+                items: [
+                  { key: "pacl_ton", label: "ราคา PACl ต่อหน่วย" },
+                  { key: "alum_ton", label: "ราคา Alum ต่อหน่วย" },
+                  { key: "chlorine_ton", label: "ราคา Chlorine ต่อหน่วย" },
+                  { key: "polymer_ton", label: "ราคา Polymer ต่อหน่วย" }
+                ]
+              }
+            ]
+          },
+
+          {
+            title: "ปริมาณน้ำและการสูญเสีย",
+            groups: [
+              {
+                title: "ปริมาณน้ำ",
+                items: [
+                  { key: "RWS_TotalF", label: "ปริมาณน้ำดิบรวม" },
+                  { key: "DPS_AF", label: "ปริมาณน้ำสูบจ่าย Line A" },
+                  { key: "DPS_BF", label: "ปริมาณน้ำสูบจ่าย Line B" },
+                  { key: "DPS_TotalF", label: "ปริมาณน้ำสูบจ่ายรวม" },
+                  { key: "TPS", label: "ปริมาณน้ำสูบส่งรวม" }
+                ]
+              },
+              {
+                title: "การสูญเสียน้ำ",
+                items: [
+                  { key: "Water_loss", label: "% น้ำสูญเสีย" },
+                  { key: "Wash_water_Total", label: "ปริมาณน้ำล้างบ่อกรองรวม" },
+                  { key: "Sludge_drain_Total", label: "ปริมาณน้ำระบายตะกอนรวม" },
+                  { key: "Service_water_F", label: "ปริมาณน้ำ Service" }
+                ]
+              }
+            ]
+          },
+
+          {
+            title: "พลังงาน",
+            groups: [
+              {
+                title: "การใช้พลังงานรวม",
+                items: [
+                  { key: "Plant_Energy_USEtotal", label: "ปริมาณการใช้พลังงานในโรงงาน" },
+                  { key: "Energy_total", label: "ปริมาณการใช้พลังงานทั้งหมด" }
+                ]
+              },
+              {
+                title: "รายละเอียดพลังงาน (สถานีไฟฟ้า)",
+                items: [
+                  { key: "Energy_SS1A", label: "สถานีไฟฟ้า 1A (สูบจ่าย)" },
+                  { key: "Energy_SS1B", label: "สถานีไฟฟ้า 1B (สูบส่ง)" },
+                  { key: "Energy_SS2A", label: "สถานีไฟฟ้า 2A (น้ำดิบ1)" },
+                  { key: "Energy_SS2B", label: "สถานีไฟฟ้า 2B (น้ำดิบ2)" },
+                  { key: "Energy_SS3A", label: "สถานีไฟฟ้า 3A (บ่อกรองตกตะกอน)" },
+                  { key: "Energy_SS3B", label: "สถานีไฟฟ้า 3B (บ่อกรองตกตะกอน)" },
+                  { key: "Energy_SS3", label: "สถานีไฟฟ้า 3 (อาคารสำนักงาน)" }
+                ]
+              }
+            ]
+          },
+
+          {
+            title: "ระดับน้ำและแรงดัน",
+            groups: [
+              {
+                title: "ระดับน้ำใส",
+                items: [
+                  { key: "CWT_Lvl24", label: "ระดับถังเก็บน้ำใส 24.00" },
+                  { key: "CWT_maxLvl", label: "ระดับถังเก็บน้ำใสสูงสุด" },
+                  { key: "CWT_minLvl", label: "ระดับถังเก็บน้ำใสต่ำสุด" }
+                ]
+              },
+              {
+                title: "ระดับน้ำดิบ",
+                items: [
+                  { key: "RWS_maxLvl", label: "ระดับน้ำดิบสูงสุด" },
+                  { key: "RWS_minLvl", label: "ระดับน้ำดิบต่ำสุด" },
+                  { key: "RWS1_P1F", label: "ปริมาณน้ำดิบ เฟส1" },
+                  { key: "RWS1_P2F", label: "ปริมาณน้ำดิบ เฟส2" },
+                  { key: "RWS2_P3F", label: "ปริมาณน้ำดิบ เฟส3" },
+                  { key: "RWS2_P4F", label: "ปริมาณน้ำดิบ เฟส4" }
+                ]
+              },
+              {
+                title: "แรงดัน (DPS/TPS)",
+                items: [
+                  { key: "DPS_maxPresure", label: "แรงดันสถานีสูบจ่ายสูงสุด" },
+                  { key: "DPS_minPresure", label: "แรงดันสถานีสูบจ่ายต่ำสุด" },
+                  { key: "TPS_maxPressure", label: "แรงดันสถานีสูบส่งสูงสุด" },
+                  { key: "TPS_minPressure", label: "แรงดันสถานีสูบส่งต่ำสุด" }
+                ]
+              }
+            ]
+          },
+
+          {
+            title: "สถานะบ่อกรอง",
+            groups: [
+              {
+                title: "ภาพรวม",
+                items: [
+                  { key: "PercentageFilterUse", label: "% ความพร้อมใช้งานรวม" },
+                  { key: "FRT_Avg", label: "ชั่วโมงการทำงานเฉลี่ย" }
+                ]
+              },
+              {
+                title: "สถานะรายเฟส (On/Standby/Repair)",
+                items: [
+                  { key: "ON_P1", label: "ON เฟส 1" },
+                  { key: "ON_P2", label: "ON เฟส 2" },
+                  { key: "ON_P3", label: "ON เฟส 3" },
+                  { key: "ON_P4", label: "ON เฟส 4" },
+                  { key: "STANDBY_P1", label: "Standby เฟส 1" },
+                  { key: "STANDBY_P2", label: "Standby เฟส 2" },
+                  { key: "STANDBY_P3", label: "Standby เฟส 3" },
+                  { key: "STANDBY_P4", label: "Standby เฟส 4" },
+                  { key: "REPAIR_P1", label: "Repair เฟส 1" },
+                  { key: "REPAIR_P2", label: "Repair เฟส 2" },
+                  { key: "REPAIR_P3", label: "Repair เฟส 3" },
+                  { key: "REPAIR_P4", label: "Repair เฟส 4" }
+                ]
+              },
+              {
+                title: "ชั่วโมงการทำงานรายเฟส",
+                items: [
+                  { key: "FRT_P1", label: "ชั่วโมงการทำงาน เฟส 1" },
+                  { key: "FRT_P2", label: "ชั่วโมงการทำงาน เฟส 2" },
+                  { key: "FRT_P3", label: "ชั่วโมงการทำงาน เฟส 3" },
+                  { key: "FRT_P4", label: "ชั่วโมงการทำงาน เฟส 4" }
+                ]
+              }
+            ]
+          },
+
+          {
+            title: "รายละเอียดบ่อกรอง",
+            groups: [
+              {
+                title: "จำนวนล้างบ่อกรอง (Count)",
+                items: [
+                  { key: "WASHCOUNT_P1", label: "จำนวนล้าง เฟส 1" },
+                  { key: "WASHCOUNT_P2", label: "จำนวนล้าง เฟส 2" },
+                  { key: "WASHCOUNT_P3", label: "จำนวนล้าง เฟส 3" },
+                  { key: "WASHCOUNT_P4", label: "จำนวนล้าง เฟส 4" }
+                ]
+              },
+              {
+                title: "ปริมาณน้ำล้าง (Volume)",
+                items: [
+                  { key: "Wash_water_P1", label: "น้ำล้าง เฟส 1" },
+                  { key: "Wash_water_P2", label: "น้ำล้าง เฟส 2" },
+                  { key: "Wash_water_P3", label: "น้ำล้าง เฟส 3" },
+                  { key: "Wash_water_P4", label: "น้ำล้าง เฟส 4" }
+                ]
+              },
+              {
+                title: "ปริมาณน้ำระบายตะกอน (Volume)",
+                items: [
+                  { key: "Sludge_drain_P1", label: "ระบายตะกอน เฟส 1" },
+                  { key: "Sludge_drain_P2", label: "ระบายตะกอน เฟส 2" },
+                  { key: "Sludge_drain_P3", label: "ระบายตะกอน เฟส 3" },
+                  { key: "Sludge_drain_P4", label: "ระบายตะกอน เฟส 4" }
+                ]
+              }
+            ]
+          },
+
+          {
+            title: "สรุปสารเคมี",
+            groups: [
+              {
+                title: "ปริมาณการใช้รวม (tonuse)",
+                items: [
+                  { key: "Pacl_Total_tonuse", label: "ปริมาณการใช้ PACl รวม" },
+                  { key: "Alum_Total_tonuse", label: "ปริมาณการใช้ Alum รวม" },
+                  { key: "Cl_Total_tonuse", label: "ปริมาณการใช้ Chlorine รวม" },
+                  { key: "Polymer_Total_tonuse", label: "ปริมาณการใช้ Polymer รวม" }
+                ]
+              },
+              {
+                title: "คงเหลือ (Stock)",
+                items: [
+                  { key: "Pacl_stock", label: "ปริมาณ PACl คงเหลือ" },
+                  { key: "Alum_stock", label: "ปริมาณ Alum คงเหลือ" },
+                  { key: "Cl_stock", label: "ปริมาณ Chlorine คงเหลือ" },
+                  { key: "Polymer_stock", label: "ปริมาณ Polymer คงเหลือ" },
+                  { key: "PACl_P12_stock", label: "ปริมาณ PACl คงเหลือ (เฟส 1-2)" },
+                  { key: "PACl_P34_stock", label: "ปริมาณ PACl คงเหลือ (เฟส 3-4)" },
+                  { key: "Alum_P12_stock", label: "ปริมาณ Alum คงเหลือ (เฟส 1-2)" },
+                  { key: "Alum_P34_stock", label: "ปริมาณ Alum คงเหลือ (เฟส 3-4)" },
+                  { key: "Cl_P12_stock", label: "ปริมาณ Chlorine คงเหลือ (เฟส 1-2)" },
+                  { key: "Cl_P34_stock", label: "ปริมาณ Chlorine คงเหลือ (เฟส 3-4)" }
+                ]
+              },
+              {
+                title: "รับเข้า (Income)",
+                items: [
+                  { key: "Pacl_income", label: "ปริมาณการรับเข้า PACl" },
+                  { key: "Alum_income", label: "ปริมาณการรับเข้า Alum" },
+                  { key: "Cl_income", label: "ปริมาณการรับเข้า Chlorine" },
+                  { key: "Polymer_income", label: "ปริมาณการรับเข้า Polymer" }
+                ]
+              }
+            ]
+          },
+
+          {
+            title: "รายละเอียดสารเคมี",
+            groups: [
+              {
+                title: "PACl รายเฟส (tonuse)",
+                items: [
+                  { key: "Pacl_P1tonuse", label: "ปริมาณการใช้ PACl เฟส 1" },
+                  { key: "Pacl_P2tonuse", label: "ปริมาณการใช้ PACl เฟส 2" },
+                  { key: "Pacl_P3tonuse", label: "ปริมาณการใช้ PACl เฟส 3" },
+                  { key: "Pacl_P4tonuse", label: "ปริมาณการใช้ PACl เฟส 4" }
+                ]
+              },
+              {
+                title: "Alum รายเฟส (tonuse)",
+                items: [
+                  { key: "Alum_P1tonuse", label: "ปริมาณการใช้ Alum เฟส 1" },
+                  { key: "Alum_P2tonuse", label: "ปริมาณการใช้ Alum เฟส 2" },
+                  { key: "Alum_P3tonuse", label: "ปริมาณการใช้ Alum เฟส 3" },
+                  { key: "Alum_P4tonuse", label: "ปริมาณการใช้ Alum เฟส 4" }
+                ]
+              },
+              {
+                title: "Pre-Cl รายเฟส (tonuse)",
+                items: [
+                  { key: "PreCl_P1tonuse", label: "ปริมาณการใช้ Pre-Cl เฟส 1" },
+                  { key: "PreCl_P2tonuse", label: "ปริมาณการใช้ Pre-Cl เฟส 2" },
+                  { key: "PreCl_P3tonuse", label: "ปริมาณการใช้ Pre-Cl เฟส 3" },
+                  { key: "PreCl_P4tonuse", label: "ปริมาณการใช้ Pre-Cl เฟส 4" }
+                ]
+              },
+              {
+                title: "Post-Cl รายเฟส (tonuse)",
+                items: [
+                  { key: "PosCl_P1tonuse", label: "ปริมาณการใช้ Post-Cl เฟส 1" },
+                  { key: "PosCl_P2tonuse", label: "ปริมาณการใช้ Post-Cl เฟส 2" },
+                  { key: "PosCl_P3tonuse", label: "ปริมาณการใช้ Post-Cl เฟส 3" },
+                  { key: "PosCl_P4tonuse", label: "ปริมาณการใช้ Post-Cl เฟส 4" }
+                ]
+              }
+            ]
+          },
+
+          {
+            title: "เป้าหมายการจ่ายสารเคมี",
+            groups: [
+              {
+                title: "Pre-Cl Target Dose",
+                items: [
+                  { key: "PreCl_P1targer_dose", label: "อัตราการใช้ Pre-Cl เฟส 1" },
+                  { key: "PreCl_P2targer_dose", label: "อัตราการใช้ Pre-Cl เฟส 2" },
+                  { key: "PreCl_P3targer_dose", label: "อัตราการใช้ Pre-Cl เฟส 3" },
+                  { key: "PreCl_P4targer_dose", label: "อัตราการใช้ Pre-Cl เฟส 4" }
+                ]
+              },
+              {
+                title: "Post-Cl Target Dose",
+                items: [
+                  { key: "PosCl_P1targer_dose", label: "อัตราการใช้ Post-Cl เฟส 1" },
+                  { key: "PosCl_P2targer_dose", label: "อัตราการใช้ Post-Cl เฟส 2" },
+                  { key: "PosCl_P3targer_dose", label: "อัตราการใช้ Post-Cl เฟส 3" },
+                  { key: "PosCl_P4targer_dose", label: "อัตราการใช้ Post-Cl เฟส 4" }
+                ]
+              },
+              {
+                title: "PACl Target Dose",
+                items: [
+                  { key: "Pacl_P1targer_dose", label: "อัตราการใช้ PACl เฟส 1" },
+                  { key: "Pacl_P2targer_dose", label: "อัตราการใช้ PACl เฟส 2" },
+                  { key: "Pacl_P3targer_dose", label: "อัตราการใช้ PACl เฟส 3" },
+                  { key: "Pacl_P4targer_dose", label: "อัตราการใช้ PACl เฟส 4" }
+                ]
+              },
+              {
+                title: "Alum Target Dose",
+                items: [
+                  { key: "Alum_P1targer_dose", label: "อัตราการใช้ Alum เฟส 1" },
+                  { key: "Alum_P2targer_dose", label: "อัตราการใช้ Alum เฟส 2" },
+                  { key: "Alum_P3targer_dose", label: "อัตราการใช้ Alum เฟส 3" },
+                  { key: "Alum_P4targer_dose", label: "อัตราการใช้ Alum เฟส 4" }
+                ]
+              }
+            ]
+          },
+
+          {
+            title: "ประสิทธิภาพการจ่ายสารเคมี",
+            groups: [
+              {
+                title: "Pre-Cl Actual Dose",
+                items: [
+                  { key: "PreCl_P1actual_dose", label: "อัตราการใช้ Pre-Cl เฟส 1" },
+                  { key: "PreCl_P2actual_dose", label: "อัตราการใช้ Pre-Cl เฟส 2" },
+                  { key: "PreCl_P3actual_dose", label: "อัตราการใช้ Pre-Cl เฟส 3" },
+                  { key: "PreCl_P4actual_dose", label: "อัตราการใช้ Pre-Cl เฟส 4" }
+                ]
+              },
+              {
+                title: "Post-Cl Actual Dose",
+                items: [
+                  { key: "PosCl_P1actual_dose", label: "อัตราการใช้ Post-Cl เฟส 1" },
+                  { key: "PosCl_P2actual_dose", label: "อัตราการใช้ Post-Cl เฟส 2" },
+                  { key: "PosCl_P3actual_dose", label: "อัตราการใช้ Post-Cl เฟส 3" },
+                  { key: "PosCl_P4actual_dose", label: "เกี่ยวข้อง" }
+                ]
+              },
+              {
+                title: "PACl Actual Dose",
+                items: [
+                  { key: "Pacl_P1actual_dose", label: "อัตราการใช้ PACl เฟส 1" },
+                  { key: "Pacl_P2actual_dose", label: "อัตราการใช้ PACl เฟส 2" },
+                  { key: "Pacl_P3actual_dose", label: "อัตราการใช้ PACl เฟส 3" },
+                  { key: "Pacl_P4actual_dose", label: "อัตราการใช้ PACl เฟส 4" }
+                ]
+              },
+              {
+                title: "Alum Actual Dose",
+                items: [
+                  { key: "Alum_P1actual_dose", label: "อัตราการใช้ Alum เฟส 1" },
+                  { key: "Alum_P2actual_dose", label: "อัตราการใช้ Alum เฟส 2" },
+                  { key: "Alum_P3actual_dose", label: "อัตราการใช้ Alum เฟส 3" },
+                  { key: "Alum_P4actual_dose", label: "อัตราการใช้ Alum เฟส 4" }
+                ]
+              }
+            ]
+          }
+        ];
+
+        // ===== เติม PARAM_META ให้ครบทุก key ใน schema =====
+        const PARAM_META = {
+          // --- Cost ---
+          Total_cost: { label: "ต้นทุนรวม", unit: "บาท/ลบ.ม." },
+          Chem_cost: { label: "ต้นทุนสารเคมี", unit: "บาท/ลบ.ม." },
+          Energy_cost: { label: "ต้นทุนพลังงาน", unit: "บาท/ลบ.ม." },
+          Sludge_disposal_cost: { label: "ต้นทุนกำจัดตะกอน", unit: "บาท/ลบ.ม." },
+
+          pacl_baht: { label: "ราคาต้นทุน PACl", unit: "บาท/ลบ.ม." },
+          alum_baht: { label: "ราคาต้นทุน Alum", unit: "บาท/ลบ.ม." },
+          chlorine_baht: { label: "ราคาต้นทุน Chlorine", unit: "บาท/ลบ.ม." },
+          polymer_baht: { label: "ราคาต้นทุน Polymer", unit: "บาท/ลบ.ม." },
+
+          // --- Cost per Unit
+          pacl_ton: { label: "ราคา PACl ต่อหน่วย", unit: "บาท/ตัน" },
+          alum_ton: { label: "ราคา Alum ต่อหน่วย", unit: "บาท/ตัน" },
+          chlorine_ton: { label: "ราคา Chlorine ต่อหน่วย", unit: "บาท/ตัน" },
+          polymer_ton: { label: "ราคา Polymer ต่อหน่วย", unit: "บาท/ตัน" },
+
+          // --- Water volume / loss ---
+          RWS_TotalF: { label: "ปริมาณน้ำดิบรวม", unit: "ลบ.ม./วัน" },
+          DPS_TotalF: { label: "ปริมาณน้ำสูบจ่ายรวม", unit: "ลบ.ม./วัน" },
+          TPS: { label: "ปริมาณน้ำสูบส่งรวม", unit: "ลบ.ม./วัน" },
+
+          Water_loss: { label: "% น้ำสูญเสีย", unit: "%" },
+          Wash_water_Total: { label: "ปริมาณน้ำล้างบ่อกรองรวม", unit: "ลบ.ม./วัน" },
+          Sludge_drain_Total: { label: "ปริมาณน้ำระบายตะกอนรวม", unit: "ลบ.ม./วัน" },
+          Service_water_F: { label: "ปริมาณน้ำใช้ภายในโรงงาน", unit: "ลบ.ม./วัน" },
+
+          // --- Energy ---
+          Plant_Energy_USEtotal: { label: "ปริมาณการใช้พลังงานในโรงงาน", unit: "MWh" },
+          Energy_total: { label: "ปริมาณการใช้พลังงานทั้งหมด", unit: "MWh" },
+
+          Energy_SS1A: { label: "สถานีไฟฟ้า 1A (สูบจ่าย)", unit: "MWh" },
+          Energy_SS1B: { label: "สถานีไฟฟ้า 1B (สูบส่ง)", unit: "MWh" },
+          Energy_SS2A: { label: "สถานีไฟฟ้า 2A (น้ำดิบ1)", unit: "MWh" },
+          Energy_SS2B: { label: "สถานีไฟฟ้า 2B (น้ำดิบ2)", unit: "MWh" },
+          Energy_SS3A: { label: "สถานีไฟฟ้า 3A (บ่อกรองตกตะกอน)", unit: "MWh" },
+          Energy_SS3B: { label: "สถานีไฟฟ้า 3B (บ่อกรองตกตะกอน)", unit: "MWh" },
+          Energy_SS3: { label: "สถานีไฟฟ้า 3 (อาคารสำนักงาน)", unit: "MWh" },
+
+          // --- Levels & Pressure ---
+          CWT_Lvl24: { label: "ระดับถังเก็บน้ำใส 24.00", unit: "เมตร" },
+          CWT_maxLvl: { label: "ระดับถังเก็บน้ำใสสูงสุด", unit: "เมตร" },
+          CWT_minLvl: { label: "ระดับถังเก็บน้ำใสต่ำสุด", unit: "เมตร" },
+
+          RWS_maxLvl: { label: "ระดับน้ำดิบสูงสุด", unit: "เมตร" },
+          RWS_minLvl: { label: "ระดับน้ำดิบต่ำสุด", unit: "เมตร" },
+
+          RWS1_P1F: { label: "ปริมาณน้ำดิบ เฟส1", unit: "ลบ.ม./วัน" },
+          RWS1_P2F: { label: "ปริมาณน้ำดิบ เฟส2", unit: "ลบ.ม./วัน" },
+          RWS2_P3F: { label: "ปริมาณน้ำดิบ เฟส3", unit: "ลบ.ม./วัน" },
+          RWS2_P4F: { label: "ปริมาณน้ำดิบ เฟส4", unit: "ลบ.ม./วัน" },
+
+          DPS_maxPresure: { label: "แรงดันสถานีสูบจ่ายสูงสุด", unit: "เมตร" },
+          DPS_minPresure: { label: "แรงดันสถานีสูบจ่ายต่ำสุด", unit: "เมตร" },
+          TPS_maxPressure: { label: "แรงดันสถานีสูบส่งสูงสุด", unit: "เมตร" },
+          TPS_minPressure: { label: "แรงดันสถานีสูบส่งต่ำสุด", unit: "เมตร" },
+
+          // --- Filter status ---
+          PercentageFilterUse: { label: "% ความพร้อมใช้งานรวม", unit: "%" },
+          FRT_Avg: { label: "ชั่วโมงการทำงานเฉลี่ย", unit: "ชม." },
+
+          ON_P1: { label: "ON เฟส 1", unit: "บ่อ" },
+          ON_P2: { label: "ON เฟส 2", unit: "บ่อ" },
+          ON_P3: { label: "ON เฟส 3", unit: "บ่อ" },
+          ON_P4: { label: "ON เฟส 4", unit: "บ่อ" },
+
+          STANDBY_P1: { label: "Standby เฟส 1", unit: "บ่อ" },
+          STANDBY_P2: { label: "Standby เฟส 2", unit: "บ่อ" },
+          STANDBY_P3: { label: "Standby เฟส 3", unit: "บ่อ" },
+          STANDBY_P4: { label: "Standby เฟส 4", unit: "บ่อ" },
+
+          REPAIR_P1: { label: "Repair เฟส 1", unit: "บ่อ" },
+          REPAIR_P2: { label: "Repair เฟส 2", unit: "บ่อ" },
+          REPAIR_P3: { label: "Repair เฟส 3", unit: "บ่อ" },
+          REPAIR_P4: { label: "Repair เฟส 4", unit: "บ่อ" },
+
+          FRT_P1: { label: "ชั่วโมงการทำงาน เฟส 1", unit: "ชม." },
+          FRT_P2: { label: "ชั่วโมงการทำงาน เฟส 2", unit: "ชม." },
+          FRT_P3: { label: "ชั่วโมงการทำงาน เฟส 3", unit: "ชม." },
+          FRT_P4: { label: "ชั่วโมงการทำงาน เฟส 4", unit: "ชม." },
+
+          // --- Filter details ---
+          WASHCOUNT_P1: { label: "จำนวนล้าง เฟส 1", unit: "ครั้ง" },
+          WASHCOUNT_P2: { label: "จำนวนล้าง เฟส 2", unit: "ครั้ง" },
+          WASHCOUNT_P3: { label: "จำนวนล้าง เฟส 3", unit: "ครั้ง" },
+          WASHCOUNT_P4: { label: "จำนวนล้าง เฟส 4", unit: "ครั้ง" },
+
+          Wash_water_P1: { label: "น้ำล้าง เฟส 1", unit: "ลบ.ม./วัน" },
+          Wash_water_P2: { label: "น้ำล้าง เฟส 2", unit: "ลบ.ม./วัน" },
+          Wash_water_P3: { label: "น้ำล้าง เฟส 3", unit: "ลบ.ม./วัน" },
+          Wash_water_P4: { label: "น้ำล้าง เฟส 4", unit: "ลบ.ม./วัน" },
+
+          Sludge_drain_P1: { label: "ระบายตะกอน เฟส 1", unit: "ลบ.ม./วัน" },
+          Sludge_drain_P2: { label: "ระบายตะกอน เฟส 2", unit: "ลบ.ม./วัน" },
+          Sludge_drain_P3: { label: "ระบายตะกอน เฟส 3", unit: "ลบ.ม./วัน" },
+          Sludge_drain_P4: { label: "ระบายตะกอน เฟส 4", unit: "ลบ.ม./วัน" },
+
+          // --- Chemical summary ---
+          Pacl_Total_tonuse: { label: "ปริมาณการใช้ PACl รวม", unit: "ตัน/วัน" },
+          Alum_Total_tonuse: { label: "ปริมาณการใช้ Alum รวม", unit: "ตัน/วัน" },
+          Cl_Total_tonuse: { label: "ปริมาณการใช้ Chlorine รวม", unit: "ตัน/วัน" },
+          Polymer_Total_tonuse: { label: "ปริมาณการใช้ Polymer รวม", unit: "ตัน/วัน" },
+
+          Pacl_stock: { label: "ปริมาณ PACl คงเหลือ", unit: "ตัน" },
+          Alum_stock: { label: "ปริมาณ Alum คงเหลือ", unit: "ตัน" },
+          Cl_stock: { label: "ปริมาณ Chlorine คงเหลือ", unit: "ท่อ" },
+          Polymer_stock: { label: "ปริมาณ Polymer คงเหลือ", unit: "ตัน" },
+
+          PACl_P12_stock: { label: "ปริมาณ PACl คงเหลือ (เฟส 1-2)", unit: "ตัน" },
+          PACl_P34_stock: { label: "ปริมาณ PACl คงเหลือ (เฟส 3-4)", unit: "ตัน" },
+          Alum_P12_stock: { label: "ปริมาณ Alum คงเหลือ (เฟส 1-2)", unit: "ตัน" },
+          Alum_P34_stock: { label: "ปริมาณ Alum คงเหลือ (เฟส 3-4)", unit: "ตัน" },
+          Cl_P12_stock:   { label: "ปริมาณ Chlorine คงเหลือ (เฟส 1-2)", unit: "ท่อ" },
+          Cl_P34_stock:   { label: "ปริมาณ Chlorine คงเหลือ (เฟส 3-4)", unit: "ท่อ" },
+
+
+          Pacl_income: { label: "ปริมาณการรับเข้า PACl", unit: "ตัน" },
+          Alum_income: { label: "ปริมาณการรับเข้า Alum", unit: "ตัน" },
+          Cl_income: { label: "ปริมาณการรับเข้า Chlorine", unit: "ท่อ" },
+          Polymer_income: { label: "ปริมาณการรับเข้า Polymer", unit: "ตัน" },
+
+          // --- Chemical details (tonuse) ---
+          Pacl_P1tonuse: { label: "ปริมาณการใช้ PACl เฟส 1", unit: "ตัน/วัน" },
+          Pacl_P2tonuse: { label: "ปริมาณการใช้ PACl เฟส 2", unit: "ตัน/วัน" },
+          Pacl_P3tonuse: { label: "ปริมาณการใช้ PACl เฟส 3", unit: "ตัน/วัน" },
+          Pacl_P4tonuse: { label: "ปริมาณการใช้ PACl เฟส 4", unit: "ตัน/วัน" },
+
+          Alum_P1tonuse: { label: "ปริมาณการใช้ Alum เฟส 1", unit: "ตัน/วัน" },
+          Alum_P2tonuse: { label: "ปริมาณการใช้ Alum เฟส 2", unit: "ตัน/วัน" },
+          Alum_P3tonuse: { label: "ปริมาณการใช้ Alum เฟส 3", unit: "ตัน/วัน" },
+          Alum_P4tonuse: { label: "ปริมาณการใช้ Alum เฟส 4", unit: "ตัน/วัน" },
+
+          PreCl_P1tonuse: { label: "ปริมาณการใช้ Pre-Cl เฟส 1", unit: "ตัน/วัน" },
+          PreCl_P2tonuse: { label: "ปริมาณการใช้ Pre-Cl เฟส 2", unit: "ตัน/วัน" },
+          PreCl_P3tonuse: { label: "ปริมาณการใช้ Pre-Cl เฟส 3", unit: "ตัน/วัน" },
+          PreCl_P4tonuse: { label: "ปริมาณการใช้ Pre-Cl เฟส 4", unit: "ตัน/วัน" },
+
+          PosCl_P1tonuse: { label: "ปริมาณการใช้ Post-Cl เฟส 1", unit: "ตัน/วัน" },
+          PosCl_P2tonuse: { label: "ปริมาณการใช้ Post-Cl เฟส 2", unit: "ตัน/วัน" },
+          PosCl_P3tonuse: { label: "ปริมาณการใช้ Post-Cl เฟส 3", unit: "ตัน/วัน" },
+          PosCl_P4tonuse: { label: "ปริมาณการใช้ Post-Cl เฟส 4", unit: "ตัน/วัน" },
+
+          // --- Target dose ---
+          PreCl_P1targer_dose: { label: "อัตราการใช้ Pre-Cl เฟส 1", unit: "mg/L" },
+          PreCl_P2targer_dose: { label: "อัตราการใช้ Pre-Cl เฟส 2", unit: "mg/L" },
+          PreCl_P3targer_dose: { label: "อัตราการใช้ Pre-Cl เฟส 3", unit: "mg/L" },
+          PreCl_P4targer_dose: { label: "อัตราการใช้ Pre-Cl เฟส 4", unit: "mg/L" },
+
+          PosCl_P1targer_dose: { label: "อัตราการใช้ Post-Cl เฟส 1", unit: "mg/L" },
+          PosCl_P2targer_dose: { label: "อัตราการใช้ Post-Cl เฟส 2", unit: "mg/L" },
+          PosCl_P3targer_dose: { label: "อัตราการใช้ Post-Cl เฟส 3", unit: "mg/L" },
+          PosCl_P4targer_dose: { label: "อัตราการใช้ Post-Cl เฟส 4", unit: "mg/L" },
+
+          Pacl_P1targer_dose: { label: "อัตราการใช้ PACl เฟส 1", unit: "mg/L" },
+          Pacl_P2targer_dose: { label: "อัตราการใช้ PACl เฟส 2", unit: "mg/L" },
+          Pacl_P3targer_dose: { label: "อัตราการใช้ PACl เฟส 3", unit: "mg/L" },
+          Pacl_P4targer_dose: { label: "อัตราการใช้ PACl เฟส 4", unit: "mg/L" },
+
+          Alum_P1targer_dose: { label: "อัตราการใช้ Alum เฟส 1", unit: "mg/L" },
+          Alum_P2targer_dose: { label: "อัตราการใช้ Alum เฟส 2", unit: "mg/L" },
+          Alum_P3targer_dose: { label: "อัตราการใช้ Alum เฟส 3", unit: "mg/L" },
+          Alum_P4targer_dose: { label: "อัตราการใช้ Alum เฟส 4", unit: "mg/L" },
+
+          // --- Actual dose ---
+          PreCl_P1actual_dose: { label: "อัตราการใช้ Pre-Cl เฟส 1", unit: "mg/L" },
+          PreCl_P2actual_dose: { label: "อัตราการใช้ Pre-Cl เฟส 2", unit: "mg/L" },
+          PreCl_P3actual_dose: { label: "อัตราการใช้ Pre-Cl เฟส 3", unit: "mg/L" },
+          PreCl_P4actual_dose: { label: "อัตราการใช้ Pre-Cl เฟส 4", unit: "mg/L" },
+
+          PosCl_P1actual_dose: { label: "อัตราการใช้ Post-Cl เฟส 1", unit: "mg/L" },
+          PosCl_P2actual_dose: { label: "อัตราการใช้ Post-Cl เฟส 2", unit: "mg/L" },
+          PosCl_P3actual_dose: { label: "อัตราการใช้ Post-Cl เฟส 3", unit: "mg/L" },
+          PosCl_P4actual_dose: { label: "อัตราการใช้ Post-Cl เฟส 4", unit: "mg/L" },
+
+          Pacl_P1actual_dose: { label: "อัตราการใช้ PACl เฟส 1", unit: "mg/L" },
+          Pacl_P2actual_dose: { label: "อัตราการใช้ PACl เฟส 2", unit: "mg/L" },
+          Pacl_P3actual_dose: { label: "อัตราการใช้ PACl เฟส 3", unit: "mg/L" },
+          Pacl_P4actual_dose: { label: "อัตราการใช้ PACl เฟส 4", unit: "mg/L" },
+
+          Alum_P1actual_dose: { label: "อัตราการใช้ Alum เฟส 1", unit: "mg/L" },
+          Alum_P2actual_dose: { label: "อัตราการใช้ Alum เฟส 2", unit: "mg/L" },
+          Alum_P3actual_dose: { label: "อัตราการใช้ Alum เฟส 3", unit: "mg/L" },
+          Alum_P4actual_dose: { label: "อัตราการใช้ Alum เฟส 4", unit: "mg/L" }
+        };
+
+  const state = Object.create(null);
+
+  function displayLabel(key, fallbackLabel) {
+    const m = PARAM_META[key];
+    if (!m) return fallbackLabel;
+    const unit = (m.unit || "").trim();
+    if (!unit || unit === "-") return m.label;
+    return `${m.label} (${unit})`;
+  }
+
+  function toIsoDate(d) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function getSelectedKeys() {
+    return Object.keys(state).filter(k => state[k]);
+  }
+
+  function updateSelCount() {
+    const total = Object.keys(state).length;
+    const sel = getSelectedKeys().length;
+    const el = document.getElementById("selCount");
+    if (el) el.textContent = `Selected: ${sel}/${total}`;
+  }
+
+  function renderCheckboxes() {
+    const host = document.getElementById("blockContainer");
+    host.innerHTML = "";
+
+    for (const sec of CHECKBOX_SCHEMA) {
+      const secDiv = document.createElement("div");
+      secDiv.className = "sec-block";
+
+      const secTitle = document.createElement("div");
+      secTitle.className = "sec-title";
+      secTitle.textContent = sec.title;
+      secDiv.appendChild(secTitle);
+
+      for (const grp of sec.groups) {
+        const grpRow = document.createElement("div");
+        grpRow.className = "grp-row";
+
+        const grpTitle = document.createElement("div");
+        grpTitle.className = "grp-title";
+        grpTitle.textContent = grp.title;
+
+        const grpActions = document.createElement("div");
+        grpActions.className = "grp-actions";
+
+        const btnAll = document.createElement("button");
+        btnAll.type = "button";
+        btnAll.className = "mh-btn-mini";
+        btnAll.textContent = "All";
+        btnAll.onclick = () => {
+          for (const it of grp.items) state[it.key] = true;
+          renderCheckboxes();
+          updateSelCount();
+        };
+
+        const btnNone = document.createElement("button");
+        btnNone.type = "button";
+        btnNone.className = "mh-btn-mini";
+        btnNone.textContent = "None";
+        btnNone.onclick = () => {
+          for (const it of grp.items) state[it.key] = false;
+          renderCheckboxes();
+          updateSelCount();
+        };
+
+        grpActions.appendChild(btnAll);
+        grpActions.appendChild(btnNone);
+
+        grpRow.appendChild(grpTitle);
+        grpRow.appendChild(grpActions);
+        secDiv.appendChild(grpRow);
+
+        const itemsBox = document.createElement("div");
+        itemsBox.className = "mh-items";
+
+        for (const it of grp.items) {
+          const row = document.createElement("label");
+          row.className = "mh-item";
+
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.checked = !!state[it.key];
+          cb.onchange = () => {
+            state[it.key] = cb.checked;
+            updateSelCount();
+          };
+
+          const txt = document.createElement("span");
+          txt.textContent = displayLabel(it.key, it.label);
+
+          row.appendChild(cb);
+          row.appendChild(txt);
+          itemsBox.appendChild(row);
+        }
+
+        secDiv.appendChild(itemsBox);
+      }
+
+      host.appendChild(secDiv);
+    }
+  }
+
+  function init() {
+    for (const sec of CHECKBOX_SCHEMA) {
+      for (const grp of sec.groups) {
+        for (const it of grp.items) state[it.key] = true;
+      }
+    }
+
+    const startEl = document.getElementById("startDate");
+    const endEl = document.getElementById("endDate");
+    const today = toIsoDate(new Date());
+
+    startEl.value = today;
+    endEl.value = startEl.value;
+    endEl.min = startEl.value;
+
+    startEl.addEventListener("change", () => {
+      if (!startEl.value) startEl.value = today;
+      endEl.min = startEl.value;
+      if (!endEl.value || endEl.value < startEl.value) endEl.value = startEl.value;
+    });
+
+    endEl.addEventListener("change", () => {
+      if (!startEl.value) {
+        startEl.value = today;
+        endEl.min = startEl.value;
+      }
+      if (!endEl.value || endEl.value < startEl.value) endEl.value = startEl.value;
+    });
+
+    renderCheckboxes();
+    updateSelCount();
+  }
+
+  function selectAll(on) {
+    for (const k in state) state[k] = on;
+    renderCheckboxes();
+    updateSelCount();
+  }
+
+  let isSubmitting = false;
+
+  async function submitDailyReport() {
+    if (isSubmitting) return;
+
+    const btn = document.getElementById("btnGenerate");
+    const prevText = btn ? btn.textContent : "Generate";
+
+    const startDate = (document.getElementById("startDate").value || "").trim();
+    const endDate = (document.getElementById("endDate").value || "").trim();
+
+    if (!startDate) return alert("Please select start date");
+    if (!endDate) return alert("Please select end date");
+    if (endDate < startDate) return alert("End date must be >= start date");
+
+    const selectedParams = getSelectedKeys();
+    if (!selectedParams.length) return alert("Please select at least 1 parameter");
+
+    const payload = { startDate, endDate, selectedParams, source: "MH_report" };
+
+    const out = document.getElementById("out");
+    if (out) out.textContent = "Sending request...";
+
+    try {
+      isSubmitting = true;
+      if (btn) { btn.disabled = true; btn.textContent = "Generating..."; }
+
+      const resp = await fetch("/api/dailyreport", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "text/csv, application/octet-stream, */*"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!resp.ok) {
+        if (out) out.textContent = `ERROR\nHTTP ${resp.status} ${resp.statusText}`;
+        return;
+      }
+
+      const blob = await resp.blob();
+
+      const cd = resp.headers.get("content-disposition") || "";
+      let filename = "";
+      const m = cd.match(/filename\*=UTF-8''([^;]+)|filename="?([^"]+)"?/i);
+      if (m) filename = decodeURIComponent(m[1] || m[2] || "").trim();
+      if (!filename) filename = `MH_report_${startDate}_to_${endDate}.csv`;
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      if (out) out.textContent = `OK\nHTTP ${resp.status} ${resp.statusText}\nDownloaded: ${filename}`;
+    } catch (e) {
+      if (out) out.textContent = `ERROR\n${e && e.message ? e.message : "Exception occurred"}`;
+    } finally {
+      isSubmitting = false;
+      if (btn) { btn.disabled = false; btn.textContent = prevText; }
+    }
+  }
+
+  // ทำให้ onclick="..." เรียกได้ชัวร์
+  window.selectAll = selectAll;
+  window.submitDailyReport = submitDailyReport;
+
+  document.addEventListener("DOMContentLoaded", init);
+})();
+</script>
+}

@@ -1,0 +1,66 @@
+﻿@page
+@model BellBeast.Pages.LoginModel
+@{
+    ViewData["Title"] = "Login";
+}
+
+<h2>Login AD เพื่อใช้งานระบบ</h2>
+
+<form method="post" id="loginForm">
+    <div>
+        <label>AD Username</label><br />
+        <input asp-for="Username" id="txtUsername" autocomplete="username" />
+    </div>
+
+    <div style="margin-top:8px;">
+        <label>AD Password</label><br />
+        <input asp-for="Password" id="txtPassword" type="password" autocomplete="current-password" />
+    </div>
+
+    <div style="margin-top:8px;">
+        <input asp-for="UseDefaultAd" id="chkUseDefaultAd" type="checkbox" />
+        <label asp-for="UseDefaultAd">เข้าสู่ระบบด้วยบัญชีทดสอบ</label>
+    </div>
+
+    <div style="margin-top:12px;">
+        <button type="submit">Login</button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div style="color:red; margin-top:10px;">
+            @Model.ErrorMessage
+        </div>
+    }
+</form>
+
+@section Scripts {
+    <script>
+        (function () {
+            const chk = document.getElementById("chkUseDefaultAd");
+            const u = document.getElementById("txtUsername");
+            const p = document.getElementById("txtPassword");
+
+            function toggleState() {
+                if (chk.checked) {
+                    // ล้างค่าในช่องกรอก และ Disable ไว้ไม่ให้พิมพ์
+                    u.value = "";
+                    p.value = "";
+                    u.disabled = true;
+                    p.disabled = true;
+                    u.style.backgroundColor = "#f0f0f0";
+                    p.style.backgroundColor = "#f0f0f0";
+                } else {
+                    u.disabled = false;
+                    p.disabled = false;
+                    u.style.backgroundColor = "";
+                    p.style.backgroundColor = "";
+                }
+            }
+
+            chk.addEventListener("change", toggleState);
+            // เรียกใช้ทันทีตอนโหลดหน้า
+            toggleState();
+        })();
+    </script>
+}

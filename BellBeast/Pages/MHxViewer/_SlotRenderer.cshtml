@@ -1,0 +1,55 @@
+﻿@model string
+
+@{
+    var key = (Model ?? "").Trim().ToUpperInvariant();
+}
+
+@switch (key)
+{
+    case "TPS":
+        @await Html.PartialAsync("~/Pages/MhxViewer/_BlockTPS.cshtml")
+        break;
+
+    case "DPS":
+        @await Html.PartialAsync("~/Pages/MhxViewer/_BlockDPS.cshtml")
+        break;
+
+    case "RPS":
+        @await Html.PartialAsync("~/Pages/MhxViewer/_BlockRPS.cshtml")
+        break;
+
+    case "CHEM":
+        @await Html.PartialAsync("~/Pages/MhxViewer/_BlockCHEM.cshtml")
+        break;
+
+    case "CWSFWS1":
+        @await Html.PartialAsync("~/Pages/MhxViewer/_BlockCwsFws1.cshtml")
+        break;
+
+    case "CWSFWS2":
+        @await Html.PartialAsync("~/Pages/MhxViewer/_BlockCwsFws2.cshtml")
+        break;
+
+    case "CHEM1":
+        @await Html.PartialAsync("~/Pages/MhxViewer/_BlockChem1.cshtml")
+        break;
+
+    case "CHEM2":
+        @await Html.PartialAsync("~/Pages/MhxViewer/_BlockChem2.cshtml")
+        break;
+
+    case "PTC":
+        @await Html.PartialAsync("~/Pages/MHxViewer/_BlockPTC_oneshot.cshtml")
+        break;
+
+    case "EVENT":
+        @await Html.PartialAsync("~/Pages/MHxViewer/_BlockEvent.cshtml")
+		break;
+
+    default:
+        <div class="mini-card">
+            <div class="lab">EMPTY SLOT</div>
+            <div class="chart">[no block]</div>
+        </div>
+        break;
+}
