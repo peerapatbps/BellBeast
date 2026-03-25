@@ -130,7 +130,7 @@ This repository is under active development. Features, structure, and configurat
 
 ## Author
 
-Developed by Peerapat B.
+Developed by Peerapat S.
 
 ## License
 
