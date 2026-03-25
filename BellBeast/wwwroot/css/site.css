@@ -1,0 +1,1186 @@
+﻿/* ===============================
+   Global (Dark theme)
+   =============================== */
+:root {
+    --bg: #0b1220;
+    --card: rgba(17, 24, 39, 0.65);
+    --card2: rgba(17, 24, 39, 0.35);
+    --line: rgba(148, 163, 184, 0.15);
+    --text: #e5e7eb;
+    --muted: #94a3b8;
+    --blue: #1d4ed8;
+    --green: #16a34a;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+    background: radial-gradient(1200px 600px at 50% -10%, #1f3b7a 0%, transparent 60%), var(--bg);
+    color: var(--text);
+}
+
+a {
+    color: #c7d2fe;
+    text-decoration: none;
+}
+
+    a:hover {
+        text-decoration: underline;
+    }
+
+.app-shell {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(2, 6, 23, 0.6);
+    backdrop-filter: blur(10px);
+}
+
+.brand {
+    font-weight: 700;
+    letter-spacing: 0.2px;
+}
+
+.nav {
+    display: flex;
+    gap: 14px;
+}
+
+.content {
+    flex: 1;
+    padding: 18px;
+}
+
+.footer {
+    padding: 12px 18px;
+    color: var(--muted);
+    border-top: 1px solid var(--line);
+}
+
+/* ===============================
+   Card container (glass)
+   =============================== */
+.card {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.65), rgba(15, 23, 42, 0.35));
+    box-shadow: 0 20px 60px rgba(0,0,0,.35);
+    padding: 16px;
+}
+
+/* ===============================
+   Toolbar
+   =============================== */
+.toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.status {
+    color: var(--text);
+    font-weight: 700;
+}
+
+.btn-green {
+    background: var(--green);
+    color: #fff;
+    border: 0;
+    padding: 9px 14px;
+    border-radius: 10px;
+    font-weight: 700;
+}
+
+    .btn-green:disabled {
+        opacity: .45;
+        cursor: not-allowed;
+    }
+
+.filters {
+    margin: 10px 0 12px;
+}
+
+.filter-box {
+    background: rgba(2, 6, 23, 0.35);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px;
+    width: 340px;
+}
+
+.label {
+    display: block;
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 6px;
+}
+
+.input {
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: rgba(15, 23, 42, 0.55);
+    color: var(--text);
+    outline: none;
+}
+
+    .input::placeholder {
+        color: rgba(148, 163, 184, 0.7);
+    }
+
+.btn-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.btn {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--line);
+    color: var(--text);
+    padding: 7px 10px;
+    border-radius: 9px;
+}
+
+    .btn:disabled {
+        opacity: .45;
+        cursor: not-allowed;
+    }
+
+/* ===============================
+   Table (scroll like the screenshot)
+   =============================== */
+.table-wrap {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: auto;
+    max-height: 360px; /* ตารางหลักให้เลื่อน */
+    background: rgba(2, 6, 23, 0.28);
+}
+
+/* ล็อกความสูงแถวใน selected table */
+.table-wrap.small .aq-table tbody td {
+    padding: 10px 10px;
+    line-height: 20px;
+}
+
+/* ให้แสดง 5 แถวเป๊ะ ๆ (header + 5 rows) */
+.table-wrap.small {
+    max-height: calc(44px + (5 * 42px));
+    overflow-y: auto;
+}
+
+
+
+.aq-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    min-width: 980px;
+}
+
+    .aq-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: rgba(2, 6, 23, 0.85);
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        padding: 10px 10px;
+        color: #cbd5e1;
+        font-weight: 800;
+        font-size: 14px;
+    }
+
+    .aq-table tbody td {
+        padding: 10px 10px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.10);
+        font-size: 14px;
+    }
+
+    .aq-table tbody tr:hover {
+        background: rgba(59, 130, 246, 0.10);
+    }
+
+tr.is-selected {
+    background: rgba(37, 99, 235, 0.22) !important;
+}
+
+/* columns */
+.col-check {
+    width: 56px;
+}
+
+.col-id {
+    width: 90px;
+}
+
+.col-plant {
+    width: 80px;
+}
+
+.col-station {
+    width: 220px;
+}
+
+.col-param {
+    width: 160px;
+}
+
+.col-equip {
+    width: 220px;
+}
+
+.col-measure {
+    width: 180px;
+}
+
+.pager {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.pageinfo {
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.selected {
+    margin-top: 14px;
+}
+
+.selected-title {
+    font-weight: 900;
+    margin-bottom: 8px;
+    color: #e2e8f0;
+}
+
+/* scrollbar (optional, look cleaner) */
+.table-wrap::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+}
+
+.table-wrap::-webkit-scrollbar-thumb {
+    background: rgba(148,163,184,.25);
+    border-radius: 999px;
+}
+
+.table-wrap::-webkit-scrollbar-track {
+    background: rgba(2,6,23,.25);
+}
+
+/* ===== Filters grid (Plant/Station + keyword) ===== */
+.filters-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin: 12px 0 14px;
+}
+
+.filter-card {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(2, 6, 23, 0.28);
+    padding: 14px;
+}
+
+    .filter-card.span-2 {
+        grid-column: span 2;
+    }
+
+.filter-title {
+    font-weight: 900;
+    margin-bottom: 10px;
+    color: #e2e8f0;
+}
+
+.chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.chip {
+    border: 1px solid rgba(148,163,184,.35);
+    background: rgba(15,23,42,.35);
+    color: #e5e7eb;
+    padding: 7px 12px;
+    border-radius: 999px;
+    font-weight: 800;
+    cursor: pointer;
+    user-select: none;
+}
+
+    .chip:hover {
+        background: rgba(59,130,246,.12);
+    }
+
+    .chip.on {
+        border-color: rgba(16,185,129,.55);
+        background: rgba(16,185,129,.18);
+        color: #a7f3d0;
+    }
+
+/* ===============================
+   Centered main content
+   =============================== */
+
+/* จำกัดความกว้างเนื้อหาหลัก */
+.content {
+    max-width: 1280px; /* ปรับได้: 1100 / 1200 / 1280 */
+    margin: 0 auto; /* กึ่งกลางจอ */
+    padding-left: 16px;
+    padding-right: 16px;
+}
+
+/* การ์ดหลักไม่ต้องกว้างเต็มจอ */
+.card {
+    margin: 0 auto;
+}
+
+.kw-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.kw-input {
+    flex: 1 1 auto;
+    min-width: 260px;
+}
+
+.kw-reset {
+    flex: 0 0 auto;
+}
+
+.status-inline {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.kw-add {
+    flex: 0 0 auto;
+    margin-left: auto; /* ดันปุ่มเพิ่มเข้าไปชิดขวา */
+    white-space: nowrap;
+}
+
+    /* ===============================
+   Button variants (Fix: btn-success)
+   =============================== */
+
+    /* ปุ่มเขียวให้ใช้ได้ทั้ง btn-green และ btn-success */
+    .btn-success,
+    .btn.btn-success,
+    .kw-add.btn-success,
+    .kw-add.btn.btn-success {
+        background: var(--green);
+        color: #fff;
+        border: 0;
+        padding: 9px 14px;
+        border-radius: 10px;
+        font-weight: 800;
+    }
+
+        /* hover */
+        .btn-success:hover,
+        .btn.btn-success:hover {
+            filter: brightness(1.06);
+        }
+
+        /* disabled */
+        .btn-success:disabled,
+        .btn.btn-success:disabled {
+            opacity: .45;
+            cursor: not-allowed;
+        }
+
+/* ===============================
+   Typography balance
+   =============================== */
+
+body {
+    font-size: 14px; /* base */
+    line-height: 1.35;
+}
+
+/* หัวข้อใน filter card */
+.filter-title {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+}
+
+/* สถานะผลลัพธ์ (ทั้งบน toolbar และ inline) */
+.status {
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.status-inline {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+/* input / button ให้บาลานซ์กับข้อความ */
+.input {
+    font-size: 14px;
+    padding: 9px 12px;
+}
+
+.btn,
+.btn-success,
+.btn-green {
+    font-size: 13.5px;
+    font-weight: 800;
+    padding: 8px 12px;
+}
+
+/* chip ให้อ่านง่ายแต่ไม่ใหญ่เกิน */
+.chip {
+    font-size: 13px;
+    padding: 7px 11px;
+    font-weight: 800;
+}
+
+/* ตาราง: ลดนิดให้แน่นและอ่านง่าย */
+.aq-table thead th {
+    font-size: 13px;
+}
+
+.aq-table tbody td {
+    font-size: 13px;
+}
+
+.selected-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.selected-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-orange {
+    background: linear-gradient(180deg, var(--orange), var(--orange-dark));
+    color: #fff;
+    border: 0;
+    padding: 9px 14px;
+    border-radius: 10px;
+    font-weight: 700;
+    box-shadow: 0 6px 18px rgba(249,115,22,.35);
+}
+
+    .btn-orange:hover {
+        filter: brightness(1.05);
+    }
+
+    .btn-orange:disabled {
+        opacity: .45;
+        cursor: not-allowed;
+    }
+
+:root {
+    --bg: #0b1220;
+    --card: rgba(17, 24, 39, 0.65);
+    --card2: rgba(17, 24, 39, 0.35);
+    --line: rgba(148, 163, 184, 0.15);
+    --text: #e5e7eb;
+    --muted: #94a3b8;
+    --blue: #1d4ed8;
+    --green: #16a34a;
+    /* NEW */
+    --orange: #f97316; /* base */
+    --orange-dark: #ea580c; /* hover */
+}
+
+.selected-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 6px 0 10px;
+}
+
+.selected-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.date-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+    .date-box label {
+        font-weight: 700;
+        color: var(--muted);
+        font-size: 13px;
+    }
+
+.date-input {
+    width: 160px;
+    padding: 7px 10px;
+}
+
+/* ===============================
+   Global (Dark theme)
+   =============================== */
+:root {
+    --bg: #0b1220;
+    --card: rgba(17, 24, 39, 0.65);
+    --card2: rgba(17, 24, 39, 0.35);
+    --line: rgba(148, 163, 184, 0.15);
+    --text: #e5e7eb;
+    --muted: #94a3b8;
+    --blue: #1d4ed8;
+    --green: #16a34a;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+    background: radial-gradient(1200px 600px at 50% -10%, #1f3b7a 0%, transparent 60%), var(--bg);
+    color: var(--text);
+}
+
+a {
+    color: #c7d2fe;
+    text-decoration: none;
+}
+
+    a:hover {
+        text-decoration: underline;
+    }
+
+.app-shell {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(2, 6, 23, 0.6);
+    backdrop-filter: blur(10px);
+}
+
+.brand {
+    font-weight: 700;
+    letter-spacing: 0.2px;
+}
+
+.nav {
+    display: flex;
+    gap: 14px;
+}
+
+.content {
+    flex: 1;
+    padding: 18px;
+}
+
+.footer {
+    padding: 12px 18px;
+    color: var(--muted);
+    border-top: 1px solid var(--line);
+}
+
+/* ===============================
+   Card container (glass)
+   =============================== */
+.card {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.65), rgba(15, 23, 42, 0.35));
+    box-shadow: 0 20px 60px rgba(0,0,0,.35);
+    padding: 16px;
+}
+
+/* ===============================
+   Toolbar
+   =============================== */
+.toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.status {
+    color: var(--text);
+    font-weight: 700;
+}
+
+.btn-green {
+    background: var(--green);
+    color: #fff;
+    border: 0;
+    padding: 9px 14px;
+    border-radius: 10px;
+    font-weight: 700;
+}
+
+    .btn-green:disabled {
+        opacity: .45;
+        cursor: not-allowed;
+    }
+
+.filters {
+    margin: 10px 0 12px;
+}
+
+.filter-box {
+    background: rgba(2, 6, 23, 0.35);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px;
+    width: 340px;
+}
+
+.label {
+    display: block;
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 6px;
+}
+
+.input {
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: rgba(15, 23, 42, 0.55);
+    color: var(--text);
+    outline: none;
+}
+
+    .input::placeholder {
+        color: rgba(148, 163, 184, 0.7);
+    }
+
+.btn-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.btn {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--line);
+    color: var(--text);
+    padding: 7px 10px;
+    border-radius: 9px;
+}
+
+    .btn:disabled {
+        opacity: .45;
+        cursor: not-allowed;
+    }
+
+/* ===============================
+   Table (scroll like the screenshot)
+   =============================== */
+.table-wrap {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: auto;
+    max-height: 360px; /* ตารางหลักให้เลื่อน */
+    background: rgba(2, 6, 23, 0.28);
+}
+
+    /* ล็อกความสูงแถวใน selected table */
+    .table-wrap.small .aq-table tbody td {
+        padding: 10px 10px;
+        line-height: 20px;
+    }
+
+    /* ให้แสดง 5 แถวเป๊ะ ๆ (header + 5 rows) */
+    .table-wrap.small {
+        max-height: calc(44px + (5 * 42px));
+        overflow-y: auto;
+    }
+
+
+
+.aq-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    min-width: 980px;
+}
+
+    .aq-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: rgba(2, 6, 23, 0.85);
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        padding: 10px 10px;
+        color: #cbd5e1;
+        font-weight: 800;
+        font-size: 14px;
+    }
+
+    .aq-table tbody td {
+        padding: 10px 10px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.10);
+        font-size: 14px;
+    }
+
+    .aq-table tbody tr:hover {
+        background: rgba(59, 130, 246, 0.10);
+    }
+
+tr.is-selected {
+    background: rgba(37, 99, 235, 0.22) !important;
+}
+
+/* columns */
+.col-check {
+    width: 56px;
+}
+
+.col-id {
+    width: 90px;
+}
+
+.col-plant {
+    width: 80px;
+}
+
+.col-station {
+    width: 220px;
+}
+
+.col-param {
+    width: 160px;
+}
+
+.col-equip {
+    width: 220px;
+}
+
+.col-measure {
+    width: 180px;
+}
+
+.pager {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.pageinfo {
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.selected {
+    margin-top: 14px;
+}
+
+.selected-title {
+    font-weight: 900;
+    margin-bottom: 8px;
+    color: #e2e8f0;
+}
+
+/* scrollbar (optional, look cleaner) */
+.table-wrap::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+}
+
+.table-wrap::-webkit-scrollbar-thumb {
+    background: rgba(148,163,184,.25);
+    border-radius: 999px;
+}
+
+.table-wrap::-webkit-scrollbar-track {
+    background: rgba(2,6,23,.25);
+}
+
+/* ===== Filters grid (Plant/Station + keyword) ===== */
+.filters-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin: 12px 0 14px;
+}
+
+.filter-card {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(2, 6, 23, 0.28);
+    padding: 14px;
+}
+
+    .filter-card.span-2 {
+        grid-column: span 2;
+    }
+
+.filter-title {
+    font-weight: 900;
+    margin-bottom: 10px;
+    color: #e2e8f0;
+}
+
+.chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.chip {
+    border: 1px solid rgba(148,163,184,.35);
+    background: rgba(15,23,42,.35);
+    color: #e5e7eb;
+    padding: 7px 12px;
+    border-radius: 999px;
+    font-weight: 800;
+    cursor: pointer;
+    user-select: none;
+}
+
+    .chip:hover {
+        background: rgba(59,130,246,.12);
+    }
+
+    .chip.on {
+        border-color: rgba(16,185,129,.55);
+        background: rgba(16,185,129,.18);
+        color: #a7f3d0;
+    }
+
+/* ===============================
+   Centered main content
+   =============================== */
+
+/* จำกัดความกว้างเนื้อหาหลัก */
+.content {
+    max-width: 1280px; /* ปรับได้: 1100 / 1200 / 1280 */
+    margin: 0 auto; /* กึ่งกลางจอ */
+    padding-left: 16px;
+    padding-right: 16px;
+}
+
+/* การ์ดหลักไม่ต้องกว้างเต็มจอ */
+.card {
+    margin: 0 auto;
+}
+
+.kw-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.kw-input {
+    flex: 1 1 auto;
+    min-width: 260px;
+}
+
+.kw-reset {
+    flex: 0 0 auto;
+}
+
+.status-inline {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.kw-add {
+    flex: 0 0 auto;
+    margin-left: auto; /* ดันปุ่มเพิ่มเข้าไปชิดขวา */
+    white-space: nowrap;
+}
+
+    /* ===============================
+   Button variants (Fix: btn-success)
+   =============================== */
+
+    /* ปุ่มเขียวให้ใช้ได้ทั้ง btn-green และ btn-success */
+    .btn-success,
+    .btn.btn-success,
+    .kw-add.btn-success,
+    .kw-add.btn.btn-success {
+        background: var(--green);
+        color: #fff;
+        border: 0;
+        padding: 9px 14px;
+        border-radius: 10px;
+        font-weight: 800;
+    }
+
+        /* hover */
+        .btn-success:hover,
+        .btn.btn-success:hover {
+            filter: brightness(1.06);
+        }
+
+        /* disabled */
+        .btn-success:disabled,
+        .btn.btn-success:disabled {
+            opacity: .45;
+            cursor: not-allowed;
+        }
+
+/* ===============================
+   Typography balance
+   =============================== */
+
+body {
+    font-size: 14px; /* base */
+    line-height: 1.35;
+}
+
+/* หัวข้อใน filter card */
+.filter-title {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+}
+
+/* สถานะผลลัพธ์ (ทั้งบน toolbar และ inline) */
+.status {
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.status-inline {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+/* input / button ให้บาลานซ์กับข้อความ */
+.input {
+    font-size: 14px;
+    padding: 9px 12px;
+}
+
+.btn,
+.btn-success,
+.btn-green {
+    font-size: 13.5px;
+    font-weight: 800;
+    padding: 8px 12px;
+}
+
+/* chip ให้อ่านง่ายแต่ไม่ใหญ่เกิน */
+.chip {
+    font-size: 13px;
+    padding: 7px 11px;
+    font-weight: 800;
+}
+
+/* ตาราง: ลดนิดให้แน่นและอ่านง่าย */
+.aq-table thead th {
+    font-size: 13px;
+}
+
+.aq-table tbody td {
+    font-size: 13px;
+}
+
+.selected-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.selected-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-orange {
+    background: linear-gradient(180deg, var(--orange), var(--orange-dark));
+    color: #fff;
+    border: 0;
+    padding: 9px 14px;
+    border-radius: 10px;
+    font-weight: 700;
+    box-shadow: 0 6px 18px rgba(249,115,22,.35);
+}
+
+    .btn-orange:hover {
+        filter: brightness(1.05);
+    }
+
+    .btn-orange:disabled {
+        opacity: .45;
+        cursor: not-allowed;
+    }
+
+:root {
+    --bg: #0b1220;
+    --card: rgba(17, 24, 39, 0.65);
+    --card2: rgba(17, 24, 39, 0.35);
+    --line: rgba(148, 163, 184, 0.15);
+    --text: #e5e7eb;
+    --muted: #94a3b8;
+    --blue: #1d4ed8;
+    --green: #16a34a;
+    /* NEW */
+    --orange: #f97316; /* base */
+    --orange-dark: #ea580c; /* hover */
+}
+
+.selected-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 6px 0 10px;
+}
+
+.selected-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.date-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+    .date-box label {
+        font-weight: 700;
+        color: var(--muted);
+        font-size: 13px;
+    }
+
+.date-input {
+    width: 160px;
+    padding: 7px 10px;
+}
+
+/* ============================= */
+/* Selected bar: align right */
+/* ============================= */
+
+.selected-head {
+    display: flex;
+    justify-content: flex-end; /* ✅ ชิดขวาทั้งแถว */
+    align-items: center;
+    gap: 12px;
+}
+
+    .selected-head .selected-actions {
+        margin-left: auto; /* ✅ ดันทั้งกลุ่มไปขวาสุด */
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+
+/* date input พื้นขาว แยกจากพื้นหลัง */
+input[type="date"].date-input {
+    background: #ffffff;
+    color: #111111;
+    border: 1px solid rgba(255,255,255,0.35);
+}
+
+    /* icon ปฏิทินให้ชัด */
+    input[type="date"].date-input::-webkit-calendar-picker-indicator {
+        opacity: 1;
+        filter: none;
+        cursor: pointer;
+    }
+
+    input[type="date"].date-input::-webkit-datetime-edit {
+        color: #111111;
+    }
+
+
+/* ============================= */
+/* Button: danger */
+/* ============================= */
+
+:root {
+    --danger: #ef4444;
+    --danger-dark: #dc2626;
+}
+
+.btn-danger,
+.btn.btn-danger {
+    background: linear-gradient(180deg, var(--danger), var(--danger-dark));
+    color: #fff;
+    border: 0;
+    padding: 9px 14px;
+    border-radius: 10px;
+    font-weight: 800;
+    box-shadow: 0 6px 18px rgba(239,68,68,.25);
+}
+
+    .btn-danger:hover {
+        filter: brightness(1.05);
+    }
+
+    .btn-danger:disabled {
+        opacity: .45;
+        cursor: not-allowed;
+    }
