@@ -3,7 +3,8 @@
 
     // ============================
     // DPS Smartmap Overlay (single poller)
-    // - 1 setting only (refreshSec) applies to both charts
+    // - point overlay refresh: 5..300 sec
+    // - OnlineLab refresh: 300..900 sec (stored in same popup/settings)
     // - 1 interval only for the whole page (no per-chart / per-section timers)
     // - 1 request per tick (batched keys for both charts + all injected DPS sections)
     // - read `${base}_P` from /api/smartmap and plot to:
@@ -15,45 +16,125 @@
     // ============================
 
     const SMARTMAP_URL = "/api/smartmap";
-    const STORAGE_KEY = "dps_ptc_refresh_v1"; // keep key (migrate from rate1/rate2 -> refreshSec)
+    const STORAGE_KEY = "dps_ptc_refresh_v1"; // keep key for backward compatibility
+
+    // defaults / limits
+    const DEFAULT_POINT_REFRESH_SEC = 10;
+    const DEFAULT_ONLINELAB_REFRESH_SEC = 300;
+    const MIN_POINT_REFRESH_SEC = 5;
+    const MAX_POINT_REFRESH_SEC = 300;
+    const MIN_ONLINELAB_REFRESH_SEC = 300;
+    const MAX_ONLINELAB_REFRESH_SEC = 900;
 
     // section bind guard + poller guard
     const boundSections = new WeakSet();
     let pollTimer = null;
-    let pollMs = 10000;
+    let pollMs = DEFAULT_POINT_REFRESH_SEC * 1000;
     let inFlight = false;
 
     // ---------------------------
     // settings (localStorage)
+    // supports old shape:
+    //   { refreshSec }
+    //   { rate1, rate2 }
+    // new shape:
+    //   { pointRefreshSec, onlineLabRefreshSec }
     // ---------------------------
+    function clamp(n, min, max, fallback) {
+        const x = Number(n);
+        if (!Number.isFinite(x)) return fallback;
+        return Math.max(min, Math.min(max, x));
+    }
+
     function loadSettings() {
         try {
             const raw = localStorage.getItem(STORAGE_KEY);
-            if (!raw) return { refreshSec: 10 };
+            if (!raw) {
+                return {
+                    pointRefreshSec: DEFAULT_POINT_REFRESH_SEC,
+                    onlineLabRefreshSec: DEFAULT_ONLINELAB_REFRESH_SEC
+                };
+            }
 
             const o = JSON.parse(raw);
 
             // new format
-            const r = Number(o.refreshSec);
-            if (Number.isFinite(r) && r > 0) return { refreshSec: r };
+            if (o && (o.pointRefreshSec !== undefined || o.onlineLabRefreshSec !== undefined)) {
+                return {
+                    pointRefreshSec: clamp(
+                        o.pointRefreshSec,
+                        MIN_POINT_REFRESH_SEC,
+                        MAX_POINT_REFRESH_SEC,
+                        DEFAULT_POINT_REFRESH_SEC
+                    ),
+                    onlineLabRefreshSec: clamp(
+                        o.onlineLabRefreshSec,
+                        MIN_ONLINELAB_REFRESH_SEC,
+                        MAX_ONLINELAB_REFRESH_SEC,
+                        DEFAULT_ONLINELAB_REFRESH_SEC
+                    )
+                };
+            }
 
-            // migrate old {rate1, rate2}
-            const a = Number(o.rate1);
-            const b = Number(o.rate2);
+            // old format: { refreshSec }
+            const r = Number(o && o.refreshSec);
+            if (Number.isFinite(r) && r > 0) {
+                return {
+                    pointRefreshSec: clamp(
+                        r,
+                        MIN_POINT_REFRESH_SEC,
+                        MAX_POINT_REFRESH_SEC,
+                        DEFAULT_POINT_REFRESH_SEC
+                    ),
+                    onlineLabRefreshSec: DEFAULT_ONLINELAB_REFRESH_SEC
+                };
+            }
+
+            // older format: { rate1, rate2 }
+            const a = Number(o && o.rate1);
+            const b = Number(o && o.rate2);
             const migrated = Math.max(
-                Number.isFinite(a) ? a : 10,
-                Number.isFinite(b) ? b : 10,
-                10
+                Number.isFinite(a) ? a : DEFAULT_POINT_REFRESH_SEC,
+                Number.isFinite(b) ? b : DEFAULT_POINT_REFRESH_SEC,
+                DEFAULT_POINT_REFRESH_SEC
             );
-            return { refreshSec: migrated };
+
+            return {
+                pointRefreshSec: clamp(
+                    migrated,
+                    MIN_POINT_REFRESH_SEC,
+                    MAX_POINT_REFRESH_SEC,
+                    DEFAULT_POINT_REFRESH_SEC
+                ),
+                onlineLabRefreshSec: DEFAULT_ONLINELAB_REFRESH_SEC
+            };
         } catch {
-            return { refreshSec: 10 };
+            return {
+                pointRefreshSec: DEFAULT_POINT_REFRESH_SEC,
+                onlineLabRefreshSec: DEFAULT_ONLINELAB_REFRESH_SEC
+            };
         }
     }
 
     function saveSettings(s) {
-        const sec = Number(s.refreshSec) || 10;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ refreshSec: sec }));
+        const pointRefreshSec = clamp(
+            s && s.pointRefreshSec,
+            MIN_POINT_REFRESH_SEC,
+            MAX_POINT_REFRESH_SEC,
+            DEFAULT_POINT_REFRESH_SEC
+        );
+
+        const onlineLabRefreshSec = clamp(
+            s && s.onlineLabRefreshSec,
+            MIN_ONLINELAB_REFRESH_SEC,
+            MAX_ONLINELAB_REFRESH_SEC,
+            DEFAULT_ONLINELAB_REFRESH_SEC
+        );
+
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            pointRefreshSec,
+            onlineLabRefreshSec
+        }));
     }
 
     // ---------------------------
@@ -73,10 +154,34 @@
         </div>
         <div class="dps-pop-b">
           <div class="row">
-            <div class="k">Refresh (sec) — applies to both trends</div>
-            <input class="inp" type="number" min="5" max="300" step="1" data-k="refreshSec">
+            <div class="k">Point Refresh (sec) — applies to graph point overlay</div>
+            <select class="inp" data-k="pointRefreshSec">
+              <option value="5">5</option>
+              <option value="10">10</option>
+              <option value="15">15</option>
+              <option value="30">30</option>
+              <option value="60">60</option>
+              <option value="120">120</option>
+              <option value="180">180</option>
+              <option value="240">240</option>
+              <option value="300">300</option>
+            </select>
           </div>
-          <div class="hint">* 1 tick = 1 request (batched keys), window 30 นาที</div>
+
+          <div class="row">
+            <div class="k">OnlineLab Refresh (sec) — applies to TW1..TW4 fetch</div>
+            <select class="inp" data-k="onlineLabRefreshSec">
+              <option value="300">300</option>
+              <option value="360">360</option>
+              <option value="420">420</option>
+              <option value="480">480</option>
+              <option value="600">600</option>
+              <option value="720">720</option>
+              <option value="900">900</option>
+            </select>
+          </div>
+
+          <div class="hint">* Point overlay และ OnlineLab ใช้คนละ timer</div>
           <div class="actions">
             <button class="btn" data-act="apply" type="button">Apply</button>
             <button class="btn ghost" data-act="close" type="button">Close</button>
@@ -90,14 +195,14 @@
         st.textContent = `
       .dps-settings-pop{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);z-index:999999}
       .dps-settings-pop.on{display:flex}
-      .dps-pop-card{width:min(420px,92vw);background:#2b3136;border:1px solid rgba(255,255,255,.12);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.55);color:rgba(255,255,255,.92)}
+      .dps-pop-card{width:min(460px,92vw);background:#2b3136;border:1px solid rgba(255,255,255,.12);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.55);color:rgba(255,255,255,.92)}
       .dps-pop-h{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.10)}
       .dps-pop-h .t{font-weight:700}
       .dps-pop-h .x{background:transparent;border:0;color:rgba(255,255,255,.9);font-size:16px;cursor:pointer}
       .dps-pop-b{padding:12px 14px}
       .dps-pop-b .row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0}
       .dps-pop-b .k{font-size:13px;color:rgba(255,255,255,.75)}
-      .dps-pop-b .inp{width:120px;background:#1f2326;border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.92);border-radius:10px;padding:8px 10px;outline:none}
+      .dps-pop-b .inp{width:140px;background:#1f2326;border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.92);border-radius:10px;padding:8px 10px;outline:none}
       .dps-pop-b .hint{margin-top:8px;font-size:12px;color:rgba(255,255,255,.60)}
       .dps-pop-b .actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}
       .dps-pop-b .btn{background:#1f2326;border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.92);border-radius:10px;padding:8px 12px;cursor:pointer}
@@ -186,7 +291,6 @@
             _overlayId: id,
             label: "smartmap",
             data: [],
-            // NOTE: do NOT force parsing/ticks options here (may trigger recursion in your plugin chain)
             normalized: true,
             spanGaps: true,
 
@@ -203,9 +307,6 @@
 
         chart.data.datasets = chart.data.datasets || [];
         chart.data.datasets.push(ds);
-
-        // do NOT touch chart.options.* here
-        // chart.update will render new dataset
         return ds;
     }
 
@@ -264,7 +365,8 @@
         boundSections.add(sec);
 
         const popup = ensurePopup();
-        const inp = popup.querySelector('input[data-k="refreshSec"]');
+        const inpPoint = popup.querySelector('[data-k="pointRefreshSec"]');
+        const inpOnlineLab = popup.querySelector('[data-k="onlineLabRefreshSec"]');
         const closePop = () => popup.classList.remove("on");
 
         popup.querySelector(".x").onclick = closePop;
@@ -278,7 +380,8 @@
                 e.stopPropagation();
 
                 const s = loadSettings();
-                inp.value = Math.max(5, Math.min(300, Number(s.refreshSec || 10)));
+                inpPoint.value = String(s.pointRefreshSec);
+                inpOnlineLab.value = String(s.onlineLabRefreshSec);
                 popup.classList.add("on");
             });
         }
@@ -303,11 +406,29 @@
         }
 
         popup.querySelector('[data-act="apply"]').onclick = () => {
-            const n = Math.max(5, Math.min(300, Number(inp.value || 10)));
-            saveSettings({ refreshSec: n });
+            const pointRefreshSec = clamp(
+                inpPoint.value,
+                MIN_POINT_REFRESH_SEC,
+                MAX_POINT_REFRESH_SEC,
+                DEFAULT_POINT_REFRESH_SEC
+            );
+
+            const onlineLabRefreshSec = clamp(
+                inpOnlineLab.value,
+                MIN_ONLINELAB_REFRESH_SEC,
+                MAX_ONLINELAB_REFRESH_SEC,
+                DEFAULT_ONLINELAB_REFRESH_SEC
+            );
+
+            saveSettings({ pointRefreshSec, onlineLabRefreshSec });
             closePop();
+
             restartPoller();
             tickAll();
+
+            if (window.DPSView && typeof window.DPSView.restartWithin === "function") {
+                window.DPSView.restartWithin(document);
+            }
         };
     }
 
@@ -315,9 +436,8 @@
     // safe chart update (avoid recursion re-enter)
     // ---------------------------
     function safeUpdateChart(chart) {
-        // defer update out of current stack -> reduces chance of plugin recursion
         requestAnimationFrame(() => {
-            try { chart.update(); } catch { /* ignore */ }
+            try { chart.update(); } catch { }
         });
     }
 
@@ -401,7 +521,10 @@
         pollTimer = null;
 
         const s = loadSettings();
-        pollMs = Math.max(5000, Math.min(300000, Number(s.refreshSec || 10) * 1000));
+        pollMs = Math.max(
+            MIN_POINT_REFRESH_SEC * 1000,
+            Math.min(MAX_POINT_REFRESH_SEC * 1000, Number(s.pointRefreshSec || DEFAULT_POINT_REFRESH_SEC) * 1000)
+        );
 
         pollTimer = setInterval(() => tickAll(), pollMs);
     }
