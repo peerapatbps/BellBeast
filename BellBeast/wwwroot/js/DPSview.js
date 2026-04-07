@@ -2,7 +2,7 @@
 // - ไม่ยุ่ง UZ541xP dropdown (อันนั้น BBTrend ทำของมัน)
 // - ทำเฉพาะ row4: dpsPostTrend1..4 (TW1..TW4 Post_Chlor)
 // - ยิง POST ครั้งเดียว ได้ 4 กราฟใน payload เดียว
-// - refresh ทุก 5 นาที
+// - refresh time อ่านจาก popup settings (300..900 sec)
 // - hourWindow=4 (ส่งให้ backend ตามสเปค)
 // - ถ้า fail: ไม่แสดงกราฟ (destroy + ซ่อน canvas)
 // - IMPORTANT: ทำ POST แบบ "simple request" เพื่อลด/เลี่ยง OPTIONS (CORS preflight)
@@ -17,15 +17,56 @@
     // ============================
     // Settings
     // ============================
-    const POLL_MS = 5 * 60 * 1000;   // 5 นาที
-    const HOUR_WINDOW = 4;           // 4 ชั่วโมงล่าสุด (ส่งให้ backend)
+    const HOUR_WINDOW = 4;
     const TIMEOUT_MS = 8000;
 
     const KEY_MAIN = "Post_Chlor";
     const KEY_MAX = "Post_Chlor_ParaMax";
     const KEY_MIN = "Post_Chlor_ParaMin";
 
+    const STORAGE_KEY = "dps_ptc_refresh_v1";
+    const DEFAULT_ONLINELAB_REFRESH_SEC = 300;
+    const MIN_ONLINELAB_REFRESH_SEC = 300;
+    const MAX_ONLINELAB_REFRESH_SEC = 900;
+
     let _inflight = null;
+
+    // ============================
+    // settings
+    // ============================
+    function clamp(n, min, max, fallback) {
+        const x = Number(n);
+        if (!Number.isFinite(x)) return fallback;
+        return Math.max(min, Math.min(max, x));
+    }
+
+    function loadOnlineLabRefreshSec() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return DEFAULT_ONLINELAB_REFRESH_SEC;
+
+            const o = JSON.parse(raw);
+
+            // new format
+            if (o && o.onlineLabRefreshSec !== undefined) {
+                return clamp(
+                    o.onlineLabRefreshSec,
+                    MIN_ONLINELAB_REFRESH_SEC,
+                    MAX_ONLINELAB_REFRESH_SEC,
+                    DEFAULT_ONLINELAB_REFRESH_SEC
+                );
+            }
+
+            // old format fallback: do not reuse old point refresh for onlineLab
+            return DEFAULT_ONLINELAB_REFRESH_SEC;
+        } catch {
+            return DEFAULT_ONLINELAB_REFRESH_SEC;
+        }
+    }
+
+    function getOnlineLabPollMs() {
+        return loadOnlineLabRefreshSec() * 1000;
+    }
 
     // ============================
     // URL helper
@@ -59,7 +100,6 @@
             ]
         };
 
-        // ✅ text/plain => simple request
         const payloadText = JSON.stringify(payloadObj);
 
         const ac = new AbortController();
@@ -96,8 +136,6 @@
     // Chart helpers (plot dataset only)
     // ============================
 
-    // เอา ts ที่ backend ส่งมาเป็น X label ตรง ๆ
-    // backend ส่ง DESC -> reverse เป็น ASC
     function toLabelsAndY(points) {
         const labels = [];
         const ys = [];
@@ -114,14 +152,13 @@
         arr.reverse();
 
         for (const it of arr) {
-            labels.push(it.ts);   // ✅ x = ts จาก backend ตรง ๆ
+            labels.push(it.ts);
             ys.push(it.y);
         }
 
         return { labels, ys };
     }
 
-    // series อื่น (max/min) ให้ได้แค่ y ตามลำดับเดียวกัน (DESC->ASC)
     function toY(points) {
         const ys = [];
         const arr = [];
@@ -143,7 +180,7 @@
         const ch = new Chart(ctx, {
             type: "line",
             data: {
-                labels: [],   // ✅ x labels = ts strings
+                labels: [],
                 datasets: [
                     { label: KEY_MAIN, data: [], borderColor: "rgba(255,255,255,.92)", borderWidth: 2, pointRadius: 0, tension: 0 },
                     { label: KEY_MAX, data: [], borderColor: "rgba(255,91,91,.95)", borderWidth: 4, pointRadius: 0, tension: 0 },
@@ -163,10 +200,10 @@
                             displayFormats: { minute: "HH:mm" }
                         },
                         ticks: {
-                            display: false    // ❗ ซ่อนตัวเลขแกน X
+                            display: false
                         },
                         grid: {
-                            display: false    // ❗ เอาเส้น grid X ออกด้วย (ถ้าอยากโล่ง ๆ)
+                            display: false
                         }
                     },
                     y: { grid: { color: "rgba(255,255,255,.06)" } }
@@ -212,7 +249,6 @@
             return;
         }
 
-        // ✅ labels ใช้จาก MAIN เพื่อเป็นแกน X (เวลา ts จาก backend)
         const mainPack = toLabelsAndY(graph[KEY_MAIN]);
         const labels = mainPack.labels;
         const mainY = mainPack.ys;
@@ -258,24 +294,35 @@
         }
     }
 
+    function startOnlineLabTimer(scope) {
+        if (scope._dpsOnlineLabTimer) {
+            clearInterval(scope._dpsOnlineLabTimer);
+            scope._dpsOnlineLabTimer = null;
+        }
+
+        scope._dpsOnlineLabTimer = setInterval(() => {
+            refreshRow4(scope);
+        }, getOnlineLabPollMs());
+    }
+
+    function restartWithin(root) {
+        const scope = root || document;
+        refreshRow4(scope);
+        startOnlineLabTimer(scope);
+    }
+
     // ============================
     // Public initWithin
     // ============================
     function initWithin(root) {
         const scope = root || document;
 
-        // ของเดิม: UZ dropdown (BBTrend) ยังทำของมันได้
         window.BBTrend?.initWithin(scope);
 
-        // OnlineLab row4
         if (scope._dpsOnlineLabBound === true) return;
         scope._dpsOnlineLabBound = true;
 
-        refreshRow4(scope);
-
-        scope._dpsOnlineLabTimer = setInterval(() => {
-            refreshRow4(scope);
-        }, POLL_MS);
+        restartWithin(scope);
     }
 
     function destroyWithin(root) {
@@ -297,6 +344,6 @@
         }
     }
 
-    window.DPSView = { initWithin, destroyWithin };
+    window.DPSView = { initWithin, destroyWithin, restartWithin };
 
 })();

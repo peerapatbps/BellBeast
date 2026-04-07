@@ -1,7 +1,7 @@
 ﻿// RWSview.js  (OnlineLab POST /api/online_lab)
 // - ทำเฉพาะ 4 mini charts: RW_NTU, RW_COND, RW_DO, RW_TEMP
 // - ยิง POST ครั้งเดียว ได้ 4 กราฟใน payload เดียว (source=RW2)
-// - refresh ทุก 5 นาที (ปรับได้)
+// - refresh อ่านจาก settings popup: 300..900 sec
 // - hourWindow=4 (ส่งให้ backend ตามสเปค)
 // - ถ้า fail: destroy + ซ่อน canvas
 // - ทำ POST แบบ "simple request" => content-type: text/plain;charset=UTF-8
@@ -18,11 +18,15 @@
     // ============================
     // Settings
     // ============================
-    const POLL_MS = 5 * 60 * 1000;  // 5 นาที
     const HOUR_WINDOW = 4;
     const TIMEOUT_MS = 8000;
 
     const SOURCE = "RW2";
+
+    const STORAGE_KEY = "rws_online_lab_refresh_v1";
+    const DEFAULT_ONLINELAB_REFRESH_SEC = 300;
+    const MIN_ONLINELAB_REFRESH_SEC = 300;
+    const MAX_ONLINELAB_REFRESH_SEC = 900;
 
     // keys
     const K_NTU = "NTU";
@@ -36,6 +40,36 @@
     const K_TEMP = "Temp";
 
     let _inflight = null;
+
+    // ============================
+    // settings
+    // ============================
+    function clamp(n, min, max, fallback) {
+        const x = Number(n);
+        if (!Number.isFinite(x)) return fallback;
+        return Math.max(min, Math.min(max, x));
+    }
+
+    function loadOnlineLabRefreshSec() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return DEFAULT_ONLINELAB_REFRESH_SEC;
+
+            const o = JSON.parse(raw);
+            return clamp(
+                o && o.onlineLabRefreshSec,
+                MIN_ONLINELAB_REFRESH_SEC,
+                MAX_ONLINELAB_REFRESH_SEC,
+                DEFAULT_ONLINELAB_REFRESH_SEC
+            );
+        } catch {
+            return DEFAULT_ONLINELAB_REFRESH_SEC;
+        }
+    }
+
+    function getOnlineLabPollMs() {
+        return loadOnlineLabRefreshSec() * 1000;
+    }
 
     // ============================
     // URL helper (ชี้ไป backend :8888 เหมือน DPS)
@@ -60,7 +94,6 @@
 
         const url = apiUrl(root, "/api/online_lab");
 
-        // ขอ keys ทั้งหมดทีเดียว (บางตัวอาจไม่มีเกณฑ์ => backend อาจไม่ส่ง)
         const payloadObj = {
             hourWindow: HOUR_WINDOW,
             sources: [
@@ -85,7 +118,7 @@
             try {
                 const r = await fetch(url, {
                     method: "POST",
-                    headers: { "content-type": "text/plain;charset=UTF-8" }, // ✅ simple request
+                    headers: { "content-type": "text/plain;charset=UTF-8" },
                     cache: "no-store",
                     body: payloadText,
                     signal: ac.signal
@@ -119,7 +152,7 @@
             if (!Number.isFinite(y)) continue;
             arr.push({ ts, y });
         }
-        arr.reverse(); // backend DESC -> ASC
+        arr.reverse();
 
         const labels = [];
         const ys = [];
@@ -155,10 +188,8 @@
     function ensureChart(canvas, mode) {
         if (!window.Chart) throw new Error("Chart.js not loaded");
 
-        // reuse ถ้า mode เดิม
         if (canvas._rwsChart && canvas._rwsChart._rwsMode === mode) return canvas._rwsChart;
 
-        // ถ้ามีของเก่าแต่ mode เปลี่ยน => destroy
         if (canvas._rwsChart) {
             try { canvas._rwsChart.destroy(); } catch { }
             canvas._rwsChart = null;
@@ -166,10 +197,7 @@
 
         const ctx = canvas.getContext("2d");
 
-        // dataset template ตาม mode
-        // mode: "main" | "main_max" | "main_min"
         const datasets = [];
-        // main
         datasets.push({
             label: "main",
             data: [],
@@ -208,11 +236,10 @@
                 animation: false,
                 plugins: { legend: { display: false } },
                 scales: {
-                    // ✅ ใช้ category แบบ string labels เพื่อไม่ต้องพึ่ง time-adapter
                     x: {
                         type: "category",
-                        ticks: { display: false },   // ซ่อน label แกน X
-                        grid: { display: false }     // เอา grid X ออก
+                        ticks: { display: false },
+                        grid: { display: false }
                     },
                     y: {
                         grid: { color: "rgba(255,255,255,.06)" }
@@ -245,7 +272,6 @@
         return g || null;
     }
 
-    // render by spec
     function renderSpec(canvas, graph, spec) {
         if (!canvas) return;
 
@@ -289,7 +315,6 @@
         const cDO = scope.querySelector("#RW_DO");
         const cTEMP = scope.querySelector("#RW_TEMP");
 
-        // ถ้าไม่มี canvas ครบ ก็ไม่ทำ
         if (!cNTU && !cCOND && !cDO && !cTEMP) return;
 
         try {
@@ -302,12 +327,28 @@
             renderSpec(cTEMP, g, { mode: "main", mainKey: K_TEMP });
 
         } catch (e) {
-            // fail: hide all
             for (const cv of [cNTU, cCOND, cDO, cTEMP].filter(Boolean)) {
                 destroyChart(cv);
                 setVisible(cv, false);
             }
         }
+    }
+
+    function startOnlineLabTimer(scope) {
+        if (scope._rwsOnlineLabTimer) {
+            clearInterval(scope._rwsOnlineLabTimer);
+            scope._rwsOnlineLabTimer = null;
+        }
+
+        scope._rwsOnlineLabTimer = setInterval(() => {
+            refreshRwsCharts(scope);
+        }, getOnlineLabPollMs());
+    }
+
+    function restartWithin(root) {
+        const scope = root || document;
+        refreshRwsCharts(scope);
+        startOnlineLabTimer(scope);
     }
 
     // ============================
@@ -316,15 +357,10 @@
     function initWithin(root) {
         const scope = root || document;
 
-        // กัน bind ซ้ำ
         if (scope._rwsOnlineLabBound === true) return;
         scope._rwsOnlineLabBound = true;
 
-        refreshRwsCharts(scope);
-
-        scope._rwsOnlineLabTimer = setInterval(() => {
-            refreshRwsCharts(scope);
-        }, POLL_MS);
+        restartWithin(scope);
     }
 
     function destroyWithin(root) {
@@ -347,6 +383,6 @@
         }
     }
 
-    window.RWSView = { initWithin, destroyWithin };
+    window.RWSView = { initWithin, destroyWithin, restartWithin };
 
 })();
