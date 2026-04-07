@@ -5,7 +5,7 @@
        CONSTANTS
     ========================= */
 
-    const DEFAULT_POLL_SEC = 5;
+    const DEFAULT_POLL_SEC = 15;
     const TIMEOUT_MS = 8000;
 
     const CAP_ALUM_M3 = 625;

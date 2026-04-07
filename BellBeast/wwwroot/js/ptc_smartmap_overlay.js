@@ -26,7 +26,7 @@
             const o = JSON.parse(raw);
             const r = Number(o.refreshSec);
             if (Number.isFinite(r) && r > 0) return { refreshSec: r };
-            return { refreshSec: 10 };
+            return { c: 10 };
         } catch {
             return { refreshSec: 10 };
         }

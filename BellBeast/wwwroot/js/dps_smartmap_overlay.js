@@ -19,7 +19,7 @@
     const STORAGE_KEY = "dps_ptc_refresh_v1"; // keep key for backward compatibility
 
     // defaults / limits
-    const DEFAULT_DPS_REFRESH_SEC = 5;
+    const DEFAULT_DPS_REFRESH_SEC = 15;
     const MIN_DPS_REFRESH_SEC = 5;
     const MAX_DPS_REFRESH_SEC = 60;
     const DEFAULT_POINT_REFRESH_SEC = 10;

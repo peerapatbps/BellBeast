@@ -2,7 +2,7 @@
     "use strict";
 
     const STORAGE_KEY = "rws_online_lab_refresh_v1";
-    const DEFAULT_RPS_REFRESH_SEC = 5;
+    const DEFAULT_RPS_REFRESH_SEC = 15;
     const MIN_RPS_REFRESH_SEC = 5;
     const MAX_RPS_REFRESH_SEC = 60;
     const DEFAULT_ONLINELAB_REFRESH_SEC = 300;

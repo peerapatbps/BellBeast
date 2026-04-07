@@ -2,7 +2,7 @@
     "use strict";
 
     const STORAGE_KEY = "event_refresh_settings_v1";
-    const DEFAULT_REFRESH_MIN = 5;
+    const DEFAULT_REFRESH_MIN = 15;
 
     let _booted = false;
 

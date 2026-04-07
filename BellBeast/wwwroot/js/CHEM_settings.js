@@ -2,7 +2,7 @@
     "use strict";
 
     const STORAGE_KEY = "chem_refresh_settings_v1";
-    const DEFAULT_REFRESH_SEC = 5;
+    const DEFAULT_REFRESH_SEC = 15;
     const MIN_REFRESH_SEC = 5;
     const MAX_REFRESH_SEC = 60;
 
