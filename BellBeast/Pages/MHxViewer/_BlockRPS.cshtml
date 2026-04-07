@@ -146,8 +146,11 @@
 </section>
 
 <script>
-    // Init DPS smartmap overlay (single poller)
-    window.DPSSmartmapOverlay?.initWithin(document.currentScript?.closest("section.rws-block") || document);
+    window.RWSOnlineSettings?.initWithin(document.currentScript?.closest("section.rws-block") || document);
+</script>
+
+<script>
+    window.RWSView?.initWithin(document.currentScript?.closest("section.rws-block") || document);
 </script>
 
 <script>

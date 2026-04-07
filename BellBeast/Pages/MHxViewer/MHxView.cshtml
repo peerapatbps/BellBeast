@@ -5,18 +5,16 @@
 
     // ✅ รายชื่อ block ที่คุณมีจริง (ปรับชื่อให้ตรงของคุณ)
     // ถ้าคุณมี 8 ช่อง ก็ใส่ 8 ตัว
-    var defaultSlots = new[] { "RPS", "DPS", "TPS", "CHEM", "PTC", "PTC" };
+    var defaultSlots = new[] { "TPS", "DPS", "RPS", "CHEM", "PTC", "EVENT" };
 
     // ✅ สำหรับ dropdown ใน modal
     // label จะโชว์ในหน้าตั้งค่า
     var blocks = new (string key, string label)[] {
         ("EVENT", "Daily Events"),
-        ("RPS", "RPS#1 & RWS#2"),
-        ("DPS", "DPS"),
         ("TPS", "TPS"),
+        ("DPS", "DPS"),
+        ("RPS", "RPS"),
         ("CHEM", "CHEM"),
-        ("CWSFWS1","CWS-FWS1"),
-        ("CWSFWS2","CWS-FWS2"),
         ("PTC", "PTC"),        
         ("EMPTY","(EMPTY)")
     };
@@ -1800,8 +1798,10 @@
                 try { window.BBTrend?.initWithin(slots[i]); } catch(e){ console.warn("BBTrend init fail", e); }
                 try { window.DPSView?.initWithin(slots[i]); } catch(e){ console.warn("DPSView init fail", e); }
                 try { window.RWSView?.initWithin(slots[i]); } catch(e){ console.warn("RWSView init fail", e); }
+                try { window.RWSOnlineSettings?.initWithin(slots[i]); } catch(e){ console.warn("RWSoverlay init fail", e); }
                 try { window.CHEMView?.initWithin(slots[i]); } catch(e){ console.warn("CHEMView init fail", e); }
-                try { window.EVENTView?.initWithin(slots[i]); } catch(e){ console.warn("EVENTView init fail", e); }
+                try { window.EVENTsettings?.initWithin(slots[i]); } catch(e){ console.warn("EVENTViewsetting init fail", e); }
+                try { window.EVENTView?.initWithin(slots[i]); } catch(e){ console.warn("EVENTView init fail", e); }                
                 try { window.BBTrendPTC?.initWithin(slots[i]); } catch(e){ console.warn("BBTrendPTC init fail", e); }
                 try { window.DPSSmartmapOverlay?.initWithin(slots[i]); } catch(e){ console.warn("DPSSmartmapOverlay init fail", e); }
                 try { window.PTCSmartmapOverlay?.initWithin(slots[i]); } catch(e){ console.warn("PTCSmartmapOverlay init fail", e); }
@@ -1912,8 +1912,9 @@
             saveSlots(draft);
             closeModal();
 
-            // ✅ ไม่ต้อง reload ทั้งหน้า
-            await renderSlotsFromLayout(draft);
+            setTimeout(() => {
+                window.location.reload();
+            }, 50);
         });
 
     });
@@ -1926,7 +1927,9 @@
 <script src="~/js/BBTrend.js"></script>
 <script src="~/js/DPSview.js"></script>
 <script src="~/js/RWSview.js"></script>
+<script src="/js/RWS_online_settings.js"></script>
 <script src="~/js/CHEMview.js"></script>
+<script src="/js/EVENT_settings.js"></script>
 <script src="~/js/EVENTview.js"></script>
 <script src="~/js/dps_smartmap_overlay.js?v=1"></script>
 <script src="~/js/dps_summary.js" asp-append-version="true"></script>
@@ -1943,7 +1946,9 @@
         try { window.BBTrend?.initWithin(root); } catch (e) {}
         try { window.DPSView?.initWithin(root); } catch (e) {}
         try { window.RWSView?.initWithin(root); } catch (e) {}
+        try { window.RWSOnlineSettings?.initWithin(root); } catch (e) {}
         try { window.CHEMView?.initWithin(root); } catch (e) {}
+        try { window.EVENTsettings?.initWithin(root); } catch (e) {}
         try { window.EVENTView?.initWithin(root); } catch (e) {}
         try { window.DPSSmartmapOverlay?.initWithin(root); } catch (e) {}  // ✅
         try { window.BBTrendPTC?.initWithin(root); } catch (e) {}          // ✅

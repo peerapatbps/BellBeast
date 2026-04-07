@@ -12,7 +12,7 @@ namespace BellBeast.Pages
             // whitelist ¡Ñ¹ key á»Å¡æ
             var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-                "TPS","DPS","RPS","CHEM","CWSFWS1","CWSFWS2","CHEM1","CHEM2","PTC", "EVENT","EMPTY"
+                "TPS","DPS","RPS","CHEM","PTC", "EVENT","EMPTY"
             };
             if (!allowed.Contains(key)) key = "EMPTY";
 

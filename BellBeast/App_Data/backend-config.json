@@ -1,5 +1,5 @@
 {
-  "backendBaseUrl": "http://172.22.46.54:8888",
+  "backendBaseUrl": "http://172.20.10.2:8888",
   "queryCsvPath": "/api/process",
   "dailyReportPath": "/api/dailyreport",
   "chemReportPath": "/api/chem_report",
