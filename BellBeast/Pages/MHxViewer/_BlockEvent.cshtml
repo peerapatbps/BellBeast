@@ -1,12 +1,12 @@
 ﻿<style>
-    .event-block .bb-section-b {
+    section.event-block .bb-section-b {
         margin: 5px;
         padding-right: 10px;
         height: 380px;
         box-sizing: border-box;
     }
 
-    .event-grid {
+    section.event-block .event-grid {
         display: grid;
         grid-template-columns: 30% 70%;
         gap: 10px;
@@ -17,13 +17,13 @@
     }
 
     @@media (max-width: 1100px) {
-        .event-grid {
+        section.event-block .event-grid {
             grid-template-columns: 1fr;
         }
     }
 
     /* ===== LEFT PANEL ===== */
-    .event-panel {
+    section.event-block .event-panel {
         background: rgba(255,255,255,.04);
         border: 1px solid var(--stroke);
         border-radius: 10px;
@@ -35,13 +35,13 @@
         min-height: 0;
     }
 
-    .chem-event-list {
+    section.event-block .chem-event-list {
         display: grid;
         gap: 10px;
         margin-top: 10px;
     }
 
-    .chem-row {
+    section.event-block .chem-row {
         background: rgba(255,255,255,.03);
         border: 1px solid rgba(255,255,255,.08);
         border-radius: 10px;
@@ -49,21 +49,21 @@
         min-height: 105px;
         box-sizing: border-box;
         display: grid;
-        grid-template-columns: 74px 1fr; /* เดิม 88px */
-        gap: 8px; /* เดิม 10px */
+        grid-template-columns: 74px 1fr;
+        gap: 8px;
         align-items: center;
     }
 
-    .chem-left {
+    section.event-block .chem-left {
         display: flex;
         align-items: center;
         justify-content: flex-start;
     }
 
-    .chem-tag {
-        min-width: 68px; /* เดิม 84px */
+    section.event-block .chem-tag {
+        min-width: 68px;
         height: 28px;
-        padding: 0 8px; /* เดิม 0 10px */
+        padding: 0 8px;
         border-radius: 8px;
         display: inline-flex;
         align-items: center;
@@ -76,42 +76,42 @@
         white-space: nowrap;
     }
 
-        .chem-tag.alum {
+        section.event-block .chem-tag.alum {
             background: rgba(95,228,255,.18);
         }
 
-        .chem-tag.pacl {
+        section.event-block .chem-tag.pacl {
             background: rgba(255,204,77,.18);
         }
 
-        .chem-tag.chlorine {
+        section.event-block .chem-tag.chlorine {
             background: rgba(90,211,109,.18);
         }
 
-    .chem-right {
+    section.event-block .chem-right {
         display: grid;
         gap: 8px;
         align-content: center;
         min-width: 0;
     }
 
-    .chem-line {
+    section.event-block .chem-line {
         display: grid;
-        grid-template-columns: 46px minmax(64px, 1fr) auto; /* ลด label รับเข้า */
+        grid-template-columns: 46px minmax(64px, 1fr) auto;
         column-gap: 8px;
         align-items: baseline;
         line-height: 1.15;
         min-width: 0;
     }
 
-        .chem-line .k {
+        section.event-block .chem-line .k {
             font-size: 13px;
             font-weight: 800;
             color: rgba(255,255,255,.92);
             white-space: nowrap;
         }
 
-        .chem-line .v {
+        section.event-block .chem-line .v {
             font-size: 14px;
             font-weight: 900;
             color: #5fe4ff;
@@ -120,7 +120,7 @@
             font-variant-numeric: tabular-nums;
         }
 
-        .chem-line .chem-unit {
+        section.event-block .chem-line .chem-unit {
             font-size: 13px;
             font-weight: 800;
             color: rgba(255,255,255,.78);
@@ -128,7 +128,7 @@
         }
 
     /* ===== RIGHT STORAGE GRID ===== */
-    .storage-grid {
+    section.event-block .storage-grid {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         column-gap: 10px;
@@ -140,7 +140,7 @@
         grid-auto-rows: max-content;
     }
 
-    .storage-colhead {
+    section.event-block .storage-colhead {
         display: flex;
         align-items: center;
         justify-content: center;
@@ -154,48 +154,49 @@
         line-height: 1;
     }
 
-    .storage-gauge-card {
+    section.event-block .storage-gauge-card {
         align-self: start;
         height: 160px;
         min-height: 160px;
         box-sizing: border-box;
     }
 
-        .storage-gauge-card.dual {
+        section.event-block .storage-gauge-card.dual {
             height: 140px;
             min-height: 140px;
         }
 
-    .tank-pair {
+    section.event-block .tank-pair {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 8px;
         height: 100%;
     }
 
-    .tank-slot {
+    section.event-block .tank-slot {
         display: flex;
         flex-direction: column;
         min-width: 0;
         height: 100%;
     }
 
-    .tank-name {
+    section.event-block .tank-name {
         height: 16px;
         margin-bottom: 4px;
         font-size: 10px;
         font-weight: 900;
-        color: rgba(255,255,255,.72);
+        color: rgba(255,255,255,.84);
         text-align: center;
         line-height: 1;
+        letter-spacing: .25px;
     }
 
-    .tank-slot .chem-tank {
+    section.event-block .tank-slot .chem-tank {
         flex: 1;
         min-height: 0;
     }
 
-    .storage-delta-card {
+    section.event-block .storage-delta-card {
         align-self: start;
         background: rgba(255,255,255,.03);
         border: 1px solid rgba(255,255,255,.08);
@@ -211,7 +212,7 @@
         margin: 0;
     }
 
-    .storage-delta-title {
+    section.event-block .storage-delta-title {
         font-size: 11px;
         font-weight: 900;
         color: rgba(255,255,255,.72);
@@ -222,7 +223,7 @@
         line-height: 1;
     }
 
-    .storage-delta-value {
+    section.event-block .storage-delta-value {
         font-size: 16px;
         font-weight: 900;
         color: #5fe4ff;
@@ -232,7 +233,7 @@
         text-align: right;
     }
 
-    .storage-delta-unit {
+    section.event-block .storage-delta-unit {
         font-size: 11px;
         font-weight: 800;
         color: rgba(255,255,255,.68);
@@ -241,9 +242,8 @@
         line-height: 1;
     }
 
-    /* ===== GAUGE ===== */
     /* ===== GAUGE / TANK ===== */
-    .chem-tank {
+    section.event-block .chem-tank {
         display: flex;
         flex-direction: column;
         gap: 0;
@@ -251,23 +251,22 @@
         height: 100%;
     }
 
-        /* สีแยกตามสาร */
-        .chem-tank.alum {
+        section.event-block .chem-tank.alum {
             --tank-fill-top: rgba(108, 226, 255, .92);
             --tank-fill-bottom: rgba(53, 151, 255, .82);
         }
 
-        .chem-tank.pacl {
+        section.event-block .chem-tank.pacl {
             --tank-fill-top: rgba(255, 214, 102, .92);
             --tank-fill-bottom: rgba(214, 155, 44, .84);
         }
 
-        .chem-tank.chlorine {
+        section.event-block .chem-tank.chlorine {
             --tank-fill-top: rgba(110, 231, 140, .92);
             --tank-fill-bottom: rgba(46, 176, 92, .84);
         }
 
-    .chem-well {
+    section.event-block .chem-well {
         position: relative;
         height: 100%;
         border-radius: 14px;
@@ -277,7 +276,7 @@
         overflow: hidden;
     }
 
-    .chem-fill {
+    section.event-block .chem-fill {
         position: absolute;
         left: 0;
         right: 0;
@@ -289,8 +288,7 @@
         box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 0 14px rgba(255,255,255,.05);
     }
 
-        /* เพิ่มชั้นเงาในน้ำ ให้ดูมีมิติ */
-        .chem-fill::after {
+        section.event-block .chem-fill::after {
             content: "";
             position: absolute;
             inset: 0;
@@ -298,7 +296,7 @@
             pointer-events: none;
         }
 
-    .chem-midnight {
+    section.event-block .chem-midnight {
         position: absolute;
         left: 8%;
         right: 8%;
@@ -310,8 +308,7 @@
         filter: drop-shadow(0 0 2px rgba(0,0,0,.45));
     }
 
-    /* แผ่นรองข้อความตรงกลาง tank */
-    .chem-read {
+    section.event-block .chem-read {
         position: absolute;
         left: 50%;
         top: 52%;
@@ -336,32 +333,34 @@
         font-variant-numeric: tabular-nums;
     }
 
-    /* ชื่อ tank ให้สว่างขึ้น */
-    .tank-name {
-        height: 16px;
-        margin-bottom: 4px;
-        font-size: 10px;
-        font-weight: 900;
-        color: rgba(255,255,255,.84);
-        text-align: center;
-        line-height: 1;
-        letter-spacing: .25px;
-    }
-
     @@media (max-width: 1100px) {
-        .storage-grid {
+        section.event-block .storage-grid {
             grid-template-columns: 1fr;
             height: auto;
         }
 
-        .storage-gauge-card.dual {
+        section.event-block .storage-gauge-card.dual {
             height: 220px;
             min-height: 220px;
         }
     }
+
+    section.event-block .bb-section-h,
+    section.event-block .bb-section-h .right-icons {
+        position: relative;
+        z-index: 99999 !important;
+        pointer-events: auto !important;
+    }
+
+    section.event-block #eventBtnSettings,
+    section.event-block .bb-ico {
+        position: relative;
+        z-index: 100000 !important;
+        pointer-events: auto !important;
+    }
 </style>
 
-<section class="bb-section event-block">
+<section class="bb-section event-block" data-event-summary-url="/api/event/summary">
     <div class="bb-section-h">
         <div class="left">
             <div class="title">Daily Events</div>
@@ -371,7 +370,7 @@
             <button class="bb-ico" type="button" title="Bell" aria-label="Bell">
                 <span>🔔</span>
             </button>
-            <button class="bb-ico" type="button" title="Settings" aria-label="Settings">
+            <button class="bb-ico" id="eventBtnSettings" type="button" title="Settings" aria-label="Settings">
                 <span>⚙️</span>
             </button>
         </div>
@@ -392,22 +391,22 @@
                         <div class="chem-right">
                             <div class="chem-line">
                                 <div class="k">รับเข้า</div>
-                                <div class="v" data-bind="ALUM.IN">2</div>
+                                <div class="v" data-bind="ALUM.IN">99</div>
                                 <div class="chem-unit">รอบ</div>
                             </div>
                             <div class="chem-line">
                                 <div class="k">คิดเป็น</div>
-                                <div class="v" data-bind="ALUM.EQ">40</div>
+                                <div class="v" data-bind="ALUM.EQ">99</div>
                                 <div class="chem-unit">ตัน</div>
                             </div>
                             <div class="chem-line">
                                 <div class="k">P12 NET</div>
-                                <div class="v" data-bind="ALUM.P12.DELTA">12</div>
+                                <div class="v" data-bind="ALUM.P12.NET">99</div>
                                 <div class="chem-unit">ตัน</div>
                             </div>
                             <div class="chem-line">
                                 <div class="k">P34 NET</div>
-                                <div class="v" data-bind="ALUM.P34.DELTA">10</div>
+                                <div class="v" data-bind="ALUM.P34.NET">99</div>
                                 <div class="chem-unit">ตัน</div>
                             </div>
                         </div>
@@ -420,22 +419,22 @@
                         <div class="chem-right">
                             <div class="chem-line">
                                 <div class="k">รับเข้า</div>
-                                <div class="v" data-bind="PACL.IN">1</div>
+                                <div class="v" data-bind="PACL.IN">99</div>
                                 <div class="chem-unit">รอบ</div>
                             </div>
                             <div class="chem-line">
                                 <div class="k">คิดเป็น</div>
-                                <div class="v" data-bind="PACL.EQ">24</div>
+                                <div class="v" data-bind="PACL.EQ">99</div>
                                 <div class="chem-unit">ตัน</div>
                             </div>
                             <div class="chem-line">
                                 <div class="k">P12 NET</div>
-                                <div class="v" data-bind="PACL.P12.DELTA">4</div>
+                                <div class="v" data-bind="PACL.P12.NET">99</div>
                                 <div class="chem-unit">ตัน</div>
                             </div>
                             <div class="chem-line">
                                 <div class="k">P34 NET</div>
-                                <div class="v" data-bind="PACL.P34.DELTA">5</div>
+                                <div class="v" data-bind="PACL.P34.NET">99</div>
                                 <div class="chem-unit">ตัน</div>
                             </div>
                         </div>
@@ -448,22 +447,22 @@
                         <div class="chem-right">
                             <div class="chem-line">
                                 <div class="k">รับเข้า</div>
-                                <div class="v" data-bind="CHLORINE.IN">3</div>
-                                <div class="chem-unit">รอบ</div>
-                            </div>
-                            <div class="chem-line">
-                                <div class="k">คิดเป็น</div>
-                                <div class="v" data-bind="CHLORINE.EQ">15</div>
+                                <div class="v" data-bind="CHLORINE.IN">99</div>
                                 <div class="chem-unit">ท่อ</div>
                             </div>
                             <div class="chem-line">
-                                <div class="k">P12 NET</div>
-                                <div class="v" data-bind="CHLORINE.P12.DELTA">2</div>
+                                <div class="k">ส่งคืน</div>
+                                <div class="v" data-bind="CHLORINE.OUT">99</div>
                                 <div class="chem-unit">ท่อ</div>
                             </div>
                             <div class="chem-line">
-                                <div class="k">P34 NET</div>
-                                <div class="v" data-bind="CHLORINE.P34.DELTA">3</div>
+                                <div class="k">P12 Full Drum</div>
+                                <div class="v" data-bind="CHLORINE.P12.NET">99</div>
+                                <div class="chem-unit">ท่อ</div>
+                            </div>
+                            <div class="chem-line">
+                                <div class="k">P34 Full Drum</div>
+                                <div class="v" data-bind="CHLORINE.P34.NET">99</div>
                                 <div class="chem-unit">ท่อ</div>
                             </div>
                         </div>
@@ -549,7 +548,7 @@
                 <div class="storage-gauge-card dual">
                     <div class="tank-pair">
                         <div class="tank-slot">
-                            <div class="tank-name">Tank A</div>
+                            <div class="tank-name">Line A</div>
                             <div class="chem-tank chlorine"
                                  style="--fill:70; --midnight:85;"
                                  data-bind-fill="CHLORINE.P12.TANKA.FILL"
@@ -563,7 +562,7 @@
                         </div>
 
                         <div class="tank-slot">
-                            <div class="tank-name">Tank B</div>
+                            <div class="tank-name">Line B</div>
                             <div class="chem-tank chlorine"
                                  style="--fill:58; --midnight:66;"
                                  data-bind-fill="CHLORINE.P12.TANKB.FILL"
@@ -601,7 +600,7 @@
                 <div class="storage-gauge-card dual">
                     <div class="tank-pair">
                         <div class="tank-slot">
-                            <div class="tank-name">Tank A</div>
+                            <div class="tank-name">Tank C</div>
                             <div class="chem-tank alum"
                                  style="--fill:64; --midnight:73;"
                                  data-bind-fill="ALUM.P34.TANKA.FILL"
@@ -615,7 +614,7 @@
                         </div>
 
                         <div class="tank-slot">
-                            <div class="tank-name">Tank B</div>
+                            <div class="tank-name">Tank D</div>
                             <div class="chem-tank alum"
                                  style="--fill:59; --midnight:70;"
                                  data-bind-fill="ALUM.P34.TANKB.FILL"
@@ -634,7 +633,7 @@
                 <div class="storage-gauge-card dual">
                     <div class="tank-pair">
                         <div class="tank-slot">
-                            <div class="tank-name">Tank A</div>
+                            <div class="tank-name">Tank C</div>
                             <div class="chem-tank pacl"
                                  style="--fill:52; --midnight:68;"
                                  data-bind-fill="PACL.P34.TANKA.FILL"
@@ -648,7 +647,7 @@
                         </div>
 
                         <div class="tank-slot">
-                            <div class="tank-name">Tank B</div>
+                            <div class="tank-name">Tank D</div>
                             <div class="chem-tank pacl"
                                  style="--fill:48; --midnight:57;"
                                  data-bind-fill="PACL.P34.TANKB.FILL"
@@ -667,7 +666,7 @@
                 <div class="storage-gauge-card dual">
                     <div class="tank-pair">
                         <div class="tank-slot">
-                            <div class="tank-name">Tank A</div>
+                            <div class="tank-name">Line A</div>
                             <div class="chem-tank chlorine"
                                  style="--fill:45.8; --midnight:60;"
                                  data-bind-fill="CHLORINE.P34.TANKA.FILL"
@@ -681,7 +680,7 @@
                         </div>
 
                         <div class="tank-slot">
-                            <div class="tank-name">Tank B</div>
+                            <div class="tank-name">Line B</div>
                             <div class="chem-tank chlorine"
                                  style="--fill:41.7; --midnight:54;"
                                  data-bind-fill="CHLORINE.P34.TANKB.FILL"
