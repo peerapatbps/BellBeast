@@ -19,6 +19,9 @@
     const STORAGE_KEY = "dps_ptc_refresh_v1"; // keep key for backward compatibility
 
     // defaults / limits
+    const DEFAULT_DPS_REFRESH_SEC = 5;
+    const MIN_DPS_REFRESH_SEC = 5;
+    const MAX_DPS_REFRESH_SEC = 60;
     const DEFAULT_POINT_REFRESH_SEC = 10;
     const DEFAULT_ONLINELAB_REFRESH_SEC = 300;
     const MIN_POINT_REFRESH_SEC = 5;
@@ -51,6 +54,7 @@
             const raw = localStorage.getItem(STORAGE_KEY);
             if (!raw) {
                 return {
+                    dpsRefreshSec: DEFAULT_DPS_REFRESH_SEC,
                     pointRefreshSec: DEFAULT_POINT_REFRESH_SEC,
                     onlineLabRefreshSec: DEFAULT_ONLINELAB_REFRESH_SEC
                 };
@@ -58,9 +62,18 @@
 
             const o = JSON.parse(raw);
 
-            // new format
-            if (o && (o.pointRefreshSec !== undefined || o.onlineLabRefreshSec !== undefined)) {
+            if (o && (
+                o.dpsRefreshSec !== undefined ||
+                o.pointRefreshSec !== undefined ||
+                o.onlineLabRefreshSec !== undefined
+            )) {
                 return {
+                    dpsRefreshSec: clamp(
+                        o.dpsRefreshSec,
+                        MIN_DPS_REFRESH_SEC,
+                        MAX_DPS_REFRESH_SEC,
+                        DEFAULT_DPS_REFRESH_SEC
+                    ),
                     pointRefreshSec: clamp(
                         o.pointRefreshSec,
                         MIN_POINT_REFRESH_SEC,
@@ -76,10 +89,11 @@
                 };
             }
 
-            // old format: { refreshSec }
+            // old format compatibility
             const r = Number(o && o.refreshSec);
             if (Number.isFinite(r) && r > 0) {
                 return {
+                    dpsRefreshSec: DEFAULT_DPS_REFRESH_SEC,
                     pointRefreshSec: clamp(
                         r,
                         MIN_POINT_REFRESH_SEC,
@@ -90,26 +104,14 @@
                 };
             }
 
-            // older format: { rate1, rate2 }
-            const a = Number(o && o.rate1);
-            const b = Number(o && o.rate2);
-            const migrated = Math.max(
-                Number.isFinite(a) ? a : DEFAULT_POINT_REFRESH_SEC,
-                Number.isFinite(b) ? b : DEFAULT_POINT_REFRESH_SEC,
-                DEFAULT_POINT_REFRESH_SEC
-            );
-
             return {
-                pointRefreshSec: clamp(
-                    migrated,
-                    MIN_POINT_REFRESH_SEC,
-                    MAX_POINT_REFRESH_SEC,
-                    DEFAULT_POINT_REFRESH_SEC
-                ),
+                dpsRefreshSec: DEFAULT_DPS_REFRESH_SEC,
+                pointRefreshSec: DEFAULT_POINT_REFRESH_SEC,
                 onlineLabRefreshSec: DEFAULT_ONLINELAB_REFRESH_SEC
             };
         } catch {
             return {
+                dpsRefreshSec: DEFAULT_DPS_REFRESH_SEC,
                 pointRefreshSec: DEFAULT_POINT_REFRESH_SEC,
                 onlineLabRefreshSec: DEFAULT_ONLINELAB_REFRESH_SEC
             };
@@ -117,6 +119,13 @@
     }
 
     function saveSettings(s) {
+        const dpsRefreshSec = clamp(
+            s && s.dpsRefreshSec,
+            MIN_DPS_REFRESH_SEC,
+            MAX_DPS_REFRESH_SEC,
+            DEFAULT_DPS_REFRESH_SEC
+        );
+
         const pointRefreshSec = clamp(
             s && s.pointRefreshSec,
             MIN_POINT_REFRESH_SEC,
@@ -132,6 +141,7 @@
         );
 
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            dpsRefreshSec,
             pointRefreshSec,
             onlineLabRefreshSec
         }));
@@ -147,48 +157,60 @@
         el = document.createElement("div");
         el.className = "dps-settings-pop";
         el.innerHTML = `
-      <div class="dps-pop-card">
-        <div class="dps-pop-h">
-          <div class="t">DPS Trend Settings</div>
-          <button class="x" type="button" aria-label="Close">✕</button>
-        </div>
-        <div class="dps-pop-b">
-          <div class="row">
-            <div class="k">Point Refresh (sec) — applies to graph point overlay</div>
-            <select class="inp" data-k="pointRefreshSec">
-              <option value="5">5</option>
-              <option value="10">10</option>
-              <option value="15">15</option>
-              <option value="30">30</option>
-              <option value="60">60</option>
-              <option value="120">120</option>
-              <option value="180">180</option>
-              <option value="240">240</option>
-              <option value="300">300</option>
-            </select>
-          </div>
+          <div class="dps-pop-card">
+            <div class="dps-pop-h">
+              <div class="t">DPS Trend Settings</div>
+              <button class="x" type="button" aria-label="Close">✕</button>
+            </div>
+            <div class="dps-pop-b">
+              <div class="row">
+                <div class="k">DPS data refresh interval (sec)</div>
+                <select class="inp" data-k="dpsRefreshSec">
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="15">15</option>
+                  <option value="20">20</option>
+                  <option value="30">30</option>
+                  <option value="45">45</option>
+                  <option value="60">60</option>
+                </select>
+              </div>
 
-          <div class="row">
-            <div class="k">OnlineLab Refresh (sec) — applies to TW1..TW4 fetch</div>
-            <select class="inp" data-k="onlineLabRefreshSec">
-              <option value="300">300</option>
-              <option value="360">360</option>
-              <option value="420">420</option>
-              <option value="480">480</option>
-              <option value="600">600</option>
-              <option value="720">720</option>
-              <option value="900">900</option>
-            </select>
-          </div>
+              <div class="row">
+                <div class="k">Pressure Trend Curve Refresh rate (sec)</div>
+                <select class="inp" data-k="pointRefreshSec">
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="15">15</option>
+                  <option value="30">30</option>
+                  <option value="60">60</option>
+                  <option value="120">120</option>
+                  <option value="180">180</option>
+                  <option value="240">240</option>
+                  <option value="300">300</option>
+                </select>
+              </div>
 
-          <div class="hint">* Point overlay และ OnlineLab ใช้คนละ timer</div>
-          <div class="actions">
-            <button class="btn" data-act="apply" type="button">Apply</button>
-            <button class="btn ghost" data-act="close" type="button">Close</button>
+              <div class="row">
+                <div class="k">OnlineLab Refresh rate (sec)</div>
+                <select class="inp" data-k="onlineLabRefreshSec">
+                  <option value="300">300</option>
+                  <option value="360">360</option>
+                  <option value="420">420</option>
+                  <option value="480">480</option>
+                  <option value="600">600</option>
+                  <option value="720">720</option>
+                  <option value="900">900</option>
+                </select>
+              </div>
+
+              <div class="actions">
+                <button class="btn" data-act="apply" type="button">Apply</button>
+                <button class="btn ghost" data-act="close" type="button">Close</button>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-    `;
+        `;
         document.body.appendChild(el);
 
         const st = document.createElement("style");
@@ -365,6 +387,7 @@
         boundSections.add(sec);
 
         const popup = ensurePopup();
+        const inpDps = popup.querySelector('[data-k="dpsRefreshSec"]');
         const inpPoint = popup.querySelector('[data-k="pointRefreshSec"]');
         const inpOnlineLab = popup.querySelector('[data-k="onlineLabRefreshSec"]');
         const closePop = () => popup.classList.remove("on");
@@ -380,6 +403,7 @@
                 e.stopPropagation();
 
                 const s = loadSettings();
+                inpDps.value = String(s.dpsRefreshSec);
                 inpPoint.value = String(s.pointRefreshSec);
                 inpOnlineLab.value = String(s.onlineLabRefreshSec);
                 popup.classList.add("on");
@@ -406,6 +430,13 @@
         }
 
         popup.querySelector('[data-act="apply"]').onclick = () => {
+            const dpsRefreshSec = clamp(
+                inpDps.value,
+                MIN_DPS_REFRESH_SEC,
+                MAX_DPS_REFRESH_SEC,
+                DEFAULT_DPS_REFRESH_SEC
+            );
+
             const pointRefreshSec = clamp(
                 inpPoint.value,
                 MIN_POINT_REFRESH_SEC,
@@ -420,11 +451,15 @@
                 DEFAULT_ONLINELAB_REFRESH_SEC
             );
 
-            saveSettings({ pointRefreshSec, onlineLabRefreshSec });
+            saveSettings({ dpsRefreshSec, pointRefreshSec, onlineLabRefreshSec });
             closePop();
 
             restartPoller();
             tickAll();
+
+            if (window.DPSSummary && typeof window.DPSSummary.restartWithin === "function") {
+                window.DPSSummary.restartWithin(document);
+            }
 
             if (window.DPSView && typeof window.DPSView.restartWithin === "function") {
                 window.DPSView.restartWithin(document);

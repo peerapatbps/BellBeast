@@ -65,6 +65,32 @@
         return aq[cfg]?.value_text ?? aq[String(cfg)]?.value_text ?? null;
     }
 
+    function loadDpsRefreshSec() {
+        try {
+            const raw = localStorage.getItem("dps_ptc_refresh_v1");
+            if (!raw) return 5;
+
+            const o = JSON.parse(raw);
+            const n = Number(o?.dpsRefreshSec);
+            if (!Number.isFinite(n)) return 5;
+
+            return Math.max(5, Math.min(60, n));
+        } catch {
+            return 5;
+        }
+    }
+
+    function stopForSection(section) {
+        if (!section) return;
+
+        if (section._dpsSummaryTimer) {
+            clearInterval(section._dpsSummaryTimer);
+            section._dpsSummaryTimer = null;
+        }
+
+        section._dpsSummaryStarted = false;
+    }
+
     async function startForSection(section) {
         if (!section) return;
 
@@ -73,7 +99,7 @@
         section._dpsSummaryStarted = true;
 
         const url = section.getAttribute("data-dps-summary-url") || "/api/dps/summary";
-        const refreshSec = Math.max(2, parseInt(section.getAttribute("data-dps-refresh-sec") || "5", 10) || 5);
+        const refreshSec = loadDpsRefreshSec();
         const pollMs = refreshSec * 1000;
 
         const elFlow = section.querySelector("#dpsFlowAB");
@@ -161,6 +187,18 @@
                 : Array.from(scope.querySelectorAll("section.dps-block"));
 
             for (const s of sections) startForSection(s);
+        },
+
+        restartWithin(root) {
+            const scope = root || document;
+            const sections = scope.matches?.("section.dps-block")
+                ? [scope]
+                : Array.from(scope.querySelectorAll("section.dps-block"));
+
+            for (const s of sections) {
+                stopForSection(s);
+                startForSection(s);
+            }
         }
     };
 })();

@@ -96,8 +96,22 @@
     }
 
     function getRefreshSec(section) {
-        const n = Number(section.getAttribute("data-chem-refresh-sec") || DEFAULT_POLL_SEC);
-        return Number.isFinite(n) && n > 0 ? n : DEFAULT_POLL_SEC;
+        try {
+            const raw = localStorage.getItem("chem_refresh_settings_v1");
+            if (!raw) return DEFAULT_POLL_SEC;
+
+            const o = JSON.parse(raw);
+            const n = Number(o?.refreshSec);
+
+            return Number.isFinite(n) && n >= 5 && n <= 60 ? n : DEFAULT_POLL_SEC;
+        } catch {
+            return DEFAULT_POLL_SEC;
+        }
+    }
+
+    function restartWithin(root) {
+        destroyWithin(root);
+        initWithin(root);
     }
 
     /* =========================
@@ -596,6 +610,6 @@
 
     }
 
-    window.CHEMView = { initWithin, destroyWithin };
+    window.CHEMView = { initWithin, destroyWithin, restartWithin };
 
 })();

@@ -189,13 +189,6 @@ app.UseCors("LAN");
 app.UseAuthentication();
 app.UseAuthorization();
 
-// ตั้งหน้าแรกให้ไป MHxView
-app.MapGet("/", context =>
-{
-    context.Response.Redirect("/MHxViewer/MHxView");
-    return Task.CompletedTask;
-});
-
 // Razor pages
 app.MapRazorPages();
 

@@ -108,6 +108,21 @@
         return null;
     }
 
+    function loadRpsRefreshSec() {
+        try {
+            const raw = localStorage.getItem("rws_online_lab_refresh_v1");
+            if (!raw) return 5;
+
+            const o = JSON.parse(raw);
+            const n = Number(o?.rpsRefreshSec);
+            if (!Number.isFinite(n)) return 5;
+
+            return Math.max(5, Math.min(60, n));
+        } catch {
+            return 5;
+        }
+    }
+
     async function startForSection(section) {
         if (!section) return;
 
@@ -119,12 +134,7 @@
             || section.getAttribute("data-tps-summary-url") // เผื่อยังใช้ attr เดิม
             || "/api/rws/summary";
 
-        const refreshSec = Math.max(
-            2,
-            parseInt(section.getAttribute("data-rws-refresh-sec")
-                || section.getAttribute("data-tps-refresh-sec")
-                || "5", 10) || 5
-        );
+        const refreshSec = loadRpsRefreshSec();
         const pollMs = refreshSec * 1000;
 
         // ---- pumps ----
@@ -266,6 +276,17 @@
         section._rwsSummaryTimer = setInterval(tick, pollMs);
     }
 
+    function stopForSection(section) {
+        if (!section) return;
+
+        if (section._rwsSummaryTimer) {
+            clearInterval(section._rwsSummaryTimer);
+            section._rwsSummaryTimer = null;
+        }
+
+        section._rwsSummaryStarted = false;
+    }
+
     window.RWSSummary = {
         initWithin(root) {
             const scope = root || document;
@@ -273,6 +294,18 @@
                 ? [scope]
                 : Array.from(scope.querySelectorAll("section.rws-block"));
             for (const s of sections) startForSection(s);
+        },
+
+        restartWithin(root) {
+            const scope = root || document;
+            const sections = scope.matches?.("section.rws-block")
+                ? [scope]
+                : Array.from(scope.querySelectorAll("section.rws-block"));
+
+            for (const s of sections) {
+                stopForSection(s);
+                startForSection(s);
+            }
         }
     };
 })();

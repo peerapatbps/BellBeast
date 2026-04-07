@@ -56,32 +56,31 @@
         el = document.createElement("div");
         el.className = "event-settings-pop";
         el.innerHTML = `
-      <div class="event-pop-card">
-        <div class="event-pop-h">
-          <div class="t">Daily Events Settings</div>
-          <button class="x" type="button" aria-label="Close">✕</button>
-        </div>
-        <div class="event-pop-b">
-          <div class="row">
-            <div class="k">Refresh interval</div>
-            <select class="inp" data-k="refreshMin">
-              <option value="5">5 นาที</option>
-              <option value="10">10 นาที</option>
-              <option value="15">15 นาที</option>
-              <option value="20">20 นาที</option>
-              <option value="30">30 นาที</option>
-              <option value="45">45 นาที</option>
-              <option value="60">1 ชั่วโมง</option>
-            </select>
-          </div>
+     <div class="event-pop-card">
+  <div class="event-pop-h">
+    <div class="t">Daily Events Settings</div>
+    <button class="x" type="button" aria-label="Close">✕</button>
+  </div>
+  <div class="event-pop-b">
+    <div class="row">
+      <div class="k">Refresh interval</div>
+      <select class="inp" data-k="refreshMin">
+        <option value="5">Every 5 minutes</option>
+        <option value="10">Every 10 minutes</option>
+        <option value="15">Every 15 minutes</option>
+        <option value="20">Every 20 minutes</option>
+        <option value="30">Every 30 minutes</option>
+        <option value="45">Every 45 minutes</option>
+        <option value="60">Every 1 hour</option>
+      </select>
+    </div>
 
-          <div class="hint">Refresh ทั้ง LEFT และ RIGHT พร้อมกัน เพราะใช้ API ชุดเดียว</div>
-          <div class="actions">
-            <button class="btn" data-act="apply" type="button">Apply</button>
-            <button class="btn ghost" data-act="close" type="button">Close</button>
-          </div>
-        </div>
-      </div>
+    <div class="actions">
+      <button class="btn" data-act="apply" type="button">Save</button>
+      <button class="btn ghost" data-act="close" type="button">Cancel</button>
+    </div>
+  </div>
+</div>
     `;
         document.body.appendChild(el);
 

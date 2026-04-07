@@ -46,24 +46,34 @@
         el = document.createElement("div");
         el.className = "ptc-settings-pop";
         el.innerHTML = `
-          <div class="ptc-pop-card">
-            <div class="ptc-pop-h">
-              <div class="t">PTC Overlay Settings</div>
-              <button class="x" type="button" aria-label="Close">✕</button>
-            </div>
-            <div class="ptc-pop-b">
-              <div class="row">
-                <div class="k">Refresh (sec) — applies to both PTC charts</div>
-                <input class="inp" type="number" min="5" max="300" step="1" data-k="refreshSec">
-              </div>
-              <div class="hint">* 1 tick = 1 request (/api/smartmap?keys=...)</div>
-              <div class="actions">
-                <button class="btn" data-act="apply" type="button">Apply</button>
-                <button class="btn ghost" data-act="close" type="button">Close</button>
-              </div>
-            </div>
-          </div>
-        `;
+                          <div class="ptc-pop-card">
+                            <div class="ptc-pop-h">
+                              <div class="t">PTC Overlay Settings</div>
+                              <button class="x" type="button" aria-label="Close">✕</button>
+                            </div>
+                            <div class="ptc-pop-b">
+                              <div class="row">
+                                <div class="k">Refresh interval (seconds)</div>
+                                <select class="inp" data-k="refreshSec">
+                                  <option value="5">5 seconds</option>
+                                  <option value="10">10 seconds</option>
+                                  <option value="15">15 seconds</option>
+                                  <option value="30">30 seconds</option>
+                                  <option value="60">60 seconds</option>
+                                  <option value="120">120 seconds</option>
+                                  <option value="180">180 seconds</option>
+                                  <option value="240">240 seconds</option>
+                                  <option value="300">300 seconds</option>
+                                </select>
+                              </div>
+      
+                              <div class="actions">
+                                <button class="btn" data-act="apply" type="button">Save</button>
+                                <button class="btn ghost" data-act="close" type="button">Cancel</button>
+                              </div>
+                            </div>
+                          </div>
+                        `;
         document.body.appendChild(el);
 
         const st = document.createElement("style");
@@ -231,7 +241,7 @@
         boundSections.add(sec);
 
         const popup = ensurePopup();
-        const inp = popup.querySelector('input[data-k="refreshSec"]');
+        const inp = popup.querySelector('select[data-k="refreshSec"]');
         const closePop = () => popup.classList.remove("on");
         popup.querySelector(".x").onclick = closePop;
         popup.querySelector('[data-act="close"]').onclick = closePop;

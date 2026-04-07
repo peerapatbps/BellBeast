@@ -2,6 +2,9 @@
     "use strict";
 
     const STORAGE_KEY = "rws_online_lab_refresh_v1";
+    const DEFAULT_RPS_REFRESH_SEC = 5;
+    const MIN_RPS_REFRESH_SEC = 5;
+    const MAX_RPS_REFRESH_SEC = 60;
     const DEFAULT_ONLINELAB_REFRESH_SEC = 300;
     const MIN_ONLINELAB_REFRESH_SEC = 300;
     const MAX_ONLINELAB_REFRESH_SEC = 900;
@@ -18,11 +21,20 @@
         try {
             const raw = localStorage.getItem(STORAGE_KEY);
             if (!raw) {
-                return { onlineLabRefreshSec: DEFAULT_ONLINELAB_REFRESH_SEC };
+                return {
+                    rpsRefreshSec: DEFAULT_RPS_REFRESH_SEC,
+                    onlineLabRefreshSec: DEFAULT_ONLINELAB_REFRESH_SEC
+                };
             }
 
             const o = JSON.parse(raw);
             return {
+                rpsRefreshSec: clamp(
+                    o && o.rpsRefreshSec,
+                    MIN_RPS_REFRESH_SEC,
+                    MAX_RPS_REFRESH_SEC,
+                    DEFAULT_RPS_REFRESH_SEC
+                ),
                 onlineLabRefreshSec: clamp(
                     o && o.onlineLabRefreshSec,
                     MIN_ONLINELAB_REFRESH_SEC,
@@ -31,11 +43,21 @@
                 )
             };
         } catch {
-            return { onlineLabRefreshSec: DEFAULT_ONLINELAB_REFRESH_SEC };
+            return {
+                rpsRefreshSec: DEFAULT_RPS_REFRESH_SEC,
+                onlineLabRefreshSec: DEFAULT_ONLINELAB_REFRESH_SEC
+            };
         }
     }
 
     function saveSettings(s) {
+        const rpsRefreshSec = clamp(
+            s && s.rpsRefreshSec,
+            MIN_RPS_REFRESH_SEC,
+            MAX_RPS_REFRESH_SEC,
+            DEFAULT_RPS_REFRESH_SEC
+        );
+
         const onlineLabRefreshSec = clamp(
             s && s.onlineLabRefreshSec,
             MIN_ONLINELAB_REFRESH_SEC,
@@ -43,7 +65,10 @@
             DEFAULT_ONLINELAB_REFRESH_SEC
         );
 
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ onlineLabRefreshSec }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            rpsRefreshSec,
+            onlineLabRefreshSec
+        }));
     }
 
     function ensurePopup() {
@@ -53,33 +78,45 @@
         el = document.createElement("div");
         el.className = "rws-settings-pop";
         el.innerHTML = `
-      <div class="rws-pop-card">
-        <div class="rws-pop-h">
-          <div class="t">RWS Trend Settings</div>
-          <button class="x" type="button" aria-label="Close">✕</button>
-        </div>
-        <div class="rws-pop-b">
-          <div class="row">
-            <div class="k">OnlineLab Refresh (sec) — applies to RW_NTU / RW_COND / RW_DO / RW_TEMP</div>
-            <select class="inp" data-k="onlineLabRefreshSec">
-              <option value="300">300</option>
-              <option value="360">360</option>
-              <option value="420">420</option>
-              <option value="480">480</option>
-              <option value="600">600</option>
-              <option value="720">720</option>
-              <option value="900">900</option>
-            </select>
-          </div>
+                      <div class="rws-pop-card">
+                        <div class="rws-pop-h">
+                          <div class="t">RWS Trend Settings</div>
+                          <button class="x" type="button" aria-label="Close">✕</button>
+                        </div>
+                        <div class="rws-pop-b">
+                          <div class="row">
+                            <div class="k">RPS refresh interval (sec)</div>
+                            <select class="inp" data-k="rpsRefreshSec">
+                              <option value="5">5</option>
+                              <option value="10">10</option>
+                              <option value="15">15</option>
+                              <option value="20">20</option>
+                              <option value="30">30</option>
+                              <option value="45">45</option>
+                              <option value="60">60</option>
+                            </select>
+                          </div>
 
-          <div class="hint">* Summary data ยัง refresh ตาม data-rws-refresh-sec เดิม</div>
-          <div class="actions">
-            <button class="btn" data-act="apply" type="button">Apply</button>
-            <button class="btn ghost" data-act="close" type="button">Close</button>
-          </div>
-        </div>
-      </div>
-    `;
+                          <div class="row">
+                            <div class="k">OnlineLab Refresh rate (sec)</div>
+                            <select class="inp" data-k="onlineLabRefreshSec">
+                              <option value="300">300</option>
+                              <option value="360">360</option>
+                              <option value="420">420</option>
+                              <option value="480">480</option>
+                              <option value="600">600</option>
+                              <option value="720">720</option>
+                              <option value="900">900</option>
+                            </select>
+                          </div>
+
+                          <div class="actions">
+                            <button class="btn" data-act="apply" type="button">Apply</button>
+                            <button class="btn ghost" data-act="close" type="button">Close</button>
+                          </div>
+                        </div>
+                      </div>
+                    `;
         document.body.appendChild(el);
 
         const st = document.createElement("style");
@@ -113,6 +150,7 @@
         boundSections.add(sec);
 
         const popup = ensurePopup();
+        const inpRps = popup.querySelector('[data-k="rpsRefreshSec"]');
         const inpOnlineLab = popup.querySelector('[data-k="onlineLabRefreshSec"]');
         const closePop = () => popup.classList.remove("on");
 
@@ -127,12 +165,20 @@
                 e.stopPropagation();
 
                 const s = loadSettings();
+                inpRps.value = String(s.rpsRefreshSec);
                 inpOnlineLab.value = String(s.onlineLabRefreshSec);
                 popup.classList.add("on");
             });
         }
 
         popup.querySelector('[data-act="apply"]').onclick = () => {
+            const rpsRefreshSec = clamp(
+                inpRps.value,
+                MIN_RPS_REFRESH_SEC,
+                MAX_RPS_REFRESH_SEC,
+                DEFAULT_RPS_REFRESH_SEC
+            );
+
             const onlineLabRefreshSec = clamp(
                 inpOnlineLab.value,
                 MIN_ONLINELAB_REFRESH_SEC,
@@ -140,8 +186,12 @@
                 DEFAULT_ONLINELAB_REFRESH_SEC
             );
 
-            saveSettings({ onlineLabRefreshSec });
+            saveSettings({ rpsRefreshSec, onlineLabRefreshSec });
             closePop();
+
+            if (window.RWSSummary && typeof window.RWSSummary.restartWithin === "function") {
+                window.RWSSummary.restartWithin(document);
+            }
 
             if (window.RWSView && typeof window.RWSView.restartWithin === "function") {
                 window.RWSView.restartWithin(document);

@@ -8,6 +8,8 @@
 
   <ItemGroup>
     <Folder Include="App_Data\" />
+    <Folder Include="wwwroot\lib\chartjs\" />
+    <Folder Include="wwwroot\lib\chartjs-adapter-date-fns\" />
   </ItemGroup>
 
   <ItemGroup>

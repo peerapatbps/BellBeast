@@ -159,7 +159,11 @@
         section._tpsSummaryStarted = true;
 
         const url = section.getAttribute("data-tps-summary-url") || "/api/tps/summary";
-        const refreshSec = Math.max(2, parseInt(section.getAttribute("data-tps-refresh-sec") || "5", 10) || 5);
+        const s = (window.TPSSettings && typeof window.TPSSettings.loadSettings === "function")
+            ? window.TPSSettings.loadSettings()
+            : { refreshSec: 15 };
+
+        const refreshSec = Math.max(5, Math.min(300, Number(s.refreshSec || 15)));
         const pollMs = refreshSec * 1000;
 
         // ---- top KPIs ----
@@ -363,6 +367,22 @@
         section._tpsSummaryTimer = setInterval(tick, pollMs);
     }
 
+    function stopForSection(section) {
+        if (!section) return;
+
+        if (section._tpsSummaryTimer) {
+            clearInterval(section._tpsSummaryTimer);
+            section._tpsSummaryTimer = null;
+        }
+
+        if (section._tpsRcv38ChartObj && typeof section._tpsRcv38ChartObj.destroy === "function") {
+            try { section._tpsRcv38ChartObj.destroy(); } catch { }
+        }
+        section._tpsRcv38ChartObj = null;
+
+        section._tpsSummaryStarted = false;
+    }
+
     window.TPSSummary = {
         initWithin(root) {
             const scope = root || document;
@@ -371,6 +391,18 @@
                 : Array.from(scope.querySelectorAll("section.tps-block"));
 
             for (const s of sections) startForSection(s);
+        },
+
+        restartWithin(root) {
+            const scope = root || document;
+            const sections = scope.matches?.("section.tps-block")
+                ? [scope]
+                : Array.from(scope.querySelectorAll("section.tps-block"));
+
+            for (const s of sections) {
+                stopForSection(s);
+                startForSection(s);
+            }
         }
     };
 })();

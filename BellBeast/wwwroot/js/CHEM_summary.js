@@ -6,6 +6,10 @@
             if (window.CHEMView && typeof window.CHEMView.initWithin === "function") {
                 window.CHEMView.initWithin(root || document);
             }
+
+            if (window.CHEMSettings && typeof window.CHEMSettings.initWithin === "function") {
+                window.CHEMSettings.initWithin(root || document);
+            }
         } catch (e) {
             // silent
         }
