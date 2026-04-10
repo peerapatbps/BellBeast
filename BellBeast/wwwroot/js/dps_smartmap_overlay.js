@@ -17,6 +17,8 @@
 
     const SMARTMAP_URL = "/api/smartmap";
     const STORAGE_KEY = "dps_ptc_refresh_v1"; // keep key for backward compatibility
+    const DEFAULT_UPPERLOWER_REFRESH_SEC = 10800;
+    const VALID_UPPERLOWER_REFRESH_SEC = [10800, 21600, 32400, 43200];
 
     // defaults / limits
     const DEFAULT_DPS_REFRESH_SEC = 15;
@@ -56,7 +58,8 @@
                 return {
                     dpsRefreshSec: DEFAULT_DPS_REFRESH_SEC,
                     pointRefreshSec: DEFAULT_POINT_REFRESH_SEC,
-                    onlineLabRefreshSec: DEFAULT_ONLINELAB_REFRESH_SEC
+                    onlineLabRefreshSec: DEFAULT_ONLINELAB_REFRESH_SEC,
+                    upperLowerRefreshSec: DEFAULT_UPPERLOWER_REFRESH_SEC
                 };
             }
 
@@ -65,8 +68,11 @@
             if (o && (
                 o.dpsRefreshSec !== undefined ||
                 o.pointRefreshSec !== undefined ||
-                o.onlineLabRefreshSec !== undefined
+                o.onlineLabRefreshSec !== undefined ||
+                o.upperLowerRefreshSec !== undefined
             )) {
+                const rawUpper = Number(o.upperLowerRefreshSec);
+
                 return {
                     dpsRefreshSec: clamp(
                         o.dpsRefreshSec,
@@ -85,11 +91,13 @@
                         MIN_ONLINELAB_REFRESH_SEC,
                         MAX_ONLINELAB_REFRESH_SEC,
                         DEFAULT_ONLINELAB_REFRESH_SEC
-                    )
+                    ),
+                    upperLowerRefreshSec: VALID_UPPERLOWER_REFRESH_SEC.includes(rawUpper)
+                        ? rawUpper
+                        : DEFAULT_UPPERLOWER_REFRESH_SEC
                 };
             }
 
-            // old format compatibility
             const r = Number(o && o.refreshSec);
             if (Number.isFinite(r) && r > 0) {
                 return {
@@ -100,20 +108,23 @@
                         MAX_POINT_REFRESH_SEC,
                         DEFAULT_POINT_REFRESH_SEC
                     ),
-                    onlineLabRefreshSec: DEFAULT_ONLINELAB_REFRESH_SEC
+                    onlineLabRefreshSec: DEFAULT_ONLINELAB_REFRESH_SEC,
+                    upperLowerRefreshSec: DEFAULT_UPPERLOWER_REFRESH_SEC
                 };
             }
 
             return {
                 dpsRefreshSec: DEFAULT_DPS_REFRESH_SEC,
                 pointRefreshSec: DEFAULT_POINT_REFRESH_SEC,
-                onlineLabRefreshSec: DEFAULT_ONLINELAB_REFRESH_SEC
+                onlineLabRefreshSec: DEFAULT_ONLINELAB_REFRESH_SEC,
+                upperLowerRefreshSec: DEFAULT_UPPERLOWER_REFRESH_SEC
             };
         } catch {
             return {
                 dpsRefreshSec: DEFAULT_DPS_REFRESH_SEC,
                 pointRefreshSec: DEFAULT_POINT_REFRESH_SEC,
-                onlineLabRefreshSec: DEFAULT_ONLINELAB_REFRESH_SEC
+                onlineLabRefreshSec: DEFAULT_ONLINELAB_REFRESH_SEC,
+                upperLowerRefreshSec: DEFAULT_UPPERLOWER_REFRESH_SEC
             };
         }
     }
@@ -140,10 +151,16 @@
             DEFAULT_ONLINELAB_REFRESH_SEC
         );
 
+        const rawUpper = Number(s && s.upperLowerRefreshSec);
+        const upperLowerRefreshSec = VALID_UPPERLOWER_REFRESH_SEC.includes(rawUpper)
+            ? rawUpper
+            : DEFAULT_UPPERLOWER_REFRESH_SEC;
+
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
             dpsRefreshSec,
             pointRefreshSec,
-            onlineLabRefreshSec
+            onlineLabRefreshSec,
+            upperLowerRefreshSec
         }));
     }
 
@@ -157,60 +174,70 @@
         el = document.createElement("div");
         el.className = "dps-settings-pop";
         el.innerHTML = `
-          <div class="dps-pop-card">
-            <div class="dps-pop-h">
-              <div class="t">DPS Trend Settings</div>
-              <button class="x" type="button" aria-label="Close">✕</button>
-            </div>
-            <div class="dps-pop-b">
-              <div class="row">
-                <div class="k">DPS data refresh interval (sec)</div>
-                <select class="inp" data-k="dpsRefreshSec">
-                  <option value="5">5</option>
-                  <option value="10">10</option>
-                  <option value="15">15</option>
-                  <option value="20">20</option>
-                  <option value="30">30</option>
-                  <option value="45">45</option>
-                  <option value="60">60</option>
-                </select>
-              </div>
-
-              <div class="row">
-                <div class="k">Pressure Trend Curve Refresh rate (sec)</div>
-                <select class="inp" data-k="pointRefreshSec">
-                  <option value="5">5</option>
-                  <option value="10">10</option>
-                  <option value="15">15</option>
-                  <option value="30">30</option>
-                  <option value="60">60</option>
-                  <option value="120">120</option>
-                  <option value="180">180</option>
-                  <option value="240">240</option>
-                  <option value="300">300</option>
-                </select>
-              </div>
-
-              <div class="row">
-                <div class="k">OnlineLab Refresh rate (sec)</div>
-                <select class="inp" data-k="onlineLabRefreshSec">
-                  <option value="300">300</option>
-                  <option value="360">360</option>
-                  <option value="420">420</option>
-                  <option value="480">480</option>
-                  <option value="600">600</option>
-                  <option value="720">720</option>
-                  <option value="900">900</option>
-                </select>
-              </div>
-
-              <div class="actions">
-                <button class="btn" data-act="apply" type="button">Apply</button>
-                <button class="btn ghost" data-act="close" type="button">Close</button>
-              </div>
-            </div>
+      <div class="dps-pop-card">
+        <div class="dps-pop-h">
+          <div class="t">DPS Trend Settings</div>
+          <button class="x" type="button" aria-label="Close">✕</button>
+        </div>
+        <div class="dps-pop-b">
+          <div class="row">
+            <div class="k">DPS data refresh interval (sec)</div>
+            <select class="inp" data-k="dpsRefreshSec">
+              <option value="5">5</option>
+              <option value="10">10</option>
+              <option value="15">15</option>
+              <option value="20">20</option>
+              <option value="30">30</option>
+              <option value="45">45</option>
+              <option value="60">60</option>
+            </select>
           </div>
-        `;
+
+          <div class="row">
+            <div class="k">Pressure Trend Curve Refresh rate (sec)</div>
+            <select class="inp" data-k="pointRefreshSec">
+              <option value="5">5</option>
+              <option value="10">10</option>
+              <option value="15">15</option>
+              <option value="30">30</option>
+              <option value="60">60</option>
+              <option value="120">120</option>
+              <option value="180">180</option>
+              <option value="240">240</option>
+              <option value="300">300</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <div class="k">OnlineLab Refresh rate (sec)</div>
+            <select class="inp" data-k="onlineLabRefreshSec">
+              <option value="300">300</option>
+              <option value="360">360</option>
+              <option value="420">420</option>
+              <option value="480">480</option>
+              <option value="600">600</option>
+              <option value="720">720</option>
+              <option value="900">900</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <div class="k">Upper/Lower limit refresh</div>
+            <select class="inp" data-k="upperLowerRefreshSec">
+              <option value="10800">3 hours</option>
+              <option value="21600">6 hours</option>
+              <option value="32400">9 hours</option>
+              <option value="43200">12 hours</option>
+            </select>
+          </div>
+
+          <div class="actions">
+            <button class="btn" data-act="apply" type="button">Apply</button>
+            <button class="btn ghost" data-act="close" type="button">Close</button>
+          </div>
+        </div>
+      </div>
+    `;
         document.body.appendChild(el);
 
         const st = document.createElement("style");
@@ -225,14 +252,12 @@
       .dps-pop-b .row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0}
       .dps-pop-b .k{font-size:13px;color:rgba(255,255,255,.75)}
       .dps-pop-b .inp{width:140px;background:#1f2326;border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.92);border-radius:10px;padding:8px 10px;outline:none}
-      .dps-pop-b .hint{margin-top:8px;font-size:12px;color:rgba(255,255,255,.60)}
       .dps-pop-b .actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}
       .dps-pop-b .btn{background:#1f2326;border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.92);border-radius:10px;padding:8px 12px;cursor:pointer}
       .dps-pop-b .btn.ghost{opacity:.85}
     `;
         document.head.appendChild(st);
 
-        // click outside closes
         el.addEventListener("click", (e) => {
             if (e.target === el) el.classList.remove("on");
         });
@@ -390,6 +415,7 @@
         const inpDps = popup.querySelector('[data-k="dpsRefreshSec"]');
         const inpPoint = popup.querySelector('[data-k="pointRefreshSec"]');
         const inpOnlineLab = popup.querySelector('[data-k="onlineLabRefreshSec"]');
+        const inpUpperLower = popup.querySelector('[data-k="upperLowerRefreshSec"]');
         const closePop = () => popup.classList.remove("on");
 
         popup.querySelector(".x").onclick = closePop;
@@ -406,11 +432,15 @@
                 inpDps.value = String(s.dpsRefreshSec);
                 inpPoint.value = String(s.pointRefreshSec);
                 inpOnlineLab.value = String(s.onlineLabRefreshSec);
+
+                const rawUpper = String(s.upperLowerRefreshSec || 10800);
+                const allowedUpper = ["10800", "21600", "32400", "43200"];
+                inpUpperLower.value = allowedUpper.includes(rawUpper) ? rawUpper : "10800";
+
                 popup.classList.add("on");
             });
         }
 
-        // when select changes: tick once immediately (debounced)
         let t1 = null, t2 = null;
 
         const sel1 = sec.querySelector("#dpsTrendSel1");
@@ -451,7 +481,18 @@
                 DEFAULT_ONLINELAB_REFRESH_SEC
             );
 
-            saveSettings({ dpsRefreshSec, pointRefreshSec, onlineLabRefreshSec });
+            const rawUpper = Number(inpUpperLower.value || 10800);
+            const upperLowerRefreshSec = VALID_UPPERLOWER_REFRESH_SEC.includes(rawUpper)
+                ? rawUpper
+                : DEFAULT_UPPERLOWER_REFRESH_SEC;
+
+            saveSettings({
+                dpsRefreshSec,
+                pointRefreshSec,
+                onlineLabRefreshSec,
+                upperLowerRefreshSec
+            });
+
             closePop();
 
             restartPoller();
@@ -463,6 +504,10 @@
 
             if (window.DPSView && typeof window.DPSView.restartWithin === "function") {
                 window.DPSView.restartWithin(document);
+            }
+
+            if (window.DPSUpperLower && typeof window.DPSUpperLower.restartWithin === "function") {
+                window.DPSUpperLower.restartWithin(document);
             }
         };
     }

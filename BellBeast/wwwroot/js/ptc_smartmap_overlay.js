@@ -22,18 +22,35 @@
     function loadSettings() {
         try {
             const raw = localStorage.getItem(STORAGE_KEY);
-            if (!raw) return { refreshSec: 10 };
+            if (!raw) return { refreshSec: 10, seriesRefreshSec: 10800 };
+
             const o = JSON.parse(raw);
-            const r = Number(o.refreshSec);
-            if (Number.isFinite(r) && r > 0) return { refreshSec: r };
-            return { c: 10 };
+            const r1 = Number(o.refreshSec);
+            const r2 = Number(o.seriesRefreshSec);
+
+            const validSeries = [10800, 21600, 32400, 43200];
+
+            return {
+                refreshSec: (Number.isFinite(r1) && r1 > 0) ? r1 : 10,
+                seriesRefreshSec: validSeries.includes(r2) ? r2 : 10800
+            };
         } catch {
-            return { refreshSec: 10 };
+            return { refreshSec: 10, seriesRefreshSec: 10800 };
         }
     }
+
     function saveSettings(s) {
-        const sec = Number(s.refreshSec) || 10;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ refreshSec: sec }));
+        const refreshSec = Math.max(5, Math.min(60, Number(s.refreshSec) || 10));
+
+        const rawSeries = Number(s.seriesRefreshSec);
+        const seriesRefreshSec = [10800, 21600, 32400, 43200].includes(rawSeries)
+            ? rawSeries
+            : 10800;
+
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            refreshSec,
+            seriesRefreshSec
+        }));
     }
 
     // ---------------------------
@@ -53,19 +70,25 @@
                             </div>
                             <div class="ptc-pop-b">
                               <div class="row">
-                                <div class="k">Refresh interval (seconds)</div>
-                                <select class="inp" data-k="refreshSec">
-                                  <option value="5">5 seconds</option>
-                                  <option value="10">10 seconds</option>
-                                  <option value="15">15 seconds</option>
-                                  <option value="30">30 seconds</option>
-                                  <option value="60">60 seconds</option>
-                                  <option value="120">120 seconds</option>
-                                  <option value="180">180 seconds</option>
-                                  <option value="240">240 seconds</option>
-                                  <option value="300">300 seconds</option>
-                                </select>
-                              </div>
+                                  <div class="k">Overlay refresh (seconds)</div>
+                                  <select class="inp" data-k="refreshSec">
+                                    <option value="5">5 seconds</option>
+                                    <option value="10">10 seconds</option>
+                                    <option value="15">15 seconds</option>
+                                    <option value="30">30 seconds</option>
+                                    <option value="60">60 seconds</option>
+                                  </select>
+                                </div>
+
+                                <div class="row">
+                                  <div class="k">Upper/Lower limit refresh</div>
+                                  <select class="inp" data-k="seriesRefreshSec">
+                                    <option value="10800">3 hours</option>
+                                    <option value="21600">6 hours</option>
+                                    <option value="32400">9 hours</option>
+                                    <option value="43200">12 hours</option>
+                                  </select>
+                                </div>
       
                               <div class="actions">
                                 <button class="btn" data-act="apply" type="button">Save</button>
@@ -241,7 +264,9 @@
         boundSections.add(sec);
 
         const popup = ensurePopup();
-        const inp = popup.querySelector('select[data-k="refreshSec"]');
+        const inpOverlay = popup.querySelector('select[data-k="refreshSec"]');
+        const inpSeries = popup.querySelector('select[data-k="seriesRefreshSec"]');
+
         const closePop = () => popup.classList.remove("on");
         popup.querySelector(".x").onclick = closePop;
         popup.querySelector('[data-act="close"]').onclick = closePop;
@@ -252,18 +277,40 @@
             btnSettings.addEventListener("click", (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+
                 const s = loadSettings();
-                inp.value = Math.max(5, Math.min(300, Number(s.refreshSec || 10)));
+
+                inpOverlay.value = String(Math.max(5, Math.min(60, Number(s.refreshSec || 10))));
+
+                const allowedSeries = ["10800", "21600", "32400", "43200"];
+                const rawSeries = String(s.seriesRefreshSec || "10800");
+
+                inpSeries.value = allowedSeries.includes(rawSeries) ? rawSeries : "10800";
+
                 popup.classList.add("on");
             });
         }
 
         popup.querySelector('[data-act="apply"]').onclick = () => {
-            const n = Math.max(5, Math.min(300, Number(inp.value || 10)));
-            saveSettings({ refreshSec: n });
+            const n1 = Math.max(5, Math.min(60, Number(inpOverlay.value || 10)));
+            const n2 = Number(inpSeries.value || 10800);
+
+            saveSettings({
+                refreshSec: n1,
+                seriesRefreshSec: n2
+            });
+
             closePop();
+
             restartPoller();
             tickAll();
+
+            if (window.BBTrendPTC?.restartSeriesPoller) {
+                window.BBTrendPTC.restartSeriesPoller();
+            }
+            if (window.BBTrendPTC?.refreshAllSeriesNow) {
+                window.BBTrendPTC.refreshAllSeriesNow();
+            }
         };
     }
 
@@ -275,7 +322,7 @@
         pollTimer = null;
 
         const s = loadSettings();
-        pollMs = Math.max(5000, Math.min(300000, Number(s.refreshSec || 10) * 1000));
+        pollMs = Math.max(5000, Math.min(60000, Number(s.refreshSec || 10) * 1000));
 
         pollTimer = setInterval(() => tickAll(), pollMs);
     }

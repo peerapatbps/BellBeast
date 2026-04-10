@@ -12,6 +12,8 @@ window.BBTrendPTC = (function () {
     // cache ต่อ key (ลดโหลด backend)  **ใช้เฉพาะตอน fetch data เท่านั้น**
     // NOTE: window slide จะไม่ fetch
     const _cache = new Map(); // key -> { ts:number, points:Array }
+    const SERIES_STORAGE_KEY = "ptc_smartmap_refresh_v1";
+    let _seriesPollTimer = null;
 
     function toDateToday(hhmm) {
         const [h, m] = String(hhmm).split(":").map(x => parseInt(x, 10));
@@ -94,26 +96,34 @@ window.BBTrendPTC = (function () {
         }
     }
 
-    function inferBackendUrl(canvas, key) {
+    function inferBackendUrl(canvas, key, forceTs) {
         const port = (canvas.getAttribute("data-backend-port") || "8888").trim();
         const proto = (location.protocol === "https:") ? "https" : "http";
         const host = location.hostname;
-        return `${proto}://${host}:${port}/api/ptc/series?key=${encodeURIComponent(String(key || "").trim())}`;
+
+        const k = encodeURIComponent(String(key || "").trim());
+        const t = encodeURIComponent(String(forceTs || Date.now()));
+
+        return `${proto}://${host}:${port}/api/ptc/series?key=${k}&_ts=${t}`;
     }
 
     // ✅ Fetch เฉพาะตอน “ต้องอัปเดตข้อมูล”
     // - ไม่มี FALLBACK
     // - fail => throw (ให้ upstream ตัดสินใจ "ไม่แสดงกราฟ")
-    async function fetchSeriesPoints(canvas, key) {
+    async function fetchSeriesPoints(canvas, key, forceReload = false) {
         const k = String(key || "").trim().toUpperCase();
         if (!k) return [];
 
-        // cache TTL 10s (กัน dropdown เปลี่ยนถี่ ๆ)
         const now = Date.now();
-        const hit = _cache.get(k);
-        if (hit && (now - hit.ts) < 10_000) return hit.points;
 
-        const url = inferBackendUrl(canvas, k);
+        if (!forceReload) {
+            const hit = _cache.get(k);
+            if (hit && (now - hit.ts) < 10_000) return hit.points;
+        } else {
+            _cache.delete(k);
+        }
+
+        const url = inferBackendUrl(canvas, k, now);
 
         const ac = new AbortController();
         const t = setTimeout(() => ac.abort("timeout"), 5000);
@@ -129,7 +139,6 @@ window.BBTrendPTC = (function () {
             const json = await r.json();
             const points = Array.isArray(json) ? json : (Array.isArray(json?.points) ? json.points : []);
 
-            // ถ้าข้อมูลว่าง ถือว่า fail (คุณจะได้รู้ว่า fail)
             if (!Array.isArray(points) || points.length === 0) {
                 throw new Error("Empty points");
             }
@@ -206,7 +215,7 @@ window.BBTrendPTC = (function () {
     }
 
     // ✅ update data + y-range + latest (fetch เฉพาะที่นี่)
-    async function refreshData(canvas, key) {
+    async function refreshData(canvas, key, forceReload = false) {
         if (!window.Chart) {
             showFail(canvas, "Chart.js not loaded");
             return;
@@ -215,13 +224,12 @@ window.BBTrendPTC = (function () {
         const k = String(key || "").trim().toUpperCase();
         if (!k) return;
 
-        // กันชนกรณี user change ซ้อนกัน
         if (canvas._bbBusy && canvas._bbBusyKey === k) return;
         canvas._bbBusy = true;
         canvas._bbBusyKey = k;
 
         try {
-            const raw = await fetchSeriesPoints(canvas, k);
+            const raw = await fetchSeriesPoints(canvas, k, forceReload);
             const pts = buildTimeline(raw);
 
             const now = new Date();
@@ -252,7 +260,6 @@ window.BBTrendPTC = (function () {
             const share = readYShare(canvas);
             const yr = computeYRangeByShares(yrBase, share);
 
-            // latest (ใช้ค่า point ล่าสุด <= now ใน timeline)
             let last = null;
             for (const p of pts) {
                 if (p.t <= now) last = p; else break;
@@ -260,7 +267,6 @@ window.BBTrendPTC = (function () {
             if (last) setLatest(canvas, fmtHHMM(last.t), last.upper, last.lower);
             else setLatest(canvas, null, null, null);
 
-            // เก็บ timeline ไว้ (optional: เผื่อใช้ต่อ)
             canvas._bbTimeline = pts;
 
             if (!canvas._bbChart) {
@@ -295,10 +301,8 @@ window.BBTrendPTC = (function () {
 
                 canvas._bbChart = chart;
 
-                // ✅ Timer 2s ทำแค่ slide window เท่านั้น (ไม่ fetch)
                 if (!canvas._bbTimer) {
                     canvas._bbTimer = setInterval(() => {
-                        // ถ้า chart ถูก destroy ไปแล้วก็หยุด
                         if (!canvas._bbChart) return;
                         slideWindowOnly(canvas);
                     }, 2000);
@@ -316,7 +320,6 @@ window.BBTrendPTC = (function () {
             ch.options.scales.x.max = xMax;
             ch.update("none");
         } catch (e) {
-            // ✅ ไม่มี fallback: fail แล้วไม่แสดงกราฟ
             showFail(canvas, `PTC load failed: ${e && e.message ? e.message : 'error'}`);
         } finally {
             canvas._bbBusy = false;
@@ -346,17 +349,29 @@ window.BBTrendPTC = (function () {
         });
     }
 
+    function getCurrentCanvasKey(canvas) {
+        const selId = (canvas.getAttribute("data-select") || "").trim();
+        const sel = selId ? document.getElementById(selId) : null;
+
+        let key = "";
+        if (sel) key = String(sel.value || "").trim().toUpperCase();
+        if (!key) key = String(canvas.getAttribute("data-code") || canvas.getAttribute("data-default") || "").trim().toUpperCase();
+
+        return key;
+    }
+
     function initWithin(root) {
         const scope = root || document;
         const canvases = scope.querySelectorAll("canvas.bb-trend-chart-ptc");
+
         canvases.forEach(cv => {
-            const key = (cv.getAttribute("data-code") || cv.getAttribute("data-default") || "UZ5411P").trim().toUpperCase();
+            const key = getCurrentCanvasKey(cv) || "UZ5411P";
             cv.setAttribute("data-code", key);
             wireDropdown(cv);
-
-            // ✅ โหลด data ครั้งแรก (fetch 1 ครั้ง)
-            refreshData(cv, key);
+            refreshData(cv, key, true);
         });
+
+        restartSeriesPoller(scope);
     }
 
     function destroyWithin(root) {
@@ -373,9 +388,66 @@ window.BBTrendPTC = (function () {
             cv._bbBusyKey = null;
             cv._bbTimeline = null;
         });
+
+        if (_seriesPollTimer) {
+            clearInterval(_seriesPollTimer);
+            _seriesPollTimer = null;
+        }
+    }
+
+    function loadSeriesRefreshSec() {
+        try {
+            const raw = localStorage.getItem(SERIES_STORAGE_KEY);
+            if (!raw) return 10800;
+
+            const o = JSON.parse(raw);
+            const n = Number(o.seriesRefreshSec);
+
+            return [10800, 21600, 32400, 43200].includes(n) ? n : 10800;
+        } catch {
+            return 10800;
+        }
+    }
+
+    async function refreshAllSeriesNow(root) {
+        const scope = root || document;
+        const canvases = scope.querySelectorAll("canvas.bb-trend-chart-ptc");
+
+        for (const cv of canvases) {
+            const key = getCurrentCanvasKey(cv);
+            if (!key) continue;
+
+            cv.setAttribute("data-code", key);
+
+            try {
+                await refreshData(cv, key, true);
+            } catch { }
+        }
+    }
+
+    function restartSeriesPoller(root) {
+        if (_seriesPollTimer) {
+            clearInterval(_seriesPollTimer);
+            _seriesPollTimer = null;
+        }
+
+        const sec = Number(loadSeriesRefreshSec() || 10800);
+        const scope = root || document;
+
+        _seriesPollTimer = setInterval(() => {
+            refreshAllSeriesNow(scope);
+        }, sec * 1000);
+
+        refreshAllSeriesNow(scope);
     }
 
     function clearCache() { _cache.clear(); }
 
-    return { initWithin, destroyWithin, clearCache };
+    return {
+        initWithin,
+        destroyWithin,
+        clearCache,
+        restartSeriesPoller,
+        refreshAllSeriesNow
+    };
 })();
