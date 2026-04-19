@@ -267,28 +267,34 @@
         margin-left: auto;
     }
 
-    /* ===== settings popup ===== */
-    .lab-settings-pop {
+    /* ===== settings popup overlay ===== */
+    .lab-settings-overlay {
         position: fixed;
-        right: 18px;
-        top: 70px;
-        width: 280px;
-        max-width: calc(100vw - 24px);
-        border-radius: 14px;
-        background: #1f2937;
-        border: 1px solid rgba(255,255,255,.10);
-        box-shadow: 0 15px 40px rgba(0,0,0,.35);
-        padding: 14px;
-        z-index: 200000;
+        inset: 0;
         display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,.28);
+        z-index: 200000;
     }
 
-        .lab-settings-pop.show {
-            display: block;
+        .lab-settings-overlay.show {
+            display: flex;
         }
 
+    /* ===== settings popup ===== */
+    .lab-settings-pop {
+        width: 300px;
+        max-width: calc(100vw - 24px);
+        border-radius: 16px;
+        background: linear-gradient(180deg, #1f2937 0%, #182231 100%);
+        border: 1px solid rgba(255,255,255,.10);
+        box-shadow: 0 18px 44px rgba(0,0,0,.42);
+        padding: 14px;
+    }
+
     .lab-settings-title {
-        font-size: 14px;
+        font-size: 15px;
         font-weight: 700;
         color: #f9fafb;
         margin-bottom: 12px;
@@ -302,41 +308,104 @@
 
         .lab-settings-row label {
             font-size: 12px;
-            color: rgba(255,255,255,.78);
+            color: rgba(255,255,255,.82);
             font-weight: 600;
         }
 
         .lab-settings-row select {
             width: 100%;
             border-radius: 10px;
-            border: 1px solid rgba(255,255,255,.10);
-            background: rgba(255,255,255,.06);
+            border: 1px solid rgba(255,255,255,.12);
+            background: rgba(255,255,255,.07);
             color: #f9fafb;
             padding: 10px 12px;
             outline: none;
+            transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
         }
+
+            .lab-settings-row select:focus {
+                border-color: rgba(255,255,255,.22);
+                background: rgba(255,255,255,.10);
+                box-shadow: 0 0 0 3px rgba(255,255,255,.06);
+            }
 
     .lab-settings-actions {
         display: flex;
         justify-content: flex-end;
         gap: 8px;
-        margin-top: 8px;
+        margin-top: 10px;
     }
 
-        .lab-settings-actions button {
-            border: 1px solid rgba(255,255,255,.10);
-            background: rgba(255,255,255,.06);
+        .lab-settings-actions button,
+        .lab-settings-row button {
+            border: 1px solid rgba(255,255,255,.12);
+            background: linear-gradient(180deg, rgba(255,255,255,.11), rgba(255,255,255,.06));
             color: #f9fafb;
             border-radius: 10px;
             padding: 8px 12px;
             font-size: 12px;
             font-weight: 700;
             cursor: pointer;
+            transition: transform .12s ease, background .12s ease, border-color .12s ease, box-shadow .12s ease;
         }
 
-        .lab-settings-actions .primary {
-            background: rgba(255,255,255,.14);
+            .lab-settings-actions button:hover,
+            .lab-settings-row button:hover {
+                background: linear-gradient(180deg, rgba(255,255,255,.17), rgba(255,255,255,.09));
+                border-color: rgba(255,255,255,.18);
+                box-shadow: 0 6px 16px rgba(0,0,0,.20);
+            }
+
+            .lab-settings-actions button:active,
+            .lab-settings-row button:active {
+                transform: translateY(1px);
+            }
+
+        .lab-settings-actions .primary,
+        .lab-settings-row .primary {
+            background: linear-gradient(180deg, #ffb347 0%, #ff972f 100%);
+            border-color: rgba(255,179,71,.55);
+            color: #fff;
+            box-shadow: 0 8px 18px rgba(255,159,47,.22);
         }
+
+            .lab-settings-actions .primary:hover,
+            .lab-settings-row .primary:hover {
+                background: linear-gradient(180deg, #ffc067 0%, #ffa642 100%);
+                border-color: rgba(255,192,103,.72);
+            }
+
+    .lab-settings-row input[type="checkbox"] {
+        accent-color: #ff9f2f;
+    }
+
+
+    /* dropdown box */
+    .lab-settings-row select {
+        width: 100%;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,.12);
+        background: rgba(255,255,255,.07);
+        color: #f9fafb;
+        padding: 10px 12px;
+        outline: none;
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+    }
+
+    /* dropdown list items */
+    .lab-settings-row select option {
+        background: #1f2937;
+        color: #f9fafb;
+    }
+
+    /* selected / focus state */
+    .lab-settings-row select:focus {
+        border-color: rgba(255,255,255,.22);
+        box-shadow: 0 0 0 3px rgba(255,255,255,.06);
+    }
+
 
     /* ===== responsive ===== */
     @@media (max-width: 1280px) {
@@ -471,6 +540,7 @@
                 <button class="filter-btn active" type="button" data-filter="cw_turbid">CW Turbid</button>
                 <button class="filter-btn" type="button" data-filter="cw_precl">CW Pre CL</button>
                 <button class="filter-btn" type="button" data-filter="fw_turbid">FW Turbid</button>
+                <button class="filter-btn" type="button" data-filter="tw_turbid">TW Turbid</button>
                 <button class="filter-btn" type="button" data-filter="tw_postcl">TW Pos CL</button>
             </div>
 

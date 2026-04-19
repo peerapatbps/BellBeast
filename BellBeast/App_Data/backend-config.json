@@ -10,5 +10,6 @@
   "tpsSummaryPath": "/api/tps/summary",
   "rwsSummaryPath": "/api/rws/summary",
   "chemSummaryPath": "/api/chem/summary",
-  "eventSummaryPath": "/api/event/summary"
+  "eventSummaryPath": "/api/event/summary",
+  "labSummaryPath": "/api/lab/summary"
 }

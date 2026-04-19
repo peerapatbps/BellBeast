@@ -214,7 +214,7 @@ static async Task<SqliteConnection> OpenReadOnlyAsync(string dbPath)
     return con;
 }
 
-static (string baseUrl, string queryCsvPath, string dailyReportPath, string chemReportPath, string chemExportPath, string dpsSummaryPath, string tpsSummaryPath, string rwsSummaryPath, string chemSummaryPath, string eventSummaryPath)
+static (string baseUrl, string queryCsvPath, string dailyReportPath, string chemReportPath, string chemExportPath, string dpsSummaryPath, string tpsSummaryPath, string rwsSummaryPath, string chemSummaryPath, string eventSummaryPath, string labSummaryPath)
 ReadBackendConfig(WebApplication app)
 {
     var path = Path.Combine(app.Environment.ContentRootPath, "App_Data", "backend-config.json");
@@ -255,8 +255,8 @@ ReadBackendConfig(WebApplication app)
     var rwsSummaryPath = NormPath(GetStr("rwsSummaryPath"), "/api/rps/summary");
     var chemSummaryPath = NormPath(GetStr("chemSummaryPath"), "/api/chem/summary");
     var eventSummaryPath = NormPath(GetStr("eventSummaryPath"), "/api/event/summary");
-
-    return (baseUrl, queryCsvPath, dailyReportPath, chemReportPath, chemExportPath, dpsSummaryPath, tpsSummaryPath, rwsSummaryPath, chemSummaryPath, eventSummaryPath);
+    var labSummaryPath = NormPath(GetStr("labSummaryPath"), "/api/lab/summary");
+    return (baseUrl, queryCsvPath, dailyReportPath, chemReportPath, chemExportPath, dpsSummaryPath, tpsSummaryPath, rwsSummaryPath, chemSummaryPath, eventSummaryPath, labSummaryPath);
 }
 
 // =======================================================
@@ -287,7 +287,7 @@ app.MapGet("/api/admin/auth/me", [Authorize(Policy = "AdminOnly")] (HttpContext 
 // ===============================
 app.MapGet("/api/backend-config", () =>
 {
-    var (baseUrl, queryCsvPath, dailyReportPath, chemReportPath, chemExportPath, _, _, _, _, _) = ReadBackendConfig(app);
+    var (baseUrl, queryCsvPath, dailyReportPath, chemReportPath, chemExportPath, _, _, _, _, _, _) = ReadBackendConfig(app);
     return Results.Ok(new
     {
         backendBaseUrl = baseUrl,
@@ -491,7 +491,7 @@ app.MapGet("/api/aqtable", async (HttpContext http) =>
 // ===============================
 app.MapPost("/api/process", async (HttpContext ctx, IHttpClientFactory factory) =>
 {
-    var (baseUrl, queryCsvPath, _, _, _, _, _, _, _, _) = ReadBackendConfig(app);
+    var (baseUrl, queryCsvPath, _, _, _, _, _, _, _, _, _) = ReadBackendConfig(app);
     var targetUrl = $"{baseUrl}{queryCsvPath}";
 
     using var reader = new StreamReader(ctx.Request.Body);
@@ -582,7 +582,7 @@ app.MapPost("/api/template/save", async (TemplateSaveRequest req) =>
 // ===============================
 app.MapPost("/api/dailyreport", async (HttpContext ctx, IHttpClientFactory factory) =>
 {
-    var (baseUrl, _, dailyReportPath, _, _, _, _, _, _, _) = ReadBackendConfig(app);
+    var (baseUrl, _, dailyReportPath, _, _, _, _, _, _, _, _) = ReadBackendConfig(app);
     var targetUrl = $"{baseUrl}{dailyReportPath}";
 
     using var reader = new StreamReader(ctx.Request.Body);
@@ -621,7 +621,7 @@ app.MapPost("/api/dailyreport", async (HttpContext ctx, IHttpClientFactory facto
 // ===============================
 app.MapPost("/api/chem_report", async (HttpContext ctx, IHttpClientFactory factory) =>
 {
-    var (baseUrl, _, _, chemReportPath, _, _, _, _, _, _) = ReadBackendConfig(app);
+    var (baseUrl, _, _, chemReportPath, _, _, _, _, _, _, _) = ReadBackendConfig(app);
     var targetUrl = $"{baseUrl}{chemReportPath}";
 
     using var reader = new StreamReader(ctx.Request.Body);
@@ -657,7 +657,7 @@ app.MapPost("/api/chem_report", async (HttpContext ctx, IHttpClientFactory facto
 // ===============================
 app.MapPost("/api/chem_report/export", async (HttpContext ctx, IHttpClientFactory factory) =>
 {
-    var (baseUrl, _, _, _, chemExportPath, _, _, _, _, _) = ReadBackendConfig(app);
+    var (baseUrl, _, _, _, chemExportPath, _, _, _, _, _, _) = ReadBackendConfig(app);
     var targetUrl = $"{baseUrl}{chemExportPath}";
 
     using var reader = new StreamReader(ctx.Request.Body);
@@ -788,7 +788,7 @@ app.MapGet("/api/smartmap", async (HttpContext hc) =>
 
 app.MapGet("/api/dps/summary", async (HttpContext ctx, IHttpClientFactory factory) =>
 {
-    var (baseUrl, _, _, _, _, dpsSummaryPath, _, _, _, _) = ReadBackendConfig(app);
+    var (baseUrl, _, _, _, _, dpsSummaryPath, _, _, _, _, _) = ReadBackendConfig(app);
     var targetUrl = $"{baseUrl}{dpsSummaryPath}";
 
     var client = factory.CreateClient();
@@ -816,7 +816,7 @@ app.MapGet("/api/dps/summary", async (HttpContext ctx, IHttpClientFactory factor
 
 app.MapGet("/api/tps/summary", async (HttpContext ctx, IHttpClientFactory factory) =>
 {
-    var (baseUrl, _, _, _, _, _, tpsSummaryPath, _, _, _) = ReadBackendConfig(app); // <- ปรับ tuple ให้ตรงของคุณ
+    var (baseUrl, _, _, _, _, _, tpsSummaryPath, _, _, _, _) = ReadBackendConfig(app); // <- ปรับ tuple ให้ตรงของคุณ
     var targetUrl = $"{baseUrl}{tpsSummaryPath}";
 
     var client = factory.CreateClient();
@@ -844,7 +844,7 @@ app.MapGet("/api/tps/summary", async (HttpContext ctx, IHttpClientFactory factor
 
 app.MapGet("/api/rws/summary", async (HttpContext ctx, IHttpClientFactory factory) =>
 {
-    var (baseUrl, _, _, _, _, _, _, rwsSummaryPath, _, _) = ReadBackendConfig(app); // <- ปรับ tuple ให้ตรงของคุณ
+    var (baseUrl, _, _, _, _, _, _, rwsSummaryPath, _, _, _) = ReadBackendConfig(app); // <- ปรับ tuple ให้ตรงของคุณ
     var targetUrl = $"{baseUrl}{rwsSummaryPath}";
 
     var client = factory.CreateClient();
@@ -872,7 +872,7 @@ app.MapGet("/api/rws/summary", async (HttpContext ctx, IHttpClientFactory factor
 
 app.MapGet("/api/chem/summary", async (HttpContext ctx, IHttpClientFactory factory) =>
 {
-    var (baseUrl, _, _, _, _, _, _, _, chemSummaryPath, _) = ReadBackendConfig(app);
+    var (baseUrl, _, _, _, _, _, _, _, chemSummaryPath, _, _) = ReadBackendConfig(app);
 
     var path = string.IsNullOrWhiteSpace(chemSummaryPath) ? "/api/chem/summary" : chemSummaryPath;
 
@@ -904,7 +904,7 @@ app.MapGet("/api/chem/summary", async (HttpContext ctx, IHttpClientFactory facto
 
 app.MapGet("/api/event/summary", async (HttpContext ctx, IHttpClientFactory factory) =>
 {
-    var (baseUrl, _, _, _, _, _, _, _, _, eventSummaryPath) = ReadBackendConfig(app);
+    var (baseUrl, _, _, _, _, _, _, _, _, eventSummaryPath, _) = ReadBackendConfig(app);
 
     var path = string.IsNullOrWhiteSpace(eventSummaryPath)
         ? "/api/event/summary"
@@ -916,6 +916,39 @@ app.MapGet("/api/event/summary", async (HttpContext ctx, IHttpClientFactory fact
     client.Timeout = TimeSpan.FromSeconds(30);
 
     using var req = new HttpRequestMessage(HttpMethod.Get, targetUrl);
+    using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
+
+    ctx.Response.StatusCode = (int)resp.StatusCode;
+
+    if (resp.Content.Headers.ContentType != null)
+        ctx.Response.ContentType = resp.Content.Headers.ContentType.ToString();
+
+    if (!resp.IsSuccessStatusCode)
+    {
+        var err = await resp.Content.ReadAsStringAsync(ctx.RequestAborted);
+        await ctx.Response.WriteAsync(err, ctx.RequestAborted);
+        return;
+    }
+
+    await using var stream = await resp.Content.ReadAsStreamAsync(ctx.RequestAborted);
+    await stream.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
+    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+});
+
+app.MapPost("/api/lab/summary", async (HttpContext ctx, IHttpClientFactory factory) =>
+{
+    var (baseUrl, _, _, _, _, _, _, _, _, _, labSummaryPath) = ReadBackendConfig(app);
+    var targetUrl = $"{baseUrl}/api/lab/summary";
+
+    using var reader = new StreamReader(ctx.Request.Body);
+    var rawBody = await reader.ReadToEndAsync();
+
+    var client = factory.CreateClient();
+    client.Timeout = TimeSpan.FromSeconds(120);
+
+    using var req = new HttpRequestMessage(HttpMethod.Post, targetUrl);
+    req.Content = new StringContent(rawBody, Encoding.UTF8, "application/json");
+
     using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
 
     ctx.Response.StatusCode = (int)resp.StatusCode;

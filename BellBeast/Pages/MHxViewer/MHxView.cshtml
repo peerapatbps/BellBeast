@@ -1813,6 +1813,7 @@
                 try { window.RWSSummary?.initWithin(slots[i]); } catch(e){ console.warn("RWSSummary init fail", e); }
                 try { window.CHEMSummary?.initWithin(slots[i]); } catch(e){ console.warn("CHEMSummary init fail", e); }
                 try { window.CHEMsettings?.initWithin(slots[i]); } catch(e){ console.warn("CHEM setting init fail", e); }
+                try { window.LABView?.initWithin(slots[i]); } catch(e){ console.warn("LABView init fail", e); }
 
                 }catch(err){
                     slots[i].innerHTML =
@@ -1943,6 +1944,7 @@
 <script src="/js/CHEM_settings.js"></script>
 <script src="~/js/PTCview.js"></script>
 <script src="~/js/ptc_smartmap_overlay.js?v=1"></script>
+<script src="/js/LABview.js"></script>
 
 <script>
     // เรียกอันเดียวจบ (รองรับทั้งโหลดหน้า + inject partial)
@@ -1964,6 +1966,7 @@
         try { window.RWSSummary?.initWithin(root); } catch (e) {}
         try { window.CHEMSummary?.initWithin(root); } catch (e) {}
         try { window.CHEsettings?.initWithin(root); } catch (e) {}
+        try { window.LABview?.initWithin(root); } catch (e) {}
       }
     };
 
