@@ -17,6 +17,7 @@
         ("CHEM", "CHEM"),
         ("PTC", "PTC"),
         ("LAB", "LAB"),
+        ("CLDETECTOR", "CL Detector"),
         ("EMPTY","(EMPTY)")
     };
 
@@ -1814,6 +1815,8 @@
                 try { window.CHEMSummary?.initWithin(slots[i]); } catch(e){ console.warn("CHEMSummary init fail", e); }
                 try { window.CHEMsettings?.initWithin(slots[i]); } catch(e){ console.warn("CHEM setting init fail", e); }
                 try { window.LABView?.initWithin(slots[i]); } catch(e){ console.warn("LABView init fail", e); }
+                try { window.CLDetectorView?.initWithin(slots[i]); } catch(e){ console.warn("CLDetector init fail", e); }
+                try { window.CLDetectorSettings?.initWithin(slots[i]); } catch(e){ console.warn("CLDetector setting init fail", e); }
 
                 }catch(err){
                     slots[i].innerHTML =
@@ -1931,21 +1934,22 @@
 <script src="~/js/BBTrend.js"></script>
 <script src="~/js/DPSview.js"></script>
 <script src="~/js/RWSview.js"></script>
-<script src="/js/RWS_online_settings.js"></script>
+<script src="~/js/RWS_online_settings.js"></script>
 <script src="~/js/CHEMview.js"></script>
-<script src="/js/EVENT_settings.js"></script>
+<script src="~/js/EVENT_settings.js"></script>
 <script src="~/js/EVENTview.js"></script>
 <script src="~/js/dps_smartmap_overlay.js?v=1"></script>
 <script src="~/js/dps_summary.js" asp-append-version="true"></script>
-<script src="/js/TPS_settings.js"></script>
-<script src="/js/TPS_summary.js"></script>
+<script src="~/js/TPS_settings.js"></script>
+<script src="~/js/TPS_summary.js"></script>
 <script src="~/js/RWS_summary.js" asp-append-version="true"></script>
 <script src="~/js/CHEM_summary.js" asp-append-version="true"></script>
-<script src="/js/CHEM_settings.js"></script>
+<script src="~/js/CHEM_settings.js"></script>
 <script src="~/js/PTCview.js"></script>
 <script src="~/js/ptc_smartmap_overlay.js?v=1"></script>
-<script src="/js/LABview.js"></script>
-
+<script src="~/js/LABview.js"></script>
+<script src="~/js/CLDetectorView.js"></script>
+<script src="~/js/CLDetectorSettings.js"></script>
 <script>
     // เรียกอันเดียวจบ (รองรับทั้งโหลดหน้า + inject partial)
     window.MHxCharts = {
@@ -1967,6 +1971,8 @@
         try { window.CHEMSummary?.initWithin(root); } catch (e) {}
         try { window.CHEsettings?.initWithin(root); } catch (e) {}
         try { window.LABview?.initWithin(root); } catch (e) {}
+        try { window.CLDetectorView?.initWithin(root); } catch (e) {}
+        try { window.CLDetectorSettings?.initWithin(root); } catch (e) {}
       }
     };
 
