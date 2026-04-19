@@ -7,7 +7,6 @@
 (function () {
     "use strict";
 
-    // mapping: pump tag -> configID
     const PUMP_TO_CFG = {
         "7P01A": 816,
         "7P01B": 829,
@@ -61,23 +60,53 @@
 
     function readAqValueText(aq, cfg) {
         if (!aq) return null;
-        // รองรับ key เป็น number หรือ string
         return aq[cfg]?.value_text ?? aq[String(cfg)]?.value_text ?? null;
     }
 
     function loadDpsRefreshSec() {
+        const settings = window.DPSSettings?.loadSettings?.();
+        const settingsValue = Number(settings?.dpsRefreshSec ?? settings?.refreshSec);
+
+        if (Number.isFinite(settingsValue)) {
+            return Math.max(5, Math.min(60, settingsValue));
+        }
+
         try {
             const raw = localStorage.getItem("dps_ptc_refresh_v1");
-            if (!raw) return 5;
+            if (!raw) return 15;
 
             const o = JSON.parse(raw);
-            const n = Number(o?.dpsRefreshSec);
-            if (!Number.isFinite(n)) return 5;
+            const n = Number(o?.dpsRefreshSec ?? o?.refreshSec);
+            if (!Number.isFinite(n)) return 15;
 
             return Math.max(5, Math.min(60, n));
         } catch {
-            return 5;
+            return 15;
         }
+    }
+
+    function loadAlarmSettings() {
+        const s = window.DPSSettings?.loadSettings?.() || {};
+
+        return {
+            flowAlertEnabled: Boolean(s.flowAlertEnabled),
+            flowLowLimit: Number.isFinite(Number(s.flowLowLimit ?? s.flowAlertLimit))
+                ? Number(s.flowLowLimit ?? s.flowAlertLimit)
+                : 1000,
+
+            airSumAlertEnabled: Boolean(s.airSumAlertEnabled),
+            airSumLowLimit: Number.isFinite(Number(s.airSumLowLimit))
+                ? Number(s.airSumLowLimit)
+                : 1.0,
+
+            alertMuted: Boolean(s.alertMuted)
+        };
+    }
+
+    function resetAlarmRules(section, bell) {
+        window.BBAlerts?.resetRule?.(section, "dps-flow-low");
+        window.BBAlerts?.resetRule?.(section, "dps-air-sum-low");
+        window.BBAlerts?.setBellState?.(bell, "muted");
     }
 
     function stopForSection(section) {
@@ -94,7 +123,6 @@
     async function startForSection(section) {
         if (!section) return;
 
-        // ✅ guard: injected ซ้ำก็ไม่ start ซ้ำ
         if (section._dpsSummaryStarted) return;
         section._dpsSummaryStarted = true;
 
@@ -104,15 +132,15 @@
 
         const elFlow = section.querySelector("#dpsFlowAB");
         const elFlowStatus = section.querySelector("#dpsFlowStatus");
+        const elBell = section.querySelector('[data-role="dps-alert-bell"]');
+
         const elSumFlow = section.querySelector("#dpsSumFlowAB");
         const elOverviewStatus = section.querySelector("#dpsOverviewStatus");
 
-        // AIR COMPRESSOR card
         const elAirStatus = section.querySelector("#AircompStatus");
         const elAir1 = section.querySelector("#AIR1");
         const elAir2 = section.querySelector("#AIR2");
 
-        // pumps: <span data-pump="7P01A">...</span>
         const pumpEls = Array.from(section.querySelectorAll("[data-pump]"));
 
         let inFlight = false;
@@ -124,9 +152,9 @@
             try {
                 const res = await fetch(url, { method: "GET", cache: "no-store" });
                 if (!res.ok) throw new Error("HTTP " + res.status);
+
                 const data = await res.json();
 
-                // ---- pumps (from data.Aq) ----
                 const aq = data?.Aq;
                 for (const pe of pumpEls) {
                     const pumpName = pe.getAttribute("data-pump") || "";
@@ -135,41 +163,90 @@
                     applyPumpStatus(pe, vt);
                 }
 
+                const settings = loadAlarmSettings();
+
                 // ---- FlowAB ----
                 const flowText = fmtNumber(data?.FlowAB, 0);
+                const flowValue = (typeof data?.FlowAB === "number")
+                    ? data.FlowAB
+                    : Number(data?.FlowAB);
+
                 if (elFlow) elFlow.textContent = (flowText ?? "-");
                 setStatus(elFlowStatus, flowText !== null);
+
+                const flowLowExceeded = window.BBAlerts?.evaluate?.(section, {
+                    ruleKey: "dps-flow-low",
+                    enabled: settings.flowAlertEnabled,
+                    muted: settings.alertMuted,
+                    value: flowValue,
+                    limit: settings.flowLowLimit,
+                    direction: "lt"
+                }) || false;
 
                 // ---- SumFlowAB ----
                 const sumFlowText = fmtNumber(data?.SumFlowAB, 0);
                 const okOverview = (sumFlowText !== null);
+
                 if (elSumFlow) elSumFlow.textContent = (sumFlowText ?? "-");
                 setStatus(elOverviewStatus, okOverview);
 
-                // ---- AIR COMPRESSOR (AirP1/AirP2 from backend) ----
+                // ---- AIR COMPRESSOR ----
+                const air1Value = (typeof data?.AirP1 === "number")
+                    ? data.AirP1
+                    : Number(data?.AirP1);
+
+                const air2Value = (typeof data?.AirP2 === "number")
+                    ? data.AirP2
+                    : Number(data?.AirP2);
+
                 const air1Text = fmtNumber(data?.AirP1, 2);
                 const air2Text = fmtNumber(data?.AirP2, 2);
 
                 if (elAir1) elAir1.textContent = (air1Text ?? "-");
                 if (elAir2) elAir2.textContent = (air2Text ?? "-");
 
-                // OK ถ้าอย่างน้อย 1 ตัวอ่านได้ (ไม่ null)
                 const okAir = (air1Text !== null) || (air2Text !== null);
                 setStatus(elAirStatus, okAir);
 
+                const airSumValue =
+                    (Number.isFinite(air1Value) ? air1Value : 0) +
+                    (Number.isFinite(air2Value) ? air2Value : 0);
+
+                const airSumLowExceeded = window.BBAlerts?.evaluate?.(section, {
+                    ruleKey: "dps-air-sum-low",
+                    enabled: settings.airSumAlertEnabled,
+                    muted: settings.alertMuted,
+                    value: airSumValue,
+                    limit: settings.airSumLowLimit,
+                    direction: "lt"
+                }) || false;
+
+                const anySummaryAlerting = flowLowExceeded || airSumLowExceeded;
+
+                if (anySummaryAlerting) {
+                    window.BBAlerts?.setBellState?.(elBell, "alerting");
+                } else {
+                    window.BBAlerts?.setBellState?.(
+                        elBell,
+                        settings.alertMuted ? "muted" : "armed"
+                    );
+                }
+
             } catch (e) {
-                // reset UI
                 for (const pe of pumpEls) applyPumpStatus(pe, null);
 
                 if (elFlow) elFlow.textContent = "-";
                 if (elSumFlow) elSumFlow.textContent = "-";
+
                 setStatus(elFlowStatus, false);
                 setStatus(elOverviewStatus, false);
 
                 if (elAir1) elAir1.textContent = "-";
                 if (elAir2) elAir2.textContent = "-";
+
                 setStatus(elAirStatus, false);
 
+                resetAlarmRules(section, elBell);
             } finally {
                 inFlight = false;
             }
@@ -177,6 +254,7 @@
 
         tick();
         section._dpsSummaryTimer = setInterval(tick, pollMs);
+        window.DPSSettings?.syncBell?.(section);
     }
 
     window.DPSSummary = {

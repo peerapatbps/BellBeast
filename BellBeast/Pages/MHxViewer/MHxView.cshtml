@@ -5,7 +5,7 @@
 
     // ✅ รายชื่อ block ที่คุณมีจริง (ปรับชื่อให้ตรงของคุณ)
     // ถ้าคุณมี 8 ช่อง ก็ใส่ 8 ตัว
-    var defaultSlots = new[] { "TPS", "DPS", "RPS", "CHEM", "PTC", "EVENT" };
+    var defaultSlots = new[] { "TPS", "DPS", "RPS", "CHEM", "EVENT", "LAB", "CLDETECTOR", "PTC" };
 
     // ✅ สำหรับ dropdown ใน modal
     // label จะโชว์ในหน้าตั้งค่า
@@ -141,13 +141,15 @@
         box-sizing: border-box;
     }
 
-    @@supports (height: 100dvh){
-      .bb-wrap{ min-height: 100dvh; }
+    @@supports (height: 100dvh) {
+        .bb-wrap {
+            min-height: 100dvh;
+        }
     }
 
     /* =========================================================
-        ✅ PAIR ROW LAYOUT: TPS=DPS, RPS1=RPS2, FWS1=FWS2, CHEM1=CHEM2
-    ========================================================= */
+                ✅ PAIR ROW LAYOUT: TPS=DPS, RPS1=RPS2, FWS1=FWS2, CHEM1=CHEM2
+            ========================================================= */
     .bb-pairs {
         display: grid;
         grid-template-columns: 1fr; /* rows */
@@ -205,20 +207,20 @@
         margin-bottom: 5px;
     }
 
-        /* ซ้าย */
-        .bb-section-h .left {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
+    /* ซ้าย */
+    .bb-section-h .left {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
 
-        /* ขวา (ไอคอน) */
-        .bb-section-h .right-icons {
-            margin-left: auto; /* ดันไปขวาสุด */
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+    /* ขวา (ไอคอน) */
+    .bb-section-h .right-icons {
+        margin-left: auto; /* ดันไปขวาสุด */
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
 
     /* ไอคอนให้เป็นปุ่มแบบ dashboard */
     .bb-ico {
@@ -245,6 +247,22 @@
 
         .bb-ico span {
             line-height: 1;
+        }
+
+        .bb-ico.is-muted {
+            background: rgba(255,255,255,.08);
+            opacity: .7;
+        }
+
+        .bb-ico.is-armed {
+            background: rgba(255,204,77,.16);
+            border-color: rgba(255,204,77,.28);
+        }
+
+        .bb-ico.is-alerting {
+            background: rgba(255,91,91,.2);
+            border-color: rgba(255,91,91,.35);
+            box-shadow: 0 0 0 1px rgba(255,91,91,.2), 0 0 12px rgba(255,91,91,.25);
         }
 
     .zone {
@@ -410,26 +428,26 @@
         margin-top: 8px;
     }
 
-/* ✅ override chart placeholder เดิม ให้ canvas แสดงจริง */
-.mini-card .chart{
-  position: relative;
-  height: 140px;
-  min-height: 140px;
-  display: block;              /* ✅ ทับ display:flex เดิม */
-}
+    /* ✅ override chart placeholder เดิม ให้ canvas แสดงจริง */
+    .mini-card .chart {
+        position: relative;
+        height: 140px;
+        min-height: 140px;
+        display: block; /* ✅ ทับ display:flex เดิม */
+    }
 
-.mini-card .chart canvas.bb-trend-chart{
-  width: 100% !important;
-  height: 100% !important;
-  display: block !important;
-}
+        .mini-card .chart canvas.bb-trend-chart {
+            width: 100% !important;
+            height: 100% !important;
+            display: block !important;
+        }
 
 
-.mini-card .chart canvas.bb-trend-chart{
-  width: 100% !important;
-  height: 100% !important;
-  display: block !important;
-}
+        .mini-card .chart canvas.bb-trend-chart {
+            width: 100% !important;
+            height: 100% !important;
+            display: block !important;
+        }
 
     /* ===== reusable row grids ===== */
     .row4 {
@@ -691,6 +709,7 @@
     .val-center {
         margin-bottom: 20px; /* ปรับ 8–14px ตามความสวย */
     }
+
     .ov-status {
         font-size: 11px;
         font-weight: 900;
@@ -754,9 +773,9 @@
     }
 
     /* ============================
-                       Tank KPI (use your HTML)
-                       .mini-card.tank-kpi ok|warn|bad
-                       ============================ */
+                               Tank KPI (use your HTML)
+                               .mini-card.tank-kpi ok|warn|bad
+                               ============================ */
 
     /* card layout: ซ้าย KPI / ขวา tank */
     .row4 .mini-card.tank-kpi {
@@ -860,8 +879,8 @@
         }
 
     /* =========================
-                       Gauge (แท่งด้านขวา)
-                       ========================= */
+                               Gauge (แท่งด้านขวา)
+                               ========================= */
     .tank-kpi .gauge {
         grid-column: 2 / 3;
         grid-row: 2 / 3;
@@ -936,9 +955,9 @@
         }
 
     /* =========================
-                       สีตามสถานะ: ok / warn / bad
-                       (อิงคลาสที่ mini-card)
-                       ========================= */
+                               สีตามสถานะ: ok / warn / bad
+                               (อิงคลาสที่ mini-card)
+                               ========================= */
     .tank-kpi.ok .fill {
         background: linear-gradient(180deg, rgba(95,228,255,.85), rgba(90,211,109,.78));
     }
@@ -1010,7 +1029,6 @@
         grid-auto-rows: minmax(175px, auto); /* ให้ 2 แถวสูงเท่ากันแนวเดียวกับรูป */
         gap: 20px;
         align-items: stretch;
-
     }
 
         /* วางตำแหน่งตามแถว/คอลัมน์ */
@@ -1122,8 +1140,8 @@
     }
 
     /* =========================
-                       CHEM block (Alum Consumption cards)
-                       ========================= */
+                               CHEM block (Alum Consumption cards)
+                               ========================= */
 
     .chem-grid2 {
         display: grid;
@@ -1147,8 +1165,8 @@
     }
 
     /* =========================================================
-       CHEM CARD (Unified) 70:30 + Equipment Slots
-       ========================================================= */
+               CHEM CARD (Unified) 70:30 + Equipment Slots
+               ========================================================= */
 
     /* card base */
     .chem-card {
@@ -1311,8 +1329,8 @@
         }
 
     /* =========================
-       Chlorine lines: compact columns
-       ========================= */
+               Chlorine lines: compact columns
+               ========================= */
     .chem-lines.chem-lines--cl {
         gap: 2px;
     }
@@ -1370,8 +1388,8 @@
                 }
 
     /* =========================
-       Equipment Slot Bar (UNIFIED)
-       ========================= */
+               Equipment Slot Bar (UNIFIED)
+               ========================= */
     .chem-eqbar {
         margin-top: 2px;
         padding-top: 8px;
@@ -1567,16 +1585,33 @@
         align-items: center;
         justify-content: center;
         padding: 18px;
-        z-index: 9999;
+        z-index: 2147483647;
+        pointer-events: auto;
+        isolation: isolate;
+    }
+
+        .bb-modal-backdrop.is-open {
+            display: flex;
+        }
+
+    html.bb-modal-open,
+    body.bb-modal-open {
+        overflow: hidden;
     }
 
     .bb-modal {
+        position: relative;
+        z-index: 1;
         width: min(900px, 96vw);
+        max-height: calc(100dvh - 36px);
         background: #22282c;
         border: 1px solid var(--stroke);
         border-radius: 14px;
         box-shadow: 0 18px 60px rgba(0,0,0,.55);
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        pointer-events: auto;
     }
 
     .bb-modal-h {
@@ -1612,6 +1647,8 @@
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 12px;
+        overflow: auto;
+        min-height: 0;
     }
 
     @@media (max-width: 860px) {
@@ -1646,12 +1683,16 @@
         }
 
     .bb-modal-f {
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
         padding: 10px 12px;
         border-top: 1px solid var(--stroke);
-        background: rgba(0,0,0,.10);
+        background: #22282c;
         display: flex;
         gap: 10px;
         justify-content: flex-end;
+        pointer-events: auto;
     }
 
     .bb-btn {
@@ -1667,14 +1708,170 @@
     }
 
         .bb-btn.primary {
+            position: relative;
+            z-index: 3;
             background: rgba(51,209,255,.16);
             border-color: rgba(51,209,255,.22);
+            pointer-events: auto;
         }
 
         .bb-btn.danger {
             background: rgba(255,91,91,.12);
             border-color: rgba(255,91,91,.22);
         }
+
+
+    /* ===== User Feedback Modal ===== */
+    .bb-ico {
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .bb-feedback-modal {
+        width: min(560px, 96vw);
+    }
+
+    .bb-feedback-b {
+        display: block;
+        padding: 14px;
+        overflow: auto;
+        min-height: 0;
+    }
+
+    .bb-feedback-intro {
+        margin: 0 0 12px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+    }
+
+    .bb-feedback-field {
+        margin-bottom: 12px;
+    }
+
+    .bb-feedback-label {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 6px;
+        font-size: 12px;
+        font-weight: 900;
+        color: rgba(255,255,255,.9);
+    }
+
+        .bb-feedback-label small {
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+    .bb-rating-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .bb-rating-btn {
+        width: 38px;
+        height: 34px;
+        border-radius: 12px;
+        border: 1px solid var(--stroke);
+        background: rgba(0,0,0,.20);
+        color: rgba(255,255,255,.78);
+        font-weight: 900;
+        cursor: pointer;
+    }
+
+        .bb-rating-btn.is-active {
+            background: rgba(51,209,255,.18);
+            border-color: rgba(51,209,255,.42);
+            color: #fff;
+            box-shadow: 0 0 0 2px rgba(51,209,255,.08) inset;
+        }
+
+    .bb-rating-clear {
+        height: 34px;
+        padding: 0 10px;
+        border-radius: 12px;
+        border: 1px solid var(--stroke);
+        background: rgba(0,0,0,.16);
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+        cursor: pointer;
+    }
+
+    .bb-feedback-input,
+    .bb-feedback-textarea {
+        width: 100%;
+        border-radius: 12px;
+        border: 1px solid var(--stroke);
+        background: rgba(0,0,0,.22);
+        color: rgba(255,255,255,.92);
+        outline: none;
+        padding: 10px 11px;
+        font-size: 13px;
+    }
+
+    .bb-feedback-textarea {
+        min-height: 120px;
+        resize: vertical;
+        line-height: 1.45;
+    }
+
+        .bb-feedback-input:focus,
+        .bb-feedback-textarea:focus {
+            border-color: rgba(51,209,255,.45);
+            box-shadow: 0 0 0 2px rgba(51,209,255,.10);
+        }
+
+    .bb-feedback-error {
+        display: none;
+        margin-top: 8px;
+        color: #ffb4b4;
+        font-size: 12px;
+        font-weight: 800;
+    }
+
+        .bb-feedback-error.is-open {
+            display: block;
+        }
+
+    .bb-feedback-status {
+        display: none;
+        margin-top: 8px;
+        border-radius: 12px;
+        padding: 9px 10px;
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1.35;
+        border: 1px solid rgba(255,255,255,.10);
+        background: rgba(0,0,0,.18);
+        color: var(--muted);
+    }
+
+        .bb-feedback-status.is-open {
+            display: block;
+        }
+
+        .bb-feedback-status.ok {
+            color: #c7ffd2;
+            border-color: rgba(90,211,109,.25);
+            background: rgba(90,211,109,.10);
+        }
+
+        .bb-feedback-status.warn {
+            color: #ffe3a3;
+            border-color: rgba(255,204,77,.25);
+            background: rgba(255,204,77,.10);
+        }
+
+    #feedbackSubmit {
+        position: relative;
+        z-index: 3;
+        pointer-events: auto;
+    }
 
     /* ใช้ dropdown style เดิม bb-dd ได้เลย */
 
@@ -1686,30 +1883,86 @@
     <div class="title">Main</div>
     <div class="right">
         <div class="bb-ico" title="Bell"><span>🔔</span></div>
-        <div class="bb-ico" title="User"><span>🙂</span></div>
+        <div class="bb-ico" id="btnFeedback" title="Rate us / Bug report" role="button" tabindex="0" aria-label="Rate us or report a bug"><span>🙂</span></div>
         <div class="bb-ico" id="btnSettings" title="Settings"><span>⚙️</span></div>
     </div>
 </div>
 
-<div class="bb-wrap">
-    <!-- Modal -->
-    <div class="bb-modal-backdrop" id="slotModal" aria-hidden="true">
-        <div class="bb-modal" role="dialog" aria-modal="true" aria-label="Layout Settings">
-            <div class="bb-modal-h">
-                <div class="t">Layout Settings — Swap Slots</div>
-                <div class="x" id="slotModalClose">✕</div>
-            </div>
+<!-- Modal -->
+<div class="bb-modal-backdrop" id="slotModal" aria-hidden="true">
+    <div class="bb-modal" role="dialog" aria-modal="true" aria-label="Layout Settings">
+        <div class="bb-modal-h">
+            <div class="t">Layout Settings — Swap Slots</div>
+            <div class="x" id="slotModalClose">✕</div>
+        </div>
 
-            <div class="bb-modal-b" id="slotEditor"></div>
+        <div class="bb-modal-b" id="slotEditor"></div>
 
-            <div class="bb-modal-f">
-                <button class="bb-btn danger" id="slotReset" type="button">Reset</button>
-                <button class="bb-btn" id="slotCancel" type="button">Cancel</button>
-                <button class="bb-btn primary" id="slotSave" type="button">Save</button>
-            </div>
+        <div class="bb-modal-f">
+            <button class="bb-btn danger" id="slotReset" type="button">Reset</button>
+            <button class="bb-btn" id="slotCancel" type="button">Cancel</button>
+            <button class="bb-btn primary" id="slotSave" type="button">Save</button>
         </div>
     </div>
 
+</div>
+
+<!-- User Feedback Modal -->
+<div class="bb-modal-backdrop" id="feedbackModal" aria-hidden="true">
+    <div class="bb-modal bb-feedback-modal" role="dialog" aria-modal="true" aria-label="Rate us and bug report">
+        <div class="bb-modal-h">
+            <div class="t">Rate us / Bug report</div>
+            <div class="x" id="feedbackModalClose">✕</div>
+        </div>
+
+        <div class="bb-modal-b bb-feedback-b">
+            <p class="bb-feedback-intro">
+                ส่งคะแนน ความเห็น หรือแจ้งปัญหาการใช้งานได้จากหน้านี้ คะแนนเป็น optional ถ้าเป็น bug report อย่างเดียวสามารถเว้นไว้ได้
+            </p>
+
+            <div class="bb-feedback-field">
+                <div class="bb-feedback-label">
+                    <span>Rate us</span>
+                    <small>optional</small>
+                </div>
+                <div class="bb-rating-row" id="feedbackRating">
+                    <button type="button" class="bb-rating-btn" data-rating="1">1</button>
+                    <button type="button" class="bb-rating-btn" data-rating="2">2</button>
+                    <button type="button" class="bb-rating-btn" data-rating="3">3</button>
+                    <button type="button" class="bb-rating-btn" data-rating="4">4</button>
+                    <button type="button" class="bb-rating-btn" data-rating="5">5</button>
+                    <button type="button" class="bb-rating-clear" id="feedbackRatingClear">Clear</button>
+                </div>
+            </div>
+
+            <div class="bb-feedback-field">
+                <div class="bb-feedback-label">
+                    <span>Comment / Bug report</span>
+                    <small>required</small>
+                </div>
+                <textarea class="bb-feedback-textarea" id="feedbackMessage" placeholder="พิมพ์ feedback หรือรายละเอียด bug ที่เจอ..."></textarea>
+
+            </div>
+
+            <div class="bb-feedback-field">
+                <div class="bb-feedback-label">
+                    <span>Contact</span>
+                    <small>optional</small>
+                </div>
+                <input class="bb-feedback-input" id="feedbackContact" type="text" placeholder="เช่น ชื่อ, เบอร์, อีเมล หรือ LINE ถ้าต้องการให้ติดต่อกลับ" />
+                <div class="bb-feedback-error" id="feedbackError">กรุณากรอก Comment / Bug report ก่อนส่ง</div>
+                <div class="bb-feedback-status" id="feedbackStatus" role="status" aria-live="polite"></div>
+            </div>
+        </div>
+
+        <div class="bb-modal-f">
+            <button class="bb-btn" id="feedbackCancel" type="button">Cancel</button>
+            <button class="bb-btn primary" id="feedbackSubmit" type="button">Send</button>
+        </div>
+    </div>
+</div>
+
+<div class="bb-wrap">
     <!-- Slots grid -->
     <div class="bb-slots" id="slotGrid">
         @for (var i = 0; i < defaultSlots.Length; i++)
@@ -1731,6 +1984,206 @@
 <script>
     // ✅ ให้ Razor generate URL ที่ถูกต้องของ handler Slot
     const SLOT_URL = "@Url.Page(null, "Slot")";
+</script>
+
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const FEEDBACK_FORM_RESPONSE_URL = "https://docs.google.com/forms/d/e/1FAIpQLSehDe6NXz1pBqv6T-Fzti1af_Nu_EjZz286NQ6IVYBxpbOXUw/formResponse";
+        const FEEDBACK_ENTRY = {
+            rating: "entry.1902867980",
+            message: "entry.310717710",
+            contact: "entry.1371650762"
+        };
+
+        const btnOpen = document.getElementById("btnFeedback");
+        const modal = document.getElementById("feedbackModal");
+        const btnClose = document.getElementById("feedbackModalClose");
+        const btnCancel = document.getElementById("feedbackCancel");
+        const btnSubmit = document.getElementById("feedbackSubmit");
+        const ratingWrap = document.getElementById("feedbackRating");
+        const ratingClear = document.getElementById("feedbackRatingClear");
+        const messageInput = document.getElementById("feedbackMessage");
+        const contactInput = document.getElementById("feedbackContact");
+        const errorBox = document.getElementById("feedbackError");
+        const statusBox = document.getElementById("feedbackStatus");
+
+        if (!btnOpen || !modal || !messageInput || !contactInput || !btnSubmit) return;
+
+        let selectedRating = null;
+        let iframeLoadedOnce = false;
+        let pendingSubmit = false;
+
+        function setFeedbackModalOpen(isOpen) {
+            modal.classList.toggle("is-open", isOpen);
+            modal.setAttribute("aria-hidden", isOpen ? "false" : "true");
+
+            const anyModalOpen = isOpen || !!document.querySelector(".bb-modal-backdrop.is-open");
+            document.documentElement.classList.toggle("bb-modal-open", anyModalOpen);
+            document.body.classList.toggle("bb-modal-open", anyModalOpen);
+
+            if (isOpen) {
+                setTimeout(() => messageInput.focus(), 50);
+            }
+        }
+
+        function setStatus(message, kind) {
+            if (!statusBox) return;
+            statusBox.textContent = message || "";
+            statusBox.classList.toggle("is-open", !!message);
+            statusBox.classList.toggle("ok", kind === "ok");
+            statusBox.classList.toggle("warn", kind === "warn");
+        }
+
+        function openFeedbackModal() {
+            errorBox?.classList.remove("is-open");
+            setStatus("", "");
+            setFeedbackModalOpen(true);
+        }
+
+        function closeFeedbackModal() {
+            if (pendingSubmit) return;
+            setFeedbackModalOpen(false);
+        }
+
+        function setRating(value) {
+            selectedRating = value == null ? null : Number(value);
+
+            ratingWrap?.querySelectorAll(".bb-rating-btn").forEach(btn => {
+                btn.classList.toggle("is-active", Number(btn.dataset.rating) === selectedRating);
+            });
+        }
+
+        function getOrCreateSubmitIframe() {
+            const iframeName = "feedbackSubmitFrame";
+            let iframe = document.querySelector(`iframe[name="${iframeName}"]`);
+
+            if (!iframe) {
+                iframe = document.createElement("iframe");
+                iframe.name = iframeName;
+                iframe.style.display = "none";
+                iframe.setAttribute("aria-hidden", "true");
+                iframe.addEventListener("load", () => {
+                    if (!iframeLoadedOnce) {
+                        iframeLoadedOnce = true;
+                        return;
+                    }
+
+                    if (!pendingSubmit) return;
+
+                    pendingSubmit = false;
+                    btnSubmit.disabled = false;
+                    btnSubmit.textContent = "Send";
+                    setStatus("ส่ง feedback แล้ว", "ok");
+
+                    messageInput.value = "";
+                    contactInput.value = "";
+                    setRating(null);
+
+                    setTimeout(() => {
+                        setStatus("", "");
+                        setFeedbackModalOpen(false);
+                    }, 900);
+                });
+                document.body.appendChild(iframe);
+            }
+
+            return iframeName;
+        }
+
+        function appendHiddenInput(form, name, value) {
+            const input = document.createElement("input");
+            input.type = "hidden";
+            input.name = name;
+            input.value = value;
+            form.appendChild(input);
+        }
+
+        function submitFeedback() {
+            const message = (messageInput.value || "").trim();
+            const contact = (contactInput.value || "").trim();
+
+            if (!message) {
+                errorBox?.classList.add("is-open");
+                setStatus("", "");
+                messageInput.focus();
+                return;
+            }
+
+            errorBox?.classList.remove("is-open");
+            setStatus("กำลังส่ง feedback...", "warn");
+
+            pendingSubmit = true;
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = "Sending...";
+
+            const iframeName = getOrCreateSubmitIframe();
+
+            const form = document.createElement("form");
+            form.method = "POST";
+            form.action = FEEDBACK_FORM_RESPONSE_URL;
+            form.target = iframeName;
+            form.style.display = "none";
+            form.acceptCharset = "UTF-8";
+
+            if (selectedRating !== null && selectedRating >= 1 && selectedRating <= 5) {
+                appendHiddenInput(form, FEEDBACK_ENTRY.rating, String(selectedRating));
+            }
+
+            appendHiddenInput(form, FEEDBACK_ENTRY.message, message);
+            appendHiddenInput(form, FEEDBACK_ENTRY.contact, contact);
+
+            document.body.appendChild(form);
+            form.submit();
+            setTimeout(() => form.remove(), 1500);
+
+            // Safety fallback: บาง browser/privacy mode ไม่ส่ง event load กลับมาจาก Google Form
+            setTimeout(() => {
+                if (!pendingSubmit) return;
+                pendingSubmit = false;
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = "Send";
+                setStatus("ส่งคำขอแล้ว แต่ browser ไม่คืนสถานะยืนยันจาก Google Form", "warn");
+            }, 4500);
+        }
+
+        btnOpen.addEventListener("click", openFeedbackModal);
+        btnOpen.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                openFeedbackModal();
+            }
+        });
+
+        btnClose?.addEventListener("click", closeFeedbackModal);
+        btnCancel?.addEventListener("click", closeFeedbackModal);
+        btnSubmit.addEventListener("click", submitFeedback);
+
+        ratingWrap?.addEventListener("click", (e) => {
+            const btn = e.target.closest("[data-rating]");
+            if (!btn) return;
+            setRating(btn.dataset.rating);
+        });
+
+        ratingClear?.addEventListener("click", () => setRating(null));
+
+        messageInput.addEventListener("input", () => {
+            if ((messageInput.value || "").trim()) {
+                errorBox?.classList.remove("is-open");
+            }
+            setStatus("", "");
+        });
+
+        modal.addEventListener("click", (e) => {
+            if (e.target === modal) closeFeedbackModal();
+        });
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && modal.classList.contains("is-open")) {
+                closeFeedbackModal();
+            }
+        });
+    });
 </script>
 
 <script>
@@ -1803,7 +2256,7 @@
                 try { window.RWSOnlineSettings?.initWithin(slots[i]); } catch(e){ console.warn("RWSoverlay init fail", e); }
                 try { window.CHEMView?.initWithin(slots[i]); } catch(e){ console.warn("CHEMView init fail", e); }
                 try { window.EVENTsettings?.initWithin(slots[i]); } catch(e){ console.warn("EVENTViewsetting init fail", e); }
-                try { window.EVENTView?.initWithin(slots[i]); } catch(e){ console.warn("EVENTView init fail", e); }                
+                try { window.EVENTView?.initWithin(slots[i]); } catch(e){ console.warn("EVENTView init fail", e); }
                 try { window.BBTrendPTC?.initWithin(slots[i]); } catch(e){ console.warn("BBTrendPTC init fail", e); }
                 try { window.DPSSmartmapOverlay?.initWithin(slots[i]); } catch(e){ console.warn("DPSSmartmapOverlay init fail", e); }
                 try { window.PTCSmartmapOverlay?.initWithin(slots[i]); } catch(e){ console.warn("PTCSmartmapOverlay init fail", e); }
@@ -1840,14 +2293,18 @@
         if (!btnOpen || !modal || !editor) return;
 
         function openModal(){
-            modal.style.display = "flex";
+            modal.classList.add("is-open");
             modal.setAttribute("aria-hidden", "false");
+            document.documentElement.classList.add("bb-modal-open");
+            document.body.classList.add("bb-modal-open");
             renderEditor(loadSlots());
         }
 
         function closeModal(){
-            modal.style.display = "none";
+            modal.classList.remove("is-open");
             modal.setAttribute("aria-hidden", "true");
+            document.documentElement.classList.remove("bb-modal-open");
+            document.body.classList.remove("bb-modal-open");
         }
 
         function renderEditor(slots){
@@ -1908,7 +2365,7 @@
         });
 
         document.addEventListener("keydown", (e) => {
-            if (e.key === "Escape" && modal.style.display === "flex") closeModal();
+            if (e.key === "Escape" && modal.classList.contains("is-open")) closeModal();
         });
 
         btnReset && btnReset.addEventListener("click", () => {
@@ -1940,6 +2397,7 @@
 <script src="~/js/EVENTview.js"></script>
 <script src="~/js/dps_smartmap_overlay.js?v=1"></script>
 <script src="~/js/dps_summary.js" asp-append-version="true"></script>
+<script src="~/js/bb-alerts.js" asp-append-version="true"></script>
 <script src="~/js/TPS_settings.js"></script>
 <script src="~/js/TPS_summary.js"></script>
 <script src="~/js/RWS_summary.js" asp-append-version="true"></script>
@@ -1970,7 +2428,7 @@
         try { window.RWSSummary?.initWithin(root); } catch (e) {}
         try { window.CHEMSummary?.initWithin(root); } catch (e) {}
         try { window.CHEsettings?.initWithin(root); } catch (e) {}
-        try { window.LABview?.initWithin(root); } catch (e) {}
+        try { window.LABView?.initWithin(root); } catch (e) {}
         try { window.CLDetectorView?.initWithin(root); } catch (e) {}
         try { window.CLDetectorSettings?.initWithin(root); } catch (e) {}
       }

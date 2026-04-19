@@ -27,15 +27,28 @@
     section.dps-block .bb-section-h,
     section.dps-block .bb-section-h .right-icons {
         position: relative;
-        z-index: 99999 !important;
+        z-index: 100001 !important;
         pointer-events: auto !important;
     }
 
     section.dps-block #btnSettings,
     section.dps-block .bb-ico {
         position: relative;
-        z-index: 100000 !important;
+        z-index: 100002 !important;
         pointer-events: auto !important;
+    }
+
+    section.dps-block .right-icons {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    section.dps-block #btnSettings {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
     }
 </style>
 
@@ -48,10 +61,14 @@
         </div>
 
         <div class="right-icons">
-            <button class="bb-ico" type="button" title="Bell" aria-label="Bell">
+            <button class="bb-ico is-armed" data-role="dps-alert-bell" type="button" title="Bell: armed" aria-label="Bell armed">
                 <span>🔔</span>
             </button>
-            <button class="bb-ico" id="btnSettings" type="button" title="Settings" aria-label="Settings">
+            <button class="bb-ico"
+                    id="btnSettings"
+                    type="button"
+                    title="Settings"
+                    aria-label="Settings">
                 <span>⚙️</span>
             </button>
         </div>

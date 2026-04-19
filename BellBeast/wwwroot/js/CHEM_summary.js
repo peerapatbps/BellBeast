@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
     "use strict";
 
     function safeInit(root) {
@@ -15,9 +15,23 @@
         }
     }
 
-    // expose same shape as other blocks
     window.CHEMSummary = {
         initWithin(root) { safeInit(root); },
+
+        restartWithin(root) {
+            try {
+                if (window.CHEMView && typeof window.CHEMView.restartWithin === "function") {
+                    window.CHEMView.restartWithin(root || document);
+                } else {
+                    safeInit(root || document);
+                }
+
+                if (window.CHEMSettings && typeof window.CHEMSettings.initWithin === "function") {
+                    window.CHEMSettings.initWithin(root || document);
+                }
+            } catch (e) { }
+        },
+
         destroyWithin(root) {
             try {
                 if (window.CHEMView && typeof window.CHEMView.destroyWithin === "function") {
@@ -27,10 +41,9 @@
         }
     };
 
-    // auto-run once for full page load (safe if injected later: caller can call initWithin again)
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", () => safeInit(document), { once: true });
     } else {
         safeInit(document);
     }
-})(); 
+})();

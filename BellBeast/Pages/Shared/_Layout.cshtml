@@ -7,6 +7,7 @@
 
     <!-- ✅ ใช้ site.css ของเรา -->
     <link rel="stylesheet" href="/css/site.css" />
+    @await RenderSectionAsync("Styles", required: false)
 </head>
 <body>
     <div class="app-shell">
@@ -14,7 +15,8 @@
             <div class="brand">BellBeast</div>
             <nav class="nav">
                 <a asp-page="/MHxViewer/MHxView">MHxView</a>
-                <a asp-page="/Index">AquadatQuery</a>                
+                <a asp-page="/Index">AquadatQuery</a>
+                <a asp-page="/WebPM">WebPM</a>
                 @*<a asp-page="/MH_report">DailyReport</a>*@
                 <a asp-page="/CHEM_report">ChemReport</a>
                 <a asp-page="/Admin/AdminPage">AdminEntry</a>
@@ -22,7 +24,7 @@
             </nav>
         </header>
 
-        <main class="content">
+        <main class="@(ViewData["ContentClass"] as string ?? "content")">
             @RenderBody()
         </main>
 

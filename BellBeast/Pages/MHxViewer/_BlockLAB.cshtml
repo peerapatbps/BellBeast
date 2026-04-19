@@ -268,7 +268,8 @@
     }
 
     /* ===== settings popup overlay ===== */
-    .lab-settings-overlay {
+    .lab-settings-overlay,
+    .lab-slot-settings-overlay {
         position: fixed;
         inset: 0;
         display: none;
@@ -278,12 +279,14 @@
         z-index: 200000;
     }
 
-        .lab-settings-overlay.show {
+        .lab-settings-overlay.show,
+        .lab-slot-settings-overlay.show {
             display: flex;
         }
 
     /* ===== settings popup ===== */
-    .lab-settings-pop {
+    .lab-settings-pop,
+    .lab-slot-settings-pop {
         width: 300px;
         max-width: calc(100vw - 24px);
         border-radius: 16px;
@@ -443,7 +446,7 @@
         </div>
 
         <div class="right-icons">
-            <button class="bb-ico" type="button" title="Bell" aria-label="Bell">
+            <button class="bb-ico is-armed" data-role="lab-alert-bell" type="button" title="Bell: armed" aria-label="Bell armed">
                 <span>🔔</span>
             </button>
             <button class="bb-ico" id="labBtnSettings" type="button" title="Settings" aria-label="Settings">
@@ -1005,11 +1008,19 @@
         }
 
         function createSettingsPopup() {
-            let pop = document.querySelector(".lab-settings-pop");
-            if (pop) return pop;
+            let overlay = document.querySelector('.lab-slot-settings-overlay[data-owner="mhx-lab-slot"]');
+            if (overlay) {
+                const existing = overlay.querySelector(".lab-slot-settings-pop");
+                if (existing) return existing;
+                overlay.remove();
+            }
 
-            pop = document.createElement("div");
-            pop.className = "lab-settings-pop";
+            overlay = document.createElement("div");
+            overlay.className = "lab-slot-settings-overlay";
+            overlay.setAttribute("data-owner", "mhx-lab-slot");
+
+            const pop = document.createElement("div");
+            pop.className = "lab-slot-settings-pop";
             pop.innerHTML = `
                 <div class="lab-settings-title">LAB Settings</div>
 
@@ -1030,10 +1041,11 @@
                 </div>
             `;
 
-            document.body.appendChild(pop);
+            overlay.appendChild(pop);
+            document.body.appendChild(overlay);
 
             pop.querySelector(".lab-cancel")?.addEventListener("click", () => {
-                pop.classList.remove("show");
+                overlay.classList.remove("show");
             });
 
             pop.querySelector(".lab-save")?.addEventListener("click", async () => {
@@ -1042,17 +1054,15 @@
 
                 refreshSec = v;
                 saveSettings({ refreshSec: v });
-                pop.classList.remove("show");
+                overlay.classList.remove("show");
 
                 restartPoller();
                 await tick();
             });
 
-            document.addEventListener("click", (ev) => {
-                if (!pop.classList.contains("show")) return;
-                if (pop.contains(ev.target)) return;
-                if (btnSettings && btnSettings.contains(ev.target)) return;
-                pop.classList.remove("show");
+            overlay.addEventListener("click", (ev) => {
+                if (ev.target !== overlay) return;
+                overlay.classList.remove("show");
             });
 
             return pop;
@@ -1065,7 +1075,8 @@
             const pop = createSettingsPopup();
             const sel = pop.querySelector("#labRefreshSel");
             if (sel) sel.value = String(refreshSec);
-            pop.classList.toggle("show");
+            const overlay = pop.closest(".lab-slot-settings-overlay");
+            overlay?.classList.toggle("show");
         });
 
         for (const btn of filterButtons) {

@@ -96,6 +96,13 @@ window.BBTrendPTC = (function () {
         }
     }
 
+    function syncSectionAlert(section) {
+        // Alarm is owned by ptc_smartmap_overlay.js.
+        // PTCview.js only renders upper/lower series. Do not evaluate or overwrite the bell here,
+        // otherwise series refresh can clear an active out-of-control alarm.
+        return;
+    }
+
     function inferBackendUrl(canvas, key, forceTs) {
         const port = (canvas.getAttribute("data-backend-port") || "8888").trim();
         const proto = (location.protocol === "https:") ? "https" : "http";
@@ -268,6 +275,7 @@ window.BBTrendPTC = (function () {
             else setLatest(canvas, null, null, null);
 
             canvas._bbTimeline = pts;
+            syncSectionAlert(canvas.closest("section.ptc-block"));
 
             if (!canvas._bbChart) {
                 const chart = new Chart(canvas.getContext("2d"), {
@@ -321,6 +329,7 @@ window.BBTrendPTC = (function () {
             ch.update("none");
         } catch (e) {
             showFail(canvas, `PTC load failed: ${e && e.message ? e.message : 'error'}`);
+            syncSectionAlert(canvas.closest("section.ptc-block"));
         } finally {
             canvas._bbBusy = false;
         }

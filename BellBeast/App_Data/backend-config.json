@@ -1,5 +1,5 @@
 {
-  "backendBaseUrl": "http://172.22.46.54:8888",
+  "backendBaseUrl": "http://localhost:8888",
   "queryCsvPath": "/api/process",
   "dailyReportPath": "/api/dailyreport",
   "chemReportPath": "/api/chem_report",
@@ -12,5 +12,6 @@
   "chemSummaryPath": "/api/chem/summary",
   "eventSummaryPath": "/api/event/summary",
   "labSummaryPath": "/api/lab/summary",
-  "cldetectorPath": "/api/cldetector/summary"
+  "cldetectorPath": "/api/cldetector/summary",
+  "wayfarerApiPath": "/api/wayfarer"
 }

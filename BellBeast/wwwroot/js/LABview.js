@@ -4,7 +4,10 @@
         tempOverlay: true,
         statusMode: "normal",
         zone4Filter: "CW Turbid",
-        refreshMin: 10
+        refreshMin: 10,
+        alertEnabled: false,
+        alertLimit: 2,
+        alertMuted: false
     };
 
     const STORAGE_KEY = "bb_lab_settings_v5";
@@ -44,6 +47,12 @@
         localStorage.setItem(STORAGE_KEY, JSON.stringify(v));
     }
 
+    function syncBell() {
+        const bell = rootEl?.querySelector('[data-role="lab-alert-bell"]');
+        const settings = loadSettings();
+        window.BBAlerts?.setBellState?.(bell, settings.alertMuted ? "muted" : "armed");
+    }
+
     function getRoot(scope) {
         return scope?.querySelector?.("section.lab-block") || document.querySelector("section.lab-block");
     }
@@ -66,6 +75,12 @@
         if (v === null || v === undefined || v === "") return null;
         const n = Number(v);
         return Number.isFinite(n) ? n : null;
+    }
+
+    function clamp(value, min, max, fallback) {
+        const n = toNumber(value);
+        if (n === null) return fallback ?? min;
+        return Math.max(min, Math.min(max, n));
     }
 
     function getChartJs() {
@@ -187,7 +202,7 @@
 
     function renderStatus(items, mode) {
         const grid = rootEl?.querySelector("#labStatusGrid");
-        if (!grid) return;
+        if (!grid) return 0;
 
         const byKey = new Map(safeArray(items).map(x => [normalizeStatusKey(x.key), x]));
         const keys = [
@@ -198,10 +213,12 @@
         ];
 
         grid.innerHTML = "";
+        let badCount = 0;
 
         for (const key of keys) {
             const item = byKey.get(normalizeStatusKey(key));
             const cls = classifyStatusItem(item, mode);
+            if (cls === "bad") badCount++;
 
             const pill = document.createElement("div");
             pill.className = "status-pill";
@@ -213,6 +230,7 @@
             pill.appendChild(document.createTextNode(key));
             grid.appendChild(pill);
         }
+        return badCount;
     }
 
     function renderRecommend(zone2) {
@@ -593,11 +611,23 @@
 
                 renderRwChart(data.zone1, settings);
                 renderRecommend(data.zone2 || {});
-                renderStatus(data.zone3?.items || [], settings.statusMode);
-                renderZone4(data.zone4 || {}, settings);
-            } catch (err) {
-                console.error("LAB fetch/render failed:", err);
-            } finally {
+                  const badCount = renderStatus(data.zone3?.items || [], settings.statusMode);
+                  renderZone4(data.zone4 || {}, settings);
+                  const exceeded = window.BBAlerts?.evaluate?.(rootEl, {
+                      ruleKey: "lab-bad-count",
+                      enabled: settings.alertEnabled,
+                      muted: settings.alertMuted,
+                      value: badCount,
+                      limit: settings.alertLimit,
+                      direction: "gt"
+                  }) || false;
+                  window.BBAlerts?.setBellState?.(
+                      rootEl?.querySelector('[data-role="lab-alert-bell"]'),
+                      exceeded ? "alerting" : (settings.alertMuted ? "muted" : "armed")
+                  );
+              } catch (err) {
+                  console.error("LAB fetch/render failed:", err);
+              } finally {
                 inFlightPromise = null;
             }
         })();
@@ -676,6 +706,22 @@
                                             <button type="button" id="labModeEmergency" style="flex:1;">Emergency</button>
                                         </div>
                                     </div>
+                                    <div class="lab-settings-row">
+                                        <label style="display:flex;align-items:center;gap:8px;">
+                                            <input type="checkbox" id="labAlertEnabled" />
+                                            Enable bad-status alert
+                                        </label>
+                                    </div>
+                                    <div class="lab-settings-row">
+                                        <label>Bad-status alert limit</label>
+                                        <input type="number" id="labAlertLimit" min="1" max="16" step="1" />
+                                    </div>
+                                    <div class="lab-settings-row">
+                                        <label style="display:flex;align-items:center;gap:8px;">
+                                            <input type="checkbox" id="labAlertMuted" />
+                                            Mute bell sound
+                                        </label>
+                                    </div>
 
                                     <div class="lab-settings-actions">
                                         <button type="button" id="labSetCancel">Cancel</button>
@@ -694,13 +740,20 @@
                 ...current,
                 refreshMin: Number(popupEl.querySelector("#labSetRefreshMin")?.value || DEFAULTS.refreshMin),
                 rwOption: popupEl.querySelector("#labSetRwOption")?.value || "TURBIDITY",
-                tempOverlay: !!popupEl.querySelector("#labSetTempOverlay")?.checked
+                tempOverlay: !!popupEl.querySelector("#labSetTempOverlay")?.checked,
+                alertEnabled: !!popupEl.querySelector("#labAlertEnabled")?.checked,
+                alertLimit: clamp(Number(popupEl.querySelector("#labAlertLimit")?.value || DEFAULTS.alertLimit), 1, 16),
+                alertMuted: !!popupEl.querySelector("#labAlertMuted")?.checked
             };
 
             const normalBtn = popupEl.querySelector("#labModeNormal");
             next.statusMode = normalBtn?.dataset?.active === "true" ? "normal" : "emergency";
 
             saveSettings(next);
+            if (next.alertMuted && !current.alertMuted) {
+                window.BBAlerts?.resetRule?.(rootEl, "lab-bad-count");
+                syncBell();
+            }
             restartPoller();
             closePopup();
             await tick();
@@ -727,6 +780,12 @@
         if (refreshSel) refreshSel.value = String(settings.refreshMin ?? DEFAULTS.refreshMin);
         if (sel) sel.value = settings.rwOption;
         if (chk) chk.checked = !!settings.tempOverlay;
+        const alertEnabled = popupEl.querySelector("#labAlertEnabled");
+        const alertLimit = popupEl.querySelector("#labAlertLimit");
+        const alertMuted = popupEl.querySelector("#labAlertMuted");
+        if (alertEnabled) alertEnabled.checked = !!settings.alertEnabled;
+        if (alertLimit) alertLimit.value = String(settings.alertLimit ?? DEFAULTS.alertLimit);
+        if (alertMuted) alertMuted.checked = !!settings.alertMuted;
         setModeButtons(settings.statusMode);
 
         popupOverlayEl.classList.add("show");
@@ -740,8 +799,24 @@
         btn.addEventListener("click", (ev) => {
             ev.preventDefault();
             ev.stopPropagation();
+            window.BBAlerts?.armAudio?.();
             openPopup();
         });
+
+        const bell = rootEl?.querySelector('[data-role="lab-alert-bell"]');
+        if (bell && bell.dataset.bound !== "true") {
+            bell.dataset.bound = "true";
+            bell.addEventListener("click", (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                const settings = loadSettings();
+                const wasMuted = settings.alertMuted;
+                settings.alertMuted = !settings.alertMuted;
+                saveSettings(settings);
+                if (!wasMuted && settings.alertMuted) window.BBAlerts?.resetRule?.(rootEl, "lab-bad-count");
+                syncBell();
+            });
+        }
     }
 
     function mapZone4FilterKey(filterKey) {
@@ -804,6 +879,7 @@
 
         bindSettingsButton();
         bindFilterButtons();
+        syncBell();
         restartPoller();
         tick();
     }

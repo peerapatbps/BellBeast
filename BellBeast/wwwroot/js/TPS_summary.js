@@ -65,6 +65,26 @@
         gaugeEl.style.setProperty("--fill", String(cp ?? 0));
     }
 
+    function getAlertSettings() {
+        const s = (window.TPSSettings && typeof window.TPSSettings.loadSettings === "function")
+            ? window.TPSSettings.loadSettings()
+            : {};
+
+        const pressureHighLimit = Number.isFinite(Number(s.pressureHighLimit ?? s.pressureAlertLimit))
+            ? Number(s.pressureHighLimit ?? s.pressureAlertLimit)
+            : 4.5;
+
+        return {
+            pressureAlertEnabled: Boolean(s.pressureAlertEnabled),
+            pressureLowLimit: Number.isFinite(Number(s.pressureLowLimit)) ? Number(s.pressureLowLimit) : 2.5,
+            pressureHighLimit: pressureHighLimit,
+            pressureAlertLimit: pressureHighLimit,
+            serviceWaterFlowAlertEnabled: Boolean(s.serviceWaterFlowAlertEnabled),
+            serviceWaterFlowLowLimit: Number.isFinite(Number(s.serviceWaterFlowLowLimit)) ? Number(s.serviceWaterFlowLowLimit) : 5.0,
+            pressureAlertMuted: Boolean(s.pressureAlertMuted)
+        };
+    }
+
     function ensureChart(section, canvas) {
         // guard: ถ้าไม่มี Chart.js -> คืน null (ไม่ throw)
         if (!canvas || typeof window.Chart === "undefined") return null;
@@ -173,6 +193,7 @@
 
         const elPressure = section.querySelector("#tpsPressure");
         const elPressureStatus = section.querySelector("#tpsPressureStatus");
+        const elBell = section.querySelector('[data-role="tps-alert-bell"]');
 
         const elCwt = section.querySelector("#tpsCwtLevel");
         const elCwtStatus = section.querySelector("#tpsCwtStatus");
@@ -237,6 +258,10 @@
             setStatus(elPressureStatus, false);
             setStatus(elCwtStatus, false);
             setStatus(elOverviewStatus, false);
+            window.BBAlerts?.resetRule?.(section, "pressure-low");
+            window.BBAlerts?.resetRule?.(section, "pressure-high");
+            window.BBAlerts?.resetRule?.(section, "service-water-flow-low");
+            window.BBAlerts?.setBellState?.(elBell, "muted");
 
             // tanks
             for (const k of Object.keys(tankMap)) {
@@ -291,8 +316,29 @@
 
                 // ---- Pressure ----
                 const pText = fmtNumber(data?.TR_pressure, 2);
+                const pressureValue = (typeof data?.TR_pressure === "number") ? data.TR_pressure : Number(data?.TR_pressure);
                 if (elPressure) elPressure.textContent = (pText ?? "-");
                 setStatus(elPressureStatus, pText !== null);
+
+                const alertSettings = getAlertSettings();
+
+                const pressureLowExceeded = window.BBAlerts?.evaluate?.(section, {
+                    ruleKey: "pressure-low",
+                    enabled: alertSettings.pressureAlertEnabled,
+                    muted: alertSettings.pressureAlertMuted,
+                    value: pressureValue,
+                    limit: alertSettings.pressureLowLimit,
+                    direction: "lt"
+                }) || false;
+
+                const pressureHighExceeded = window.BBAlerts?.evaluate?.(section, {
+                    ruleKey: "pressure-high",
+                    enabled: alertSettings.pressureAlertEnabled,
+                    muted: alertSettings.pressureAlertMuted,
+                    value: pressureValue,
+                    limit: alertSettings.pressureHighLimit,
+                    direction: "gt"
+                }) || false;
 
                 // ---- CWT ----
                 const cwtText = fmtNumber(data?.TR_cwt, 2);
@@ -302,9 +348,36 @@
                 // ---- Overview (service water) ----
                 const svcText = fmtNumber(data?.SVwater_flow, 0);
                 const svcTotText = fmtNumber(data?.SVwater_sumflow, 1);
+
                 if (elSvcWater) elSvcWater.textContent = (svcText ?? "-");
                 if (elSvcWaterTot) elSvcWaterTot.textContent = (svcTotText ?? "-");
+
                 setStatus(elOverviewStatus, (svcText !== null) || (svcTotText !== null));
+
+                const serviceWaterValue = (typeof data?.SVwater_flow === "number")
+                    ? data.SVwater_flow
+                    : Number(data?.SVwater_flow);
+
+                const serviceWaterLowExceeded = window.BBAlerts?.evaluate?.(section, {
+                    ruleKey: "service-water-flow-low",
+                    enabled: alertSettings.serviceWaterFlowAlertEnabled,
+                    muted: alertSettings.pressureAlertMuted,
+                    value: serviceWaterValue,
+                    limit: alertSettings.serviceWaterFlowLowLimit,
+                    direction: "lt"
+                }) || false;
+
+                const anyAlerting =
+                    pressureLowExceeded ||
+                    pressureHighExceeded ||
+                    serviceWaterLowExceeded;
+
+                window.BBAlerts?.setBellState?.(
+                    elBell,
+                    anyAlerting
+                        ? "alerting"
+                        : (alertSettings.pressureAlertMuted ? "muted" : "armed")
+                );
 
                 // ---- Tanks ----
                 const tanks = data?.Tanks || {};
@@ -365,6 +438,7 @@
 
         tick();
         section._tpsSummaryTimer = setInterval(tick, pollMs);
+        window.TPSSettings?.syncBell?.(section);
     }
 
     function stopForSection(section) {

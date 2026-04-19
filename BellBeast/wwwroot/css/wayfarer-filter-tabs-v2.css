@@ -1,0 +1,790 @@
+/* WebPM filter-mode tab extension v2. Separate from wayfarer.css. */
+.wf-mode-panel {
+    position: relative;
+}
+
+/* Date | OG Mode | MH Map Mode row */
+.wf-filter-mode-row {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr 1fr;
+    gap: 12px;
+    margin: 18px 0;
+    align-items: stretch;
+}
+
+/* Let OG / MAP buttons join parent 3-column grid */
+.wf-tab-shell {
+    display: contents;
+    margin: 0;
+}
+
+/* Shared Date card */
+.wf-filter-group-shared {
+    min-height: 118px;
+    border: 1px solid var(--wf-line);
+    border-radius: 18px;
+    padding: 16px 18px;
+    background: linear-gradient(135deg, rgba(56, 189, 248, .12), rgba(255, 255, 255, .03)), rgba(255, 255, 255, .04);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, .14);
+}
+
+    .wf-filter-group-shared strong {
+        display: block;
+        margin-top: 4px;
+        font-size: 18px;
+        letter-spacing: -.02em;
+        color: var(--wf-text);
+    }
+
+    .wf-filter-group-shared small {
+        display: block;
+        margin-top: 4px;
+        color: var(--wf-muted);
+        line-height: 1.4;
+    }
+
+.wf-filter-date-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.wf-filter-group-shared .wf-field {
+    position: relative;
+}
+
+.wf-date-box {
+    position: relative;
+    display: block;
+}
+
+.wf-date-box::after {
+    content: "";
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    bottom: 1px;
+    width: 44px;
+    border-left: 1px solid rgba(34, 211, 238, .24);
+    border-radius: 0 11px 11px 0;
+    background:
+        url("/images/webpm/calendar-dark.svg") center/16px 16px no-repeat,
+        linear-gradient(135deg, rgba(34, 211, 238, .96), rgba(56, 189, 248, .88));
+    pointer-events: none;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18);
+}
+
+.wf-filter-group-shared .wf-date-box input[type="date"] {
+    min-height: 48px;
+    padding-right: 52px;
+    border-color: rgba(56, 189, 248, .28);
+    background: linear-gradient(180deg, rgba(8, 20, 38, .98), rgba(11, 22, 40, .98));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, .04),
+        0 8px 20px rgba(2, 8, 23, .22);
+    transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.wf-filter-group-shared .wf-date-box input[type="date"]:hover {
+    border-color: rgba(34, 211, 238, .45);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, .05),
+        0 10px 24px rgba(8, 145, 178, .14);
+}
+
+.wf-filter-group-shared .wf-date-box input[type="date"]:focus {
+    border-color: rgba(34, 211, 238, .72);
+    box-shadow:
+        0 0 0 3px rgba(34, 211, 238, .14),
+        0 12px 28px rgba(14, 165, 233, .18);
+    transform: translateY(-1px);
+}
+
+.wf-filter-group-shared .wf-date-box input[type="date"]::-webkit-calendar-picker-indicator {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 44px;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.wf-filter-group-shared .wf-date-box input[type="date"]::-webkit-datetime-edit {
+    color: var(--wf-text);
+    letter-spacing: .02em;
+}
+
+.wf-tab-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    min-height: 118px;
+    padding: 16px 18px;
+    border: 1px solid var(--wf-line);
+    border-radius: 18px;
+    color: var(--wf-text);
+    background: rgba(255, 255, 255, .04);
+    cursor: pointer;
+    text-align: left;
+    transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
+}
+
+    .wf-tab-btn:hover {
+        transform: translateY(-1px);
+        border-color: rgba(56, 189, 248, .42);
+        background: rgba(255, 255, 255, .07);
+    }
+
+    .wf-tab-btn.is-active {
+        border-color: rgba(56, 189, 248, .68);
+        background: linear-gradient(135deg, rgba(56, 189, 248, .20), rgba(34, 211, 238, .07)), rgba(255, 255, 255, .05);
+        box-shadow: 0 0 0 3px rgba(56, 189, 248, .10), 0 18px 48px rgba(0, 0, 0, .18);
+    }
+
+.wf-tab-kicker {
+    color: var(--wf-brand-2);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .16em;
+}
+
+.wf-tab-btn strong {
+    font-size: 18px;
+    letter-spacing: -.02em;
+}
+
+.wf-tab-btn small {
+    color: var(--wf-muted);
+    line-height: 1.4;
+}
+
+/* MH Map status toggle */
+.wf-map-status-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 14px 0;
+}
+
+.wf-map-status-toggle {
+    min-height: 38px;
+    padding: 8px 13px;
+    border: 1px solid var(--wf-line);
+    border-radius: 999px;
+    color: var(--wf-text);
+    background: rgba(255, 255, 255, .04);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 800;
+    transition: transform .14s ease, border-color .14s ease, background .14s ease, box-shadow .14s ease;
+}
+
+    .wf-map-status-toggle:hover {
+        transform: translateY(-1px);
+        border-color: rgba(56, 189, 248, .42);
+        background: rgba(255, 255, 255, .07);
+    }
+
+    .wf-map-status-toggle.is-active {
+        border-color: rgba(56, 189, 248, .65);
+        background: rgba(56, 189, 248, .16);
+        box-shadow: 0 0 0 3px rgba(56, 189, 248, .10);
+    }
+
+    .wf-map-status-toggle[data-map-status="open"].is-active {
+        border-color: rgba(250, 204, 21, .55);
+        background: rgba(250, 204, 21, .14);
+        color: var(--wf-waiting);
+    }
+
+    .wf-map-status-toggle[data-map-status="scheduled"].is-active {
+        border-color: rgba(251, 146, 60, .55);
+        background: rgba(251, 146, 60, .14);
+        color: var(--wf-scheduled);
+    }
+
+    .wf-map-status-toggle[data-map-status="progress"].is-active {
+        border-color: rgba(96, 165, 250, .55);
+        background: rgba(96, 165, 250, .14);
+        color: var(--wf-progress);
+    }
+
+    .wf-map-status-toggle[data-map-status="completed"].is-active {
+        border-color: rgba(74, 222, 128, .55);
+        background: rgba(74, 222, 128, .14);
+        color: var(--wf-completed);
+    }
+
+.wf-tab-page[hidden],
+#wfOgResultView[hidden],
+#wfMhMapResultView[hidden] {
+    display: none !important;
+}
+
+.wf-tab-page {
+    animation: wfTabFade .18s ease both;
+}
+
+@keyframes wfTabFade {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* MH Map mode: filter block is map-only. No form controls, no apply button. */
+.wf-mh-map-shell {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    min-height: 460px;
+    border: 1px solid var(--wf-line);
+    border-radius: 20px;
+    overflow: hidden;
+    background: #020617;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .03);
+}
+
+.wf-mh-map-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: filter .22s ease, transform .22s ease;
+}
+
+.wf-mh-map-shell.is-hovering .wf-mh-map-image {
+    filter: brightness(92%);
+}
+
+.wf-mh-hotspot-layer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.wf-mh-hotspot {
+    pointer-events: auto;
+    fill: rgba(56, 189, 248, .08);
+    stroke: rgba(56, 189, 248, .64);
+    stroke-width: 4;
+    cursor: pointer;
+    transition: fill .18s ease, stroke .18s ease, filter .18s ease;
+}
+
+    .wf-mh-hotspot:hover,
+    .wf-mh-hotspot.is-selected {
+        fill: rgba(56, 189, 248, .34);
+        stroke: rgba(255, 255, 255, .96);
+        filter: drop-shadow(0 0 18px rgba(56, 189, 248, .95));
+    }
+
+    .wf-mh-hotspot.is-selected {
+        fill: rgba(74, 222, 128, .30);
+        stroke: rgba(187, 247, 208, .96);
+    }
+
+.wf-mh-map-tooltip {
+    position: absolute;
+    width: 280px;
+    padding: 12px 14px;
+    border: 1px solid rgba(56, 189, 248, .38);
+    border-radius: 14px;
+    background: rgba(15, 23, 42, .90);
+    color: var(--wf-text);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, .28);
+    backdrop-filter: blur(12px);
+    pointer-events: none;
+    z-index: 50;
+}
+
+    .wf-mh-map-tooltip strong,
+    .wf-mh-map-tooltip span,
+    .wf-mh-map-tooltip small {
+        display: block;
+    }
+
+    .wf-mh-map-tooltip strong {
+        margin-bottom: 4px;
+        font-size: 16px;
+    }
+
+    .wf-mh-map-tooltip span {
+        color: #7dd3fc;
+        font-size: 13px;
+        font-weight: 800;
+        overflow-wrap: anywhere;
+    }
+
+    .wf-mh-map-tooltip small {
+        margin-top: 6px;
+        color: var(--wf-muted);
+    }
+
+.wf-mh-result-panel .wf-table {
+    min-width: 980px;
+}
+
+/* MH Map marker system v3: branch-status base + WO count overlay. */
+.wf-mh-map-legend,
+.wf-mh-selection-hint {
+    position: absolute;
+    z-index: 3;
+    left: 14px;
+    border: 1px solid rgba(148, 163, 184, .28);
+    border-radius: 14px;
+    background: rgba(15, 23, 42, .78);
+    color: var(--wf-text);
+    backdrop-filter: blur(10px);
+}
+
+.wf-mh-map-legend {
+    top: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    max-width: calc(100% - 28px);
+    padding: 10px 12px;
+    font-size: 12px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, .22);
+}
+
+    .wf-mh-map-legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+    }
+
+    .wf-mh-map-legend i {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, .12);
+    }
+
+.legend-real {
+    background: #22c55e;
+}
+
+.legend-unmapped {
+    background: #f59e0b;
+}
+
+.legend-demolished {
+    background: #ef4444;
+}
+
+.legend-future {
+    background: #94a3b8;
+}
+
+.legend-haswo {
+    background: #38bdf8;
+}
+
+.wf-mh-selection-hint {
+    bottom: 14px;
+    padding: 9px 12px;
+    color: var(--wf-muted);
+    font-size: 12px;
+}
+
+.wf-mh-marker {
+    pointer-events: auto;
+    cursor: pointer;
+    outline: none;
+}
+
+.wf-mh-marker-core,
+.wf-mh-marker-ring {
+    vector-effect: non-scaling-stroke;
+    transition: fill .18s ease, stroke .18s ease, opacity .18s ease, filter .18s ease, transform .18s ease;
+}
+
+.wf-mh-marker-ring {
+    fill: transparent;
+    stroke-width: 3;
+    opacity: .55;
+}
+
+.wf-mh-marker-core {
+    stroke-width: 3;
+    filter: drop-shadow(0 6px 12px rgba(0, 0, 0, .36));
+}
+
+.wf-mh-marker-label,
+.wf-mh-marker-badge {
+    font-family: inherit;
+    font-weight: 900;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    pointer-events: none;
+    paint-order: stroke;
+    stroke: rgba(2, 6, 23, .72);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+}
+
+.wf-mh-marker-label {
+    fill: #f8fafc;
+    font-size: 16px;
+}
+
+.wf-mh-marker-badge {
+    fill: #e0f2fe;
+    font-size: 18px;
+}
+
+.wf-mh-marker.branch-real .wf-mh-marker-core {
+    fill: rgba(34, 197, 94, .55);
+    stroke: rgba(187, 247, 208, .90);
+}
+
+.wf-mh-marker.branch-real .wf-mh-marker-ring {
+    stroke: rgba(34, 197, 94, .56);
+}
+
+.wf-mh-marker.branch-unmapped .wf-mh-marker-core {
+    fill: rgba(245, 158, 11, .52);
+    stroke: rgba(253, 230, 138, .92);
+}
+
+.wf-mh-marker.branch-unmapped .wf-mh-marker-ring {
+    stroke: rgba(245, 158, 11, .58);
+}
+
+.wf-mh-marker.branch-demolished .wf-mh-marker-core {
+    fill: rgba(239, 68, 68, .42);
+    stroke: rgba(254, 202, 202, .82);
+}
+
+.wf-mh-marker.branch-demolished .wf-mh-marker-ring {
+    stroke: rgba(239, 68, 68, .52);
+}
+
+.wf-mh-marker.branch-future .wf-mh-marker-core {
+    fill: rgba(148, 163, 184, .36);
+    stroke: rgba(226, 232, 240, .70);
+    stroke-dasharray: 5 4;
+}
+
+.wf-mh-marker.branch-future .wf-mh-marker-ring {
+    stroke: rgba(148, 163, 184, .50);
+    stroke-dasharray: 6 5;
+}
+
+.wf-mh-marker.no-wo {
+    opacity: .72;
+}
+
+.wf-mh-marker.has-wo {
+    opacity: 1;
+}
+
+    .wf-mh-marker.has-wo .wf-mh-marker-core {
+        fill: rgba(56, 189, 248, .70);
+        stroke: rgba(240, 249, 255, .96);
+        filter: drop-shadow(0 0 15px rgba(56, 189, 248, .85)) drop-shadow(0 8px 16px rgba(0, 0, 0, .34));
+    }
+
+    .wf-mh-marker.has-wo .wf-mh-marker-ring {
+        stroke: rgba(125, 211, 252, .84);
+        animation: wfMhPulse 1.9s ease-out infinite;
+    }
+
+.wf-mh-marker.has-open .wf-mh-marker-badge {
+    fill: #fecaca;
+}
+
+.wf-mh-marker.has-progress .wf-mh-marker-badge {
+    fill: #fed7aa;
+}
+
+.wf-mh-marker.has-scheduled .wf-mh-marker-badge {
+    fill: #fde68a;
+}
+
+.wf-mh-marker.all-completed .wf-mh-marker-badge {
+    fill: #bbf7d0;
+}
+
+.wf-mh-marker.is-mixed .wf-mh-marker-badge {
+    fill: #ddd6fe;
+}
+
+.wf-mh-marker:hover,
+.wf-mh-marker:focus-visible,
+.wf-mh-marker.is-selected {
+    opacity: 1;
+}
+
+    .wf-mh-marker:hover .wf-mh-marker-core,
+    .wf-mh-marker:focus-visible .wf-mh-marker-core {
+        stroke: rgba(255, 255, 255, .98);
+        filter: drop-shadow(0 0 18px rgba(56, 189, 248, .95)) drop-shadow(0 8px 16px rgba(0, 0, 0, .34));
+    }
+
+    .wf-mh-marker.is-selected .wf-mh-marker-core {
+        fill: rgba(74, 222, 128, .78);
+        stroke: rgba(255, 255, 255, 1);
+        stroke-width: 5;
+        filter: drop-shadow(0 0 22px rgba(74, 222, 128, .98)) drop-shadow(0 8px 16px rgba(0, 0, 0, .36));
+    }
+
+    .wf-mh-marker.is-selected .wf-mh-marker-ring {
+        stroke: rgba(255, 255, 255, .96);
+        opacity: 1;
+    }
+
+@keyframes wfMhPulse {
+    0% {
+        opacity: .82;
+        transform: scale(1);
+    }
+
+    72% {
+        opacity: .08;
+        transform: scale(1.7);
+    }
+
+    100% {
+        opacity: 0;
+        transform: scale(1.7);
+    }
+}
+
+.wf-mh-tip-status {
+    display: grid;
+    gap: 3px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(148, 163, 184, .22);
+}
+
+    .wf-mh-tip-status em {
+        color: var(--wf-muted);
+        font-size: 12px;
+        font-style: normal;
+    }
+
+.wf-mh-tip-status-row {
+    color: var(--wf-text);
+    font-size: 12px;
+}
+
+    .wf-mh-tip-status-row b {
+        color: #7dd3fc;
+    }
+
+.wf-mh-result-panel tbody tr[data-wo-no] {
+    cursor: pointer;
+}
+
+    .wf-mh-result-panel tbody tr[data-wo-no]:hover {
+        background: rgba(56, 189, 248, .08);
+    }
+
+/* Branches without exact physical coordinates. They behave like map objects. */
+.wf-mh-unmapped-panel {
+    position: absolute;
+    left: clamp(18px, 18%, 380px);
+    bottom: clamp(18px, 6%, 72px);
+    z-index: 5;
+    width: min(620px, 48%);
+    padding: 14px 18px;
+    border: 1px solid rgba(234, 179, 8, .42);
+    border-radius: 20px;
+    background: rgba(254, 249, 195, .94);
+    color: #422006;
+    box-shadow: 0 18px 42px rgba(15, 23, 42, .16);
+    backdrop-filter: blur(10px);
+}
+
+.wf-mh-unmapped-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 46px;
+    padding: 5px 0;
+    border: 0;
+    border-radius: 14px;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    transition: transform .16s ease, background .16s ease;
+}
+
+    .wf-mh-unmapped-item:hover,
+    .wf-mh-unmapped-item:focus-visible {
+        transform: translateX(3px);
+        background: rgba(254, 240, 138, .42);
+        outline: none;
+        z-index: 20;
+    }
+
+    .wf-mh-unmapped-item.is-selected {
+        background: rgba(234, 179, 8, .24);
+    }
+
+.wf-mh-unmapped-dot {
+    position: relative;
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    border: 2px solid #ca8a04;
+    border-radius: 999px;
+    background: rgba(254, 252, 232, .98);
+    display: grid;
+    place-items: center;
+    box-shadow: 0 6px 14px rgba(15, 23, 42, .14);
+    transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+
+.wf-mh-unmapped-no {
+    color: #713f12;
+    font-size: 14px;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.wf-mh-unmapped-name {
+    font-size: clamp(13px, 1vw, 16px);
+    font-weight: 800;
+    line-height: 1.25;
+    letter-spacing: -.01em;
+}
+
+.wf-mh-unmapped-item:hover .wf-mh-unmapped-dot,
+.wf-mh-unmapped-item.is-selected .wf-mh-unmapped-dot {
+    transform: scale(1.05);
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 4px rgba(234, 179, 8, .22), 0 10px 22px rgba(15, 23, 42, .18);
+}
+
+.wf-mh-unmapped-item.has-wo .wf-mh-unmapped-dot::after {
+    content: "";
+    position: absolute;
+    inset: -8px;
+    border: 2px solid rgba(234, 179, 8, .56);
+    border-radius: inherit;
+    animation: wfMhMarkerPulse 1.8s ease-out infinite;
+}
+
+.wf-mh-unmapped-item .wf-mh-marker-badge {
+    position: absolute;
+    top: -9px;
+    right: -10px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #ca8a04;
+    color: #fff;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.wf-mh-unmapped-item.no-wo .wf-mh-marker-badge:empty {
+    display: none;
+}
+
+@keyframes wfMhMarkerPulse {
+    0% {
+        opacity: .82;
+        transform: scale(1);
+    }
+
+    72% {
+        opacity: .08;
+        transform: scale(1.7);
+    }
+
+    100% {
+        opacity: 0;
+        transform: scale(1.7);
+    }
+}
+
+@media (max-width: 980px) {
+    .wf-filter-mode-row {
+        grid-template-columns: 1fr;
+    }
+
+    .wf-filter-date-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 720px) {
+    .wf-mh-map-shell {
+        min-height: 300px;
+        aspect-ratio: 4 / 3;
+    }
+
+    .wf-mh-map-legend {
+        right: 10px;
+        left: 10px;
+        gap: 6px 8px;
+    }
+
+    .wf-mh-selection-hint {
+        right: 10px;
+        left: 10px;
+    }
+}
+
+@media (max-width: 560px) {
+    .wf-filter-date-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 900px) {
+    .wf-mh-unmapped-panel {
+        left: 14px;
+        right: 14px;
+        bottom: 14px;
+        width: auto;
+        padding: 12px 14px;
+        z-index: 20;
+    }
+
+    .wf-mh-unmapped-item {
+        min-height: 42px;
+        gap: 10px;
+    }
+
+    .wf-mh-unmapped-dot {
+        width: 30px;
+        height: 30px;
+    }
+
+    .wf-mh-unmapped-no {
+        font-size: 13px;
+    }
+
+    .wf-mh-unmapped-name {
+        font-size: 13px;
+    }
+}

@@ -354,6 +354,12 @@ tr.is-selected {
     padding-right: 16px;
 }
 
+.content.content-wide {
+    max-width: none;
+    width: 100%;
+    padding: 0;
+}
+
 /* การ์ดหลักไม่ต้องกว้างเต็มจอ */
 .card {
     margin: 0 auto;

@@ -96,17 +96,9 @@
     }
 
     function getRefreshSec(section) {
-        try {
-            const raw = localStorage.getItem("chem_refresh_settings_v1");
-            if (!raw) return DEFAULT_POLL_SEC;
-
-            const o = JSON.parse(raw);
-            const n = Number(o?.refreshSec);
-
-            return Number.isFinite(n) && n >= 5 && n <= 60 ? n : DEFAULT_POLL_SEC;
-        } catch {
-            return DEFAULT_POLL_SEC;
-        }
+        const settings = window.CHEMSettings?.loadSettings?.();
+        const n = Number(settings?.refreshSec);
+        return Number.isFinite(n) && n >= 5 && n <= 60 ? n : DEFAULT_POLL_SEC;
     }
 
     function restartWithin(root) {
@@ -543,6 +535,49 @@
         setOkChip(scope, "PACL2", (p2Ta != null && p2Tb != null));
         setOkChip(scope, "CHLORINE1", (cl1A != null && cl1B != null));
         setOkChip(scope, "CHLORINE2", (cl2A != null && cl2B != null));
+
+        const alertSettings = window.CHEMSettings?.loadSettings?.();
+        const bell = scope.querySelector('[data-role="chem-alert-bell"]');
+
+        if (alertSettings) {
+            const chlorineFills = [
+                pctFill(cl1A, CAP_CL_KG), // CHLORINE1.LINEA.FILL
+                pctFill(cl1B, CAP_CL_KG), // CHLORINE1.LINEB.FILL
+                pctFill(cl2A, CAP_CL_KG), // CHLORINE2.LINEA.FILL
+                pctFill(cl2B, CAP_CL_KG)  // CHLORINE2.LINEB.FILL
+            ];
+
+            const chlorineRuleKeys = [
+                "chem-chlorine1-linea-fill-low",
+                "chem-chlorine1-lineb-fill-low",
+                "chem-chlorine2-linea-fill-low",
+                "chem-chlorine2-lineb-fill-low"
+            ];
+
+            let anyAlerting = false;
+
+            for (let i = 0; i < chlorineFills.length; i++) {
+                const fillValue = Number.isFinite(chlorineFills[i]) ? chlorineFills[i] : null;
+
+                const low = window.BBAlerts?.evaluate?.(scope, {
+                    ruleKey: chlorineRuleKeys[i],
+                    enabled: alertSettings.chlorineAlertEnabled ?? alertSettings.alertEnabled,
+                    muted: alertSettings.alertMuted,
+                    value: fillValue,
+                    limit: alertSettings.chlorineLowFillLimit ?? alertSettings.alertLimit,
+                    direction: "lt"
+                }) || false;
+
+                anyAlerting = anyAlerting || low;
+            }
+
+            window.BBAlerts?.setBellState?.(
+                bell,
+                anyAlerting
+                    ? "alerting"
+                    : (alertSettings.alertMuted ? "muted" : "armed")
+            );
+        }
     }
 
     /* =========================

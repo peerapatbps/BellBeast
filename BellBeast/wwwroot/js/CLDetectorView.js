@@ -87,12 +87,32 @@
 
     function renderRoot(root, payload) {
         const dets = root.querySelectorAll(".cldetector-block .det[data-stream][data-param]");
+        let maxValue = null;
         dets.forEach(det => {
             const stream = det.getAttribute("data-stream");
             const param = det.getAttribute("data-param");
             const value = getValueFromPayload(payload, stream, param);
+            const n = numOrNull(value);
+            if (n !== null) maxValue = maxValue === null ? n : Math.max(maxValue, n);
             applySeverity(det, value);
         });
+
+        const block = root.querySelector(".cldetector-block");
+        const settings = window.CLDetectorSettings?.loadSettings?.();
+        if (block && settings) {
+            const exceeded = window.BBAlerts?.evaluate?.(block, {
+                ruleKey: "cld-high",
+                enabled: settings.alertEnabled,
+                muted: settings.alertMuted,
+                value: maxValue,
+                limit: settings.alertLimit,
+                direction: "gt"
+            }) || false;
+            window.BBAlerts?.setBellState?.(
+                block.querySelector('[data-role="cld-alert-bell"]'),
+                exceeded ? "alerting" : (settings.alertMuted ? "muted" : "armed")
+            );
+        }
     }
 
     async function fetchAndRender(root) {

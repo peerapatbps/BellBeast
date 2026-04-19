@@ -2,8 +2,8 @@
     "use strict";
 
     const API_URL = "/api/event/summary";
-    const STORAGE_KEY = "event_refresh_settings_v1";
     const DEFAULT_REFRESH_MIN = 15;
+    const DEFAULT_ALERT_LIMIT = 3;
 
     const CAP = {
         ALUM: 625.0,
@@ -34,35 +34,22 @@
     }
 
     function loadSettings() {
-        try {
-            const raw = localStorage.getItem(STORAGE_KEY);
-            if (!raw) {
-                return { refreshMin: DEFAULT_REFRESH_MIN };
-            }
-
-            const o = JSON.parse(raw);
-
-            if (o && o.refreshMin !== undefined) {
-                return {
-                    refreshMin: clampNum(o.refreshMin, 5, 60, DEFAULT_REFRESH_MIN)
-                };
-            }
-
-            // migrate ของเก่า left/right
-            if (o && (o.leftRefreshMin !== undefined || o.rightRefreshMin !== undefined)) {
-                const merged = Math.max(
-                    Number.isFinite(Number(o.leftRefreshMin)) ? Number(o.leftRefreshMin) : DEFAULT_REFRESH_MIN,
-                    Number.isFinite(Number(o.rightRefreshMin)) ? Number(o.rightRefreshMin) : DEFAULT_REFRESH_MIN
-                );
-                return {
-                    refreshMin: clampNum(merged, 5, 60, DEFAULT_REFRESH_MIN)
-                };
-            }
-
-            return { refreshMin: DEFAULT_REFRESH_MIN };
-        } catch {
-            return { refreshMin: DEFAULT_REFRESH_MIN };
+        const settings = window.EVENTSettings?.loadSettings?.();
+        if (settings) {
+            return {
+                refreshMin: clampNum(settings.refreshMin, 5, 60, DEFAULT_REFRESH_MIN),
+                alertEnabled: Boolean(settings.alertEnabled),
+                alertLimit: clampNum(settings.alertLimit, 1, 30, DEFAULT_ALERT_LIMIT),
+                alertMuted: Boolean(settings.alertMuted)
+            };
         }
+
+        return {
+            refreshMin: DEFAULT_REFRESH_MIN,
+            alertEnabled: false,
+            alertLimit: DEFAULT_ALERT_LIMIT,
+            alertMuted: false
+        };
     }
 
     function num(v, fallback = 0) {
@@ -397,6 +384,30 @@
         scope._eventBind = bindMap;
         window.EVENT_SUMMARY_RAW = json;
         window.EVENT_SUMMARY_BIND = bindMap;
+
+        const settings = loadSettings();
+        const bell = scope.querySelector?.('[data-role="event-alert-bell"]');
+        const deltaKeys = [
+            "ALUM.P12.DELTA",
+            "ALUM.P34.DELTA",
+            "PACL.P12.DELTA",
+            "PACL.P34.DELTA",
+            "CHLORINE.P12.DELTA",
+            "CHLORINE.P34.DELTA"
+        ];
+        const deltaValues = deltaKeys
+            .map(key => Number(bindMap[key]))
+            .filter(Number.isFinite);
+        const minDelta = deltaValues.length ? Math.min(...deltaValues) : null;
+        const exceeded = window.BBAlerts?.evaluate?.(scope, {
+            ruleKey: "event-low-duration",
+            enabled: settings.alertEnabled,
+            muted: settings.alertMuted,
+            value: minDelta,
+            limit: settings.alertLimit,
+            direction: "lt"
+        }) || false;
+        window.BBAlerts?.setBellState?.(bell, exceeded ? "alerting" : (settings.alertMuted ? "muted" : "armed"));
     }
 
     function startTimer(scope) {

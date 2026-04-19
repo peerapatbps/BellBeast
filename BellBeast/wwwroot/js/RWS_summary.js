@@ -1,23 +1,8 @@
 ﻿/* rws_summary.js
  * - fetch /api/rws/summary
- * - update RWS1+RWS2 pump statuses (from data.Pumps)  [fallback: data.Aq by cfgId]
- * - update RWP metrics (from data.Metrics / flat fields)
- * - safe for injected partial (guard + one timer per section)
- *
- * HTML expectations (recommended):
- *   <section class="bb-section rws-block"
- *            data-rws-summary-url="/api/rws/summary"
- *            data-rws-refresh-sec="5"
- *            data-rws-pumps='{"1P01A":10,...}'
- *            data-rws-metrics='{"flow1":"rwp1_flowp1",...}'>
- *      ... pump status elements: <span class="st" data-pump="1P01A">-</span>
- *      ... metric value elements: ids below
- *   </section>
- *
- * Metric IDs in this script:
- *   #rwsFlow1, #rwsSum1, #rwsFlow2, #rwsSum2, #rwsFlow3, #rwsSum3, #rwsFlow4, #rwsSum4
- *   status badges:
- *   #rwsKpi1Status, #rwsKpi2Status, #rwsKpi3Status, #rwsKpi4Status
+ * - update RWS/RPS pump statuses
+ * - update RW#1/RW#2/RW#3/RW#4 flow + sumflow
+ * - evaluate flow-low alarm from RWSOnlineSettings
  */
 (function () {
     "use strict";
@@ -42,7 +27,6 @@
         if (s === "ON") return "ON";
         if (s === "STANDBY" || s === "STBY") return "STBY";
         if (s === "REP" || s === "REPAIR") return "REP";
-        // บางที AQ ส่ง "OFF" / "STOP" มา
         if (s === "OFF" || s === "STOP") return "OFF";
         return "-";
     }
@@ -74,6 +58,7 @@
     function safeJsonAttr(section, attrName, fallbackObj) {
         const raw = section?.getAttribute(attrName);
         if (!raw) return fallbackObj;
+
         try {
             const o = JSON.parse(raw);
             return (o && typeof o === "object") ? o : fallbackObj;
@@ -83,22 +68,22 @@
     }
 
     function pickMetric(data, key) {
-        // backend ของคุณส่งทั้ง Metrics และ flat fields
-        // - flat: data.rwp1_flowp1
-        // - map:  data.Metrics["rwp1_flowp1"]
         if (!key) return null;
 
         const vFlat = data?.[key];
         if (typeof vFlat === "number") return vFlat;
+
         if (vFlat !== null && vFlat !== undefined) {
             const n = Number(String(vFlat).replace(/,/g, "").trim());
             if (Number.isFinite(n)) return n;
         }
 
         const m = data?.Metrics || data?.metrics || null;
-        if (m && (typeof m === "object")) {
+        if (m && typeof m === "object") {
             const v = m[key] ?? m[String(key)];
+
             if (typeof v === "number") return v;
+
             if (v !== null && v !== undefined) {
                 const n = Number(String(v).replace(/,/g, "").trim());
                 if (Number.isFinite(n)) return n;
@@ -109,6 +94,13 @@
     }
 
     function loadRpsRefreshSec() {
+        const settings = window.RWSOnlineSettings?.loadSettings?.();
+        const settingsValue = Number(settings?.rpsRefreshSec);
+
+        if (Number.isFinite(settingsValue)) {
+            return Math.max(5, Math.min(60, settingsValue));
+        }
+
         try {
             const raw = localStorage.getItem("rws_online_lab_refresh_v1");
             if (!raw) return 5;
@@ -123,26 +115,45 @@
         }
     }
 
+    function loadAlarmSettings() {
+        const s = window.RWSOnlineSettings?.loadSettings?.() || {};
+
+        return {
+            flowAlertEnabled: Boolean(s.flowAlertEnabled),
+
+            rw1FlowLowLimit: Number.isFinite(Number(s.rw1FlowLowLimit)) ? Number(s.rw1FlowLowLimit) : 1000,
+            rw2FlowLowLimit: Number.isFinite(Number(s.rw2FlowLowLimit)) ? Number(s.rw2FlowLowLimit) : 1000,
+            rw3FlowLowLimit: Number.isFinite(Number(s.rw3FlowLowLimit)) ? Number(s.rw3FlowLowLimit) : 1000,
+            rw4FlowLowLimit: Number.isFinite(Number(s.rw4FlowLowLimit)) ? Number(s.rw4FlowLowLimit) : 1000,
+
+            alertMuted: Boolean(s.alertMuted)
+        };
+    }
+
+    function resetFlowRules(section, bell) {
+        window.BBAlerts?.resetRule?.(section, "rws-flow1-low");
+        window.BBAlerts?.resetRule?.(section, "rws-flow2-low");
+        window.BBAlerts?.resetRule?.(section, "rws-flow3-low");
+        window.BBAlerts?.resetRule?.(section, "rws-flow4-low");
+        window.BBAlerts?.setBellState?.(bell, "muted");
+    }
+
     async function startForSection(section) {
         if (!section) return;
 
-        // guard: injected ซ้ำก็ไม่ start ซ้ำ
         if (section._rwsSummaryStarted) return;
         section._rwsSummaryStarted = true;
 
         const url = section.getAttribute("data-rws-summary-url")
-            || section.getAttribute("data-tps-summary-url") // เผื่อยังใช้ attr เดิม
+            || section.getAttribute("data-tps-summary-url")
             || "/api/rws/summary";
 
         const refreshSec = loadRpsRefreshSec();
         const pollMs = refreshSec * 1000;
 
-        // ---- pumps ----
         const pumpEls = Array.from(section.querySelectorAll("[data-pump]"));
-        // optional: allow mapping via attribute (ชื่อปั๊ม -> configID)
         const pumpCfgMap = safeJsonAttr(section, "data-rws-pumps", null);
 
-        // ---- metrics mapping via attribute (slot -> param name) ----
         const metricMap = safeJsonAttr(section, "data-rws-metrics", {
             flow1: "rwp1_flowp1",
             flow2: "rwp1_flowp2",
@@ -151,10 +162,9 @@
             flow3: "rwp2_flowp3",
             flow4: "rwp2_flowp4",
             sum3: "rwp2_sumflowp3",
-            sum4: "rwp2_sumflowp4",
+            sum4: "rwp2_sumflowp4"
         });
 
-        // ---- KPI UI ----
         const elFlow1 = section.querySelector("#rwsFlow1");
         const elSum1 = section.querySelector("#rwsSum1");
         const elFlow2 = section.querySelector("#rwsFlow2");
@@ -165,21 +175,18 @@
         const elFlow4 = section.querySelector("#rwsFlow4");
         const elSum4 = section.querySelector("#rwsSum4");
 
-        // status pills (แนะนำให้เพิ่ม id ใน HTML)
-        // r1: RW#1 + RW#2
+        const elBell = section.querySelector('[data-role="rws-alert-bell"]');
+
         const st1 = section.querySelector("#rwsKpi1Status");
         const st2 = section.querySelector("#rwsKpi2Status");
-        // r2: RW#3 + RW#4
         const st3 = section.querySelector("#rwsKpi3Status");
         const st4 = section.querySelector("#rwsKpi4Status");
 
         let inFlight = false;
 
         function resetAllBad() {
-            // pumps
             for (const pe of pumpEls) applyPumpStatus(pe, null);
 
-            // metrics
             if (elFlow1) elFlow1.textContent = "-";
             if (elSum1) elSum1.textContent = "-";
             if (elFlow2) elFlow2.textContent = "-";
@@ -193,6 +200,8 @@
             setStatus(st2, false);
             setStatus(st3, false);
             setStatus(st4, false);
+
+            resetFlowRules(section, elBell);
         }
 
         async function tick() {
@@ -202,11 +211,9 @@
             try {
                 const res = await fetch(url, { method: "GET", cache: "no-store" });
                 if (!res.ok) throw new Error("HTTP " + res.status);
+
                 const data = await res.json();
 
-                // ---- pumps ----
-                // backend RwsHandlers: data.Pumps = { "1P01A":"ON", ... }
-                // fallback: ถ้าอนาคตส่ง data.Aq เป็น cfgId->value_text ก็รองรับ
                 const pumpsByName = data?.Pumps || data?.pumps || null;
                 const aqById = data?.Aq || data?.aq || null;
 
@@ -219,7 +226,6 @@
                         raw = pumpsByName[pumpName];
                     }
 
-                    // fallback: use data-rws-pumps to map name->cfgId and read from Aq
                     if ((raw === null || raw === undefined) && aqById && pumpCfgMap && pumpCfgMap[pumpName]) {
                         const cfg = pumpCfgMap[pumpName];
                         raw = aqById?.[cfg]?.value_text ?? aqById?.[String(cfg)]?.value_text ?? null;
@@ -228,7 +234,6 @@
                     applyPumpStatus(pe, raw);
                 }
 
-                // ---- metrics ----
                 const flow1 = pickMetric(data, metricMap.flow1);
                 const flow2 = pickMetric(data, metricMap.flow2);
                 const sum1 = pickMetric(data, metricMap.sum1);
@@ -259,11 +264,55 @@
                 if (elSum3) elSum3.textContent = (s3t ?? "-");
                 if (elSum4) elSum4.textContent = (s4t ?? "-");
 
-                // status: ok ถ้า flow ไม่ null (sum optional)
                 setStatus(st1, f1t !== null);
                 setStatus(st2, f2t !== null);
                 setStatus(st3, f3t !== null);
                 setStatus(st4, f4t !== null);
+
+                const settings = loadAlarmSettings();
+
+                const flow1Low = window.BBAlerts?.evaluate?.(section, {
+                    ruleKey: "rws-flow1-low",
+                    enabled: settings.flowAlertEnabled,
+                    muted: settings.alertMuted,
+                    value: flow1,
+                    limit: settings.rw1FlowLowLimit,
+                    direction: "lt"
+                }) || false;
+
+                const flow2Low = window.BBAlerts?.evaluate?.(section, {
+                    ruleKey: "rws-flow2-low",
+                    enabled: settings.flowAlertEnabled,
+                    muted: settings.alertMuted,
+                    value: flow2,
+                    limit: settings.rw2FlowLowLimit,
+                    direction: "lt"
+                }) || false;
+
+                const flow3Low = window.BBAlerts?.evaluate?.(section, {
+                    ruleKey: "rws-flow3-low",
+                    enabled: settings.flowAlertEnabled,
+                    muted: settings.alertMuted,
+                    value: flow3,
+                    limit: settings.rw3FlowLowLimit,
+                    direction: "lt"
+                }) || false;
+
+                const flow4Low = window.BBAlerts?.evaluate?.(section, {
+                    ruleKey: "rws-flow4-low",
+                    enabled: settings.flowAlertEnabled,
+                    muted: settings.alertMuted,
+                    value: flow4,
+                    limit: settings.rw4FlowLowLimit,
+                    direction: "lt"
+                }) || false;
+
+                const anyAlerting = flow1Low || flow2Low || flow3Low || flow4Low;
+
+                window.BBAlerts?.setBellState?.(
+                    elBell,
+                    anyAlerting ? "alerting" : (settings.alertMuted ? "muted" : "armed")
+                );
 
             } catch (e) {
                 resetAllBad();
@@ -274,6 +323,7 @@
 
         tick();
         section._rwsSummaryTimer = setInterval(tick, pollMs);
+        window.RWSOnlineSettings?.syncBell?.(section);
     }
 
     function stopForSection(section) {
@@ -293,6 +343,7 @@
             const sections = scope.matches?.("section.rws-block")
                 ? [scope]
                 : Array.from(scope.querySelectorAll("section.rws-block"));
+
             for (const s of sections) startForSection(s);
         },
 

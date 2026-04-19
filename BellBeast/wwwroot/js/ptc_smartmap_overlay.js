@@ -22,7 +22,7 @@
     function loadSettings() {
         try {
             const raw = localStorage.getItem(STORAGE_KEY);
-            if (!raw) return { refreshSec: 10, seriesRefreshSec: 10800 };
+            if (!raw) return { refreshSec: 10, seriesRefreshSec: 10800, alertEnabled: false, alertMuted: false };
 
             const o = JSON.parse(raw);
             const r1 = Number(o.refreshSec);
@@ -32,10 +32,12 @@
 
             return {
                 refreshSec: (Number.isFinite(r1) && r1 > 0) ? r1 : 10,
-                seriesRefreshSec: validSeries.includes(r2) ? r2 : 10800
+                seriesRefreshSec: validSeries.includes(r2) ? r2 : 10800,
+                alertEnabled: Boolean(o.alertEnabled),
+                alertMuted: Boolean(o.alertMuted)
             };
         } catch {
-            return { refreshSec: 10, seriesRefreshSec: 10800 };
+            return { refreshSec: 10, seriesRefreshSec: 10800, alertEnabled: false, alertMuted: false };
         }
     }
 
@@ -49,8 +51,17 @@
 
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
             refreshSec,
-            seriesRefreshSec
+            seriesRefreshSec,
+            alertEnabled: Boolean(s.alertEnabled),
+            alertMuted: Boolean(s.alertMuted)
         }));
+    }
+
+    function syncBell(sec) {
+        if (!sec) return;
+        const bell = sec.querySelector('[data-role="ptc-alert-bell"]');
+        const s = loadSettings();
+        window.BBAlerts?.setBellState?.(bell, s.alertMuted ? "muted" : "armed");
     }
 
     // ---------------------------
@@ -89,6 +100,16 @@
                                     <option value="43200">12 hours</option>
                                   </select>
                                 </div>
+
+                                <div class="row">
+                                  <div class="k">Enable out-of-control alarm</div>
+                                  <label class="toggle"><input type="checkbox" data-k="alertEnabled"> <span>On</span></label>
+                                </div>
+
+                                <div class="row">
+                                  <div class="k">Mute bell sound</div>
+                                  <label class="toggle"><input type="checkbox" data-k="alertMuted"> <span>Muted</span></label>
+                                </div>
       
                               <div class="actions">
                                 <button class="btn" data-act="apply" type="button">Save</button>
@@ -111,6 +132,7 @@
           .ptc-pop-b .row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0}
           .ptc-pop-b .k{font-size:13px;color:rgba(255,255,255,.75)}
           .ptc-pop-b .inp{width:120px;background:#1f2326;border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.92);border-radius:10px;padding:8px 10px;outline:none}
+          .ptc-pop-b .toggle{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:rgba(255,255,255,.92)}
           .ptc-pop-b .hint{margin-top:8px;font-size:12px;color:rgba(255,255,255,.60)}
           .ptc-pop-b .actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}
           .ptc-pop-b .btn{background:#1f2326;border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.92);border-radius:10px;padding:8px 12px;cursor:pointer}
@@ -266,6 +288,8 @@
         const popup = ensurePopup();
         const inpOverlay = popup.querySelector('select[data-k="refreshSec"]');
         const inpSeries = popup.querySelector('select[data-k="seriesRefreshSec"]');
+        const inpAlertEnabled = popup.querySelector('[data-k="alertEnabled"]');
+        const inpAlertMuted = popup.querySelector('[data-k="alertMuted"]');
 
         const closePop = () => popup.classList.remove("on");
         popup.querySelector(".x").onclick = closePop;
@@ -286,21 +310,49 @@
                 const rawSeries = String(s.seriesRefreshSec || "10800");
 
                 inpSeries.value = allowedSeries.includes(rawSeries) ? rawSeries : "10800";
+                inpAlertEnabled.checked = !!s.alertEnabled;
+                inpAlertMuted.checked = !!s.alertMuted;
 
                 popup.classList.add("on");
+            });
+        }
+
+        const bell = sec.querySelector('[data-role="ptc-alert-bell"]');
+        if (bell && bell.dataset.bound !== "true") {
+            bell.dataset.bound = "true";
+            bell.addEventListener("click", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.BBAlerts?.armAudio?.();
+                const s = loadSettings();
+                const wasMuted = s.alertMuted;
+                s.alertMuted = !s.alertMuted;
+                saveSettings(s);
+                if (!wasMuted && s.alertMuted) {
+                    window.BBAlerts?.resetRule?.(sec, "ptc-current-out-of-control");
+                }
+                syncBell(sec);
             });
         }
 
         popup.querySelector('[data-act="apply"]').onclick = () => {
             const n1 = Math.max(5, Math.min(60, Number(inpOverlay.value || 10)));
             const n2 = Number(inpSeries.value || 10800);
+            const current = loadSettings();
 
             saveSettings({
                 refreshSec: n1,
-                seriesRefreshSec: n2
+                seriesRefreshSec: n2,
+                alertEnabled: inpAlertEnabled.checked,
+                alertMuted: inpAlertMuted.checked
             });
 
             closePop();
+
+            if (inpAlertMuted.checked && !current.alertMuted) {
+                window.BBAlerts?.resetRule?.(sec, "ptc-current-out-of-control");
+                syncBell(sec);
+            }
 
             restartPoller();
             tickAll();
@@ -312,6 +364,45 @@
                 window.BBTrendPTC.refreshAllSeriesNow();
             }
         };
+
+        syncBell(sec);
+    }
+
+    function interpDatasetAtNow(dataset) {
+        const data = Array.isArray(dataset?.data) ? dataset.data : [];
+        if (!data.length) return null;
+
+        const nowMs = Date.now();
+        let left = null;
+        let right = null;
+
+        for (const p of data) {
+            const xMs = new Date(p?.x).getTime();
+            const y = Number(p?.y);
+            if (!Number.isFinite(xMs) || !Number.isFinite(y)) continue;
+
+            if (xMs <= nowMs) left = { xMs, y };
+            if (xMs >= nowMs) {
+                right = { xMs, y };
+                break;
+            }
+        }
+
+        if (!left && !right) return null;
+        if (!left) return right.y;
+        if (!right) return left.y;
+        if (left.xMs === right.xMs) return left.y;
+
+        const k = (nowMs - left.xMs) / (right.xMs - left.xMs);
+        return left.y + ((right.y - left.y) * k);
+    }
+
+    function getBoundsAtNow(canvas) {
+        const chart = getChartInstance(canvas);
+        const upper = interpDatasetAtNow(chart?.data?.datasets?.[0]);
+        const lower = interpDatasetAtNow(chart?.data?.datasets?.[1]);
+        if (!Number.isFinite(upper) || !Number.isFinite(lower)) return null;
+        return upper >= lower ? { upper, lower } : { upper: lower, lower: upper };
     }
 
     // ---------------------------
@@ -377,10 +468,13 @@
 
             const x = Date.now();
             const winMs = 30 * 60 * 1000;
+            const sectionAlarm = new Map();
 
             for (const t of targets) {
                 const pv = readPvFromMap(map, t.base);
                 if (pv === null) continue;
+
+                const sec = t.canvas.closest("section.ptc-block");
 
                 // ✅ เพิ่มตรงนี้: Latest HH:MM:SS | value
                 // (upper/lower ไม่เอา -> ส่ง null ไปเลย)
@@ -398,6 +492,28 @@
                 ds.data = buildData(st);
 
                 safeUpdateChart(chart);
+
+                const bounds = getBoundsAtNow(t.canvas);
+                if (sec && bounds) {
+                    const outOfControl = pv > bounds.upper || pv < bounds.lower;
+                    if (outOfControl) sectionAlarm.set(sec, true);
+                    else if (!sectionAlarm.has(sec)) sectionAlarm.set(sec, false);
+                }
+            }
+
+            for (const sec of secs) {
+                const settings = loadSettings();
+                const bell = sec.querySelector('[data-role="ptc-alert-bell"]');
+                const exceeded = window.BBAlerts?.evaluate?.(sec, {
+                    ruleKey: "ptc-current-out-of-control",
+                    enabled: settings.alertEnabled,
+                    muted: settings.alertMuted,
+                    value: sectionAlarm.get(sec) ? 1 : 0,
+                    limit: 0.5,
+                    direction: "gt"
+                }) || false;
+
+                window.BBAlerts?.setBellState?.(bell, exceeded ? "alerting" : (settings.alertMuted ? "muted" : "armed"));
             }
         } finally {
             inFlight = false;
@@ -444,5 +560,5 @@
     }
 
 
-    window.PTCSmartmapOverlay = { initWithin, tickAll, restartPoller };
+    window.PTCSmartmapOverlay = { initWithin, tickAll, restartPoller, loadSettings, saveSettings, syncBell };
 })();

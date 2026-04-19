@@ -13,6 +13,22 @@
         z-index: 100000 !important;
         pointer-events: auto !important;
     }
+
+    section.tps-block .bb-ico.is-muted {
+        background: rgba(255,255,255,.08);
+        opacity: .7;
+    }
+
+    section.tps-block .bb-ico.is-armed {
+        background: rgba(255,204,77,.16);
+        border-color: rgba(255,204,77,.28);
+    }
+
+    section.tps-block .bb-ico.is-alerting {
+        background: rgba(255,91,91,.2);
+        border-color: rgba(255,91,91,.35);
+        box-shadow: 0 0 0 1px rgba(255,91,91,.2), 0 0 12px rgba(255,91,91,.25);
+    }
 </style>
 
 <section class="bb-section tps-block"
@@ -24,7 +40,7 @@
         </div>
 
         <div class="right-icons">
-            <button class="bb-ico" type="button" title="Bell" aria-label="Bell">
+            <button class="bb-ico is-armed" data-role="tps-alert-bell" type="button" title="Bell: armed" aria-label="Bell armed">
                 <span>🔔</span>
             </button>
             <button class="bb-ico" id="tpsBtnSettings" type="button" title="Settings" aria-label="Settings">

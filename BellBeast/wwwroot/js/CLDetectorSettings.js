@@ -1,15 +1,32 @@
 ﻿(function () {
-    const STORAGE_KEY = "bb_cldetector_refresh_sec";
+    const STORAGE_KEY = "bb_cldetector_settings_v2";
     const DEFAULT_REFRESH_SEC = 5;
+    const DEFAULT_ALERT_LIMIT = 2.0;
 
-    function loadRefreshSec() {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        const n = Number(raw);
-        return Number.isFinite(n) && n >= 5 && n <= 60 ? n : DEFAULT_REFRESH_SEC;
+    function loadSettings() {
+        const o = window.BBAlerts?.loadSettings(STORAGE_KEY, {}) || {};
+        const n = Number(o.refreshSec);
+        return {
+            refreshSec: Number.isFinite(n) && n >= 5 && n <= 60 ? n : DEFAULT_REFRESH_SEC,
+            alertEnabled: Boolean(o.alertEnabled),
+            alertLimit: Number.isFinite(Number(o.alertLimit)) ? Math.max(0.1, Math.min(99, Number(o.alertLimit))) : DEFAULT_ALERT_LIMIT,
+            alertMuted: Boolean(o.alertMuted)
+        };
     }
 
-    function saveRefreshSec(sec) {
-        localStorage.setItem(STORAGE_KEY, String(sec));
+    function saveSettings(settings) {
+        window.BBAlerts?.saveSettings?.(STORAGE_KEY, {
+            refreshSec: Number.isFinite(Number(settings.refreshSec)) ? Math.max(5, Math.min(60, Number(settings.refreshSec))) : DEFAULT_REFRESH_SEC,
+            alertEnabled: Boolean(settings.alertEnabled),
+            alertLimit: Number.isFinite(Number(settings.alertLimit)) ? Math.max(0.1, Math.min(99, Number(settings.alertLimit))) : DEFAULT_ALERT_LIMIT,
+            alertMuted: Boolean(settings.alertMuted)
+        });
+    }
+
+    function syncBell(block) {
+        const bell = block?.querySelector('[data-role="cld-alert-bell"]');
+        const s = loadSettings();
+        window.BBAlerts?.setBellState?.(bell, s.alertMuted ? "muted" : "armed");
     }
 
     function ensureStyles() {
@@ -127,7 +144,7 @@
         closeModal();
         ensureStyles();
 
-        const selectedSec = loadRefreshSec();
+        const current = loadSettings();
 
         const overlay = document.createElement("div");
         overlay.className = "cld-settings-overlay";
@@ -141,8 +158,18 @@
                     <div class="cld-settings-row">
                         <label class="cld-settings-label" for="cldRefreshSelect">Data refresh rate</label>
                         <select id="cldRefreshSelect" class="cld-settings-select">
-                            ${buildOptions(selectedSec)}
+                            ${buildOptions(current.refreshSec)}
                         </select>
+                    </div>
+                    <div class="cld-settings-row">
+                        <label class="cld-settings-label"><input type="checkbox" id="cldAlertEnabled"> Enable detector alert</label>
+                    </div>
+                    <div class="cld-settings-row">
+                        <label class="cld-settings-label" for="cldAlertLimit">Detector alert limit</label>
+                        <input id="cldAlertLimit" class="cld-settings-select" type="number" min="0.1" max="99" step="0.1" value="${current.alertLimit}">
+                    </div>
+                    <div class="cld-settings-row">
+                        <label class="cld-settings-label"><input type="checkbox" id="cldAlertMuted"> Mute bell sound</label>
                     </div>
                     <div class="cld-settings-actions">
                         <button type="button" class="cld-settings-btn" data-action="cancel">Cancel</button>
@@ -159,13 +186,26 @@
         const cancelBtn = overlay.querySelector('[data-action="cancel"]');
         const saveBtn = overlay.querySelector('[data-action="save"]');
         const select = overlay.querySelector("#cldRefreshSelect");
+        overlay.querySelector("#cldAlertEnabled").checked = current.alertEnabled;
+        overlay.querySelector("#cldAlertMuted").checked = current.alertMuted;
 
         function applyAndClose() {
             const sec = Number(select.value) || DEFAULT_REFRESH_SEC;
-            saveRefreshSec(sec);
+            const next = {
+                refreshSec: sec,
+                alertEnabled: overlay.querySelector("#cldAlertEnabled").checked,
+                alertLimit: Number(overlay.querySelector("#cldAlertLimit").value) || DEFAULT_ALERT_LIMIT,
+                alertMuted: overlay.querySelector("#cldAlertMuted").checked
+            };
+            saveSettings(next);
 
             if (block) {
                 block.setAttribute("data-refresh-sec", String(sec));
+            }
+
+            if (next.alertMuted && !current.alertMuted && block) {
+                window.BBAlerts?.resetRule?.(block, "cld-high");
+                syncBell(block);
             }
 
             closeModal();
@@ -197,23 +237,41 @@
         const block = scope.querySelector(".cldetector-block");
         if (!block) return;
 
-        const settingsBtn = block.querySelector('.bb-section-h .bb-ico[title="Settings"], .bb-section-h .bb-ico[aria-label="Settings"]');
+        const settingsBtn = block.querySelector('[data-role="cld-settings"]');
         if (!settingsBtn) return;
 
         if (settingsBtn.dataset.cldSettingsBound === "1") return;
         settingsBtn.dataset.cldSettingsBound = "1";
 
-        const savedSec = loadRefreshSec();
-        block.setAttribute("data-refresh-sec", String(savedSec));
+        const saved = loadSettings();
+        block.setAttribute("data-refresh-sec", String(saved.refreshSec));
 
         settingsBtn.addEventListener("click", (e) => {
             e.preventDefault();
             openModal(block);
         });
+
+        const bell = block.querySelector('[data-role="cld-alert-bell"]');
+        if (bell && bell.dataset.cldBellBound !== "1") {
+            bell.dataset.cldBellBound = "1";
+            bell.addEventListener("click", (e) => {
+                e.preventDefault();
+                const s = loadSettings();
+                const wasMuted = s.alertMuted;
+                s.alertMuted = !s.alertMuted;
+                saveSettings(s);
+                if (!wasMuted && s.alertMuted) window.BBAlerts?.resetRule?.(block, "cld-high");
+                syncBell(block);
+            });
+        }
+
+        syncBell(block);
     }
 
     window.CLDetectorSettings = {
         initWithin: bindWithin,
+        loadSettings,
+        syncBell,
         open: () => {
             const block = document.querySelector(".cldetector-block");
             if (block) openModal(block);
