@@ -1,0 +1,1021 @@
+﻿<style>
+    /* =========================
+           LAB block - based on DPS structure
+           ========================= */
+
+    section.lab-block .bb-section-h,
+    section.lab-block .bb-section-h .right-icons {
+        position: relative;
+        z-index: 99999 !important;
+        pointer-events: auto !important;        
+    }
+
+    section.lab-block #labBtnSettings,
+    section.lab-block .bb-ico {
+        position: relative;
+        z-index: 100000 !important;
+        pointer-events: auto !important;
+    }
+
+    section.lab-block .lab-layout {
+        display: grid;
+        gap: 10px;        
+    }
+
+    /* ===== ROW 1 ===== */
+    section.lab-block .lab-top-grid {
+        display: grid;
+        grid-template-columns: 3fr 2.5fr 4.5fr;
+        gap: 4px;
+        align-items: stretch;
+    }
+
+    section.lab-block .lab-top-card,
+    section.lab-block .mini-card {
+        border-radius: 10px;
+        background: rgba(255,255,255,.025);
+        border: 1px solid rgba(255,255,255,.08);
+        padding: 5px;
+        min-width: 0;
+    }
+
+    section.lab-block .lab-top-card {
+        min-height: 130px;
+    }
+
+    section.lab-block .lab-top-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0px;
+        margin-bottom: 2px;
+    }
+
+    section.lab-block .lab-top-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #f3f4f6;
+        line-height: 1.2;
+    }
+
+    section.lab-block .lab-top-sub {
+        font-size: 12px;
+        color: rgba(255,255,255,.62);
+        margin-top: 4px;
+    }
+
+    section.lab-block .chart-box,
+    section.lab-block .mini-chart {
+        position: relative;
+        border-radius: 12px;
+        border: 1px dashed rgba(255,255,255,.18);
+        background: rgba(255,255,255,.04);
+        overflow: hidden;
+    }
+
+    section.lab-block .chart-box {
+        height: 125px;
+        min-height: 125px;
+    }
+
+    section.lab-block .mini-chart {
+        height: 120px;
+        min-height: 120px;
+    }
+
+        section.lab-block .chart-box canvas,
+        section.lab-block .mini-chart canvas {
+            width: 100% !important;
+            height: 100% !important;
+            display: block !important;
+        }
+
+    /* ===== recommend table ===== */
+    section.lab-block .lab-table-wrap {
+        margin-top: 24px;
+    }
+
+    section.lab-block .lab-recommend-table {
+        width: 100%;
+        border-collapse: collapse;
+        overflow: hidden;
+        border-radius: 10px;
+        table-layout: fixed;
+    }
+
+        section.lab-block .lab-recommend-table th,
+        section.lab-block .lab-recommend-table td {
+            padding: 9px 10px;
+            border-bottom: 1px solid rgba(255,255,255,.08);
+            text-align: left;
+            font-size: 13px;
+        }
+
+        section.lab-block .lab-recommend-table thead th {
+            background: rgba(255,255,255,.03);
+            color: #f8fafc;
+            font-weight: 700;
+        }
+
+        section.lab-block .lab-recommend-table tbody td {
+            color: rgba(255,255,255,.84);
+        }
+
+        section.lab-block .lab-recommend-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+    /* ===== status 4x4 ===== */
+    section.lab-block .status-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 2px;
+        margin-top: 2px;
+        margin-bottom: 2px;
+    }
+
+    section.lab-block .status-pill {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        min-height: 20px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: rgba(255,255,255,.04);
+        border: 1px solid rgba(255,255,255,.08);
+        color: #e5e7eb;
+        font-size: 12px;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    section.lab-block .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        flex: 0 0 10px;
+    }
+
+        section.lab-block .status-dot.ok {
+            background: #22c55e;
+            box-shadow: 0 0 10px rgba(34,197,94,.50);
+        }
+
+        section.lab-block .status-dot.warn {
+            background: #f59e0b;
+            box-shadow: 0 0 10px rgba(245,158,11,.45);
+        }
+
+        section.lab-block .status-dot.bad {
+            background: #ef4444;
+            box-shadow: 0 0 10px rgba(239,68,68,.45);
+        }
+
+    /* ===== ROW 2 ===== */
+    section.lab-block .filter-row {
+        display: flex;
+        justify-content: flex-start;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    section.lab-block .filter-btn {
+        appearance: none;
+        border: 1px solid rgba(255,255,255,.08);
+        background: rgba(255, 153, 51, .5);
+        color: #f9fafb;
+        border-radius: 10px;
+        padding: 9px 16px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: .15s ease;
+    }
+
+        section.lab-block .filter-btn:hover {
+            background: rgba(255,255,255,.09);
+        }
+
+        section.lab-block .filter-btn.active {
+            background: rgba(255, 153, 51, 1);
+            border-color: rgba(255,255,255,.20);
+        }
+
+    /* ===== ROW 3 ===== */
+    section.lab-block .cards-row {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    section.lab-block .mini-card .ov-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    section.lab-block .mini-card .ov-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: #f3f4f6;
+    }
+
+    section.lab-block .mini-card .ov-status {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 44px;
+        height: 24px;
+        padding: 0 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+        section.lab-block .mini-card .ov-status.ok {
+            background: rgba(34,197,94,.16);
+            color: #86efac;
+        }
+
+        section.lab-block .mini-card .ov-status.bad {
+            background: rgba(239,68,68,.16);
+            color: #fca5a5;
+        }
+
+        section.lab-block .mini-card .ov-status.warn {
+            background: rgba(245,158,11,.16);
+            color: #fcd34d;
+        }
+
+    section.lab-block .mini-meta {
+        margin-top: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 12px;
+        color: rgba(255,255,255,.62);
+    }
+
+    section.lab-block .lab-update {
+        font-size: 12px;
+        color: rgba(255,255,255,.62);
+        margin-left: auto;
+    }
+
+    /* ===== settings popup ===== */
+    .lab-settings-pop {
+        position: fixed;
+        right: 18px;
+        top: 70px;
+        width: 280px;
+        max-width: calc(100vw - 24px);
+        border-radius: 14px;
+        background: #1f2937;
+        border: 1px solid rgba(255,255,255,.10);
+        box-shadow: 0 15px 40px rgba(0,0,0,.35);
+        padding: 14px;
+        z-index: 200000;
+        display: none;
+    }
+
+        .lab-settings-pop.show {
+            display: block;
+        }
+
+    .lab-settings-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #f9fafb;
+        margin-bottom: 12px;
+    }
+
+    .lab-settings-row {
+        display: grid;
+        gap: 6px;
+        margin-bottom: 12px;
+    }
+
+        .lab-settings-row label {
+            font-size: 12px;
+            color: rgba(255,255,255,.78);
+            font-weight: 600;
+        }
+
+        .lab-settings-row select {
+            width: 100%;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,.10);
+            background: rgba(255,255,255,.06);
+            color: #f9fafb;
+            padding: 10px 12px;
+            outline: none;
+        }
+
+    .lab-settings-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 8px;
+    }
+
+        .lab-settings-actions button {
+            border: 1px solid rgba(255,255,255,.10);
+            background: rgba(255,255,255,.06);
+            color: #f9fafb;
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .lab-settings-actions .primary {
+            background: rgba(255,255,255,.14);
+        }
+
+    /* ===== responsive ===== */
+    @@media (max-width: 1280px) {
+        section.lab-block .lab-top-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+
+            section.lab-block .lab-top-grid > .lab-top-card:last-child {
+                grid-column: 1 / -1;
+            }
+
+        section.lab-block .cards-row {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 820px) {
+        section.lab-block .lab-top-grid,
+        section.lab-block .cards-row {
+            grid-template-columns: 1fr;
+        }
+
+        section.lab-block .status-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+</style>
+
+<section class="bb-section lab-block"
+         data-lab-summary-url="/api/lab/summary"
+         data-lab-refresh-sec="10">
+    <div class="bb-section-h">
+        <div class="left">
+            <div class="title">LAB</div>
+        </div>
+
+        <div class="right-icons">
+            <button class="bb-ico" type="button" title="Bell" aria-label="Bell">
+                <span>🔔</span>
+            </button>
+            <button class="bb-ico" id="labBtnSettings" type="button" title="Settings" aria-label="Settings">
+                <span>⚙️</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="bb-section-b">
+        <div class="lab-layout">
+
+            <!-- ROW 1 -->
+            <div class="lab-top-grid">
+                <!-- column 1 : chart -->
+                <div class="lab-top-card">
+                    <div class="lab-top-head">
+                        <div>
+                            <div class="lab-top-title">RW Turbid (NTU) vs Temp (°C)</div>
+                        </div>
+                    </div>
+
+                    <div class="chart-box">
+                        <canvas id="labRwChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- column 2 : recommend table -->
+                <div class="lab-top-card">
+                    <div class="lab-top-head">
+                        <div>
+                            <div class="lab-top-title">RECOMMEND DOSE (mg/L)</div>
+                        </div>
+                    </div>
+
+                    <div class="lab-table-wrap">
+                        <table class="lab-recommend-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:36%;">TYPE</th>
+                                    <th style="width:32%;">P12</th>
+                                    <th style="width:32%;">P34</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>PACL</td>
+                                    <td id="labDosePaclP12">-</td>
+                                    <td id="labDosePaclP34">-</td>
+                                </tr>
+                                <tr>
+                                    <td>ALUM</td>
+                                    <td id="labDoseAlumP12">-</td>
+                                    <td id="labDoseAlumP34">-</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- column 3 : status 4x4 -->
+                <div class="lab-top-card">
+                    <div class="lab-top-head">
+                        <div>
+
+                        </div>
+                    </div>
+
+                    <div class="status-grid" id="labStatusGrid">
+                        <div class="status-pill"><span class="status-dot ok"></span>CW1 T</div>
+                        <div class="status-pill"><span class="status-dot ok"></span>CW2 T</div>
+                        <div class="status-pill"><span class="status-dot ok"></span>CW3 T</div>
+                        <div class="status-pill"><span class="status-dot ok"></span>CW4 T</div>
+
+                        <div class="status-pill"><span class="status-dot ok"></span>CW1 CL</div>
+                        <div class="status-pill"><span class="status-dot ok"></span>CW2 CL</div>
+                        <div class="status-pill"><span class="status-dot ok"></span>CW3 CL</div>
+                        <div class="status-pill"><span class="status-dot ok"></span>CW4 CL</div>
+
+                        <div class="status-pill"><span class="status-dot ok"></span>FW1 T</div>
+                        <div class="status-pill"><span class="status-dot ok"></span>FW2 T</div>
+                        <div class="status-pill"><span class="status-dot ok"></span>FW3 T</div>
+                        <div class="status-pill"><span class="status-dot ok"></span>FW4 T</div>
+
+                        <div class="status-pill"><span class="status-dot ok"></span>TW1 CL</div>
+                        <div class="status-pill"><span class="status-dot ok"></span>TW2 CL</div>
+                        <div class="status-pill"><span class="status-dot ok"></span>TW3 CL</div>
+                        <div class="status-pill"><span class="status-dot ok"></span>TW4 CL</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ROW 2 -->
+            <div class="filter-row">
+                <button class="filter-btn active" type="button" data-filter="cw_turbid">CW Turbid</button>
+                <button class="filter-btn" type="button" data-filter="cw_precl">CW Pre CL</button>
+                <button class="filter-btn" type="button" data-filter="fw_turbid">FW Turbid</button>
+                <button class="filter-btn" type="button" data-filter="tw_postcl">TW Pos CL</button>
+            </div>
+
+            <!-- ROW 3 -->
+            <div class="cards-row">
+                <div class="mini-card">
+                    <div class="ov-top">
+                        <div class="ov-title" id="labCardTitle1">CW Turbid #1</div>
+                        <div class="ov-status ok" id="labCardStatus1">OK</div>
+                    </div>
+                    <div class="mini-chart">
+                        <canvas id="labChart1"></canvas>
+                    </div>
+                </div>
+
+                <div class="mini-card">
+                    <div class="ov-top">
+                        <div class="ov-title" id="labCardTitle2">CW Turbid #2</div>
+                        <div class="ov-status ok" id="labCardStatus2">OK</div>
+                    </div>
+                    <div class="mini-chart">
+                        <canvas id="labChart2"></canvas>
+                    </div>
+                </div>
+
+                <div class="mini-card">
+                    <div class="ov-top">
+                        <div class="ov-title" id="labCardTitle3">CW Turbid #3</div>
+                        <div class="ov-status ok" id="labCardStatus3">OK</div>
+                    </div>
+                    <div class="mini-chart">
+                        <canvas id="labChart3"></canvas>
+                    </div>
+                </div>
+
+                <div class="mini-card">
+                    <div class="ov-top">
+                        <div class="ov-title" id="labCardTitle4">CW Turbid #4</div>
+                        <div class="ov-status ok" id="labCardStatus4">OK</div>
+                    </div>
+                    <div class="mini-chart">
+                        <canvas id="labChart4"></canvas>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+<script>
+    (function () {
+        "use strict";
+
+        const section = document.currentScript?.closest("section.lab-block");
+        if (!section) return;
+        if (section._labInitDone) return;
+        section._labInitDone = true;
+
+        const STORAGE_KEY = "lab_block_settings_v1";
+        const FILTER_KEY = "lab_block_filter_v1";
+
+        const url = section.getAttribute("data-lab-summary-url") || "/api/lab/summary";
+        const defaultRefreshSec = Math.max(5, parseInt(section.getAttribute("data-lab-refresh-sec") || "10", 10) || 10);
+
+        const btnSettings = section.querySelector("#labBtnSettings");
+        const filterButtons = Array.from(section.querySelectorAll(".filter-btn"));
+
+        const elUpdateTop = section.querySelector("#labUpdateTop");
+        const elStatusGrid = section.querySelector("#labStatusGrid");
+
+        const doseEls = {
+            paclP12: section.querySelector("#labDosePaclP12"),
+            paclP34: section.querySelector("#labDosePaclP34"),
+            alumP12: section.querySelector("#labDoseAlumP12"),
+            alumP34: section.querySelector("#labDoseAlumP34")
+        };
+
+        const cardRefs = [
+            {
+                title: section.querySelector("#labCardTitle1"),
+                status: section.querySelector("#labCardStatus1")
+            },
+            {
+                title: section.querySelector("#labCardTitle2"),
+                status: section.querySelector("#labCardStatus2")
+            },
+            {
+                title: section.querySelector("#labCardTitle3"),
+                status: section.querySelector("#labCardStatus3")
+            },
+            {
+                title: section.querySelector("#labCardTitle4"),
+                status: section.querySelector("#labCardStatus4")
+            }
+        ];
+
+        const chartIds = ["labRwChart", "labChart1", "labChart2", "labChart3", "labChart4"];
+        const chartMap = {};
+
+        function readSettings() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return { refreshSec: defaultRefreshSec };
+                const v = JSON.parse(raw);
+                return {
+                    refreshSec: Math.max(5, parseInt(v.refreshSec || defaultRefreshSec, 10) || defaultRefreshSec)
+                };
+            } catch {
+                return { refreshSec: defaultRefreshSec };
+            }
+        }
+
+        function saveSettings(v) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(v));
+        }
+
+        function getCurrentFilter() {
+            const v = localStorage.getItem(FILTER_KEY);
+            return v || "cw_turbid";
+        }
+
+        function setCurrentFilter(v) {
+            localStorage.setItem(FILTER_KEY, v);
+        }
+
+        function fmt(v, decimals) {
+            if (v === null || v === undefined || v === "") return "-";
+            const n = Number(String(v).replace(/,/g, "").trim());
+            if (!Number.isFinite(n)) return String(v);
+            const d = decimals ?? 2;
+            return n.toLocaleString(undefined, {
+                minimumFractionDigits: d,
+                maximumFractionDigits: d
+            });
+        }
+
+        function fmtUpdate(dt) {
+            const pad = (n) => String(n).padStart(2, "0");
+            return `UPDATE: ${pad(dt.getDate())}-${pad(dt.getMonth() + 1)}-${dt.getFullYear()} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+        }
+
+        function setBadge(el, state) {
+            if (!el) return;
+            const s = String(state || "ok").toLowerCase();
+            el.classList.remove("ok", "warn", "bad");
+            if (s === "bad" || s === "err" || s === "error") {
+                el.classList.add("bad");
+                el.textContent = "ERR";
+            } else if (s === "warn" || s === "warning") {
+                el.classList.add("warn");
+                el.textContent = "WARN";
+            } else {
+                el.classList.add("ok");
+                el.textContent = "OK";
+            }
+        }
+
+        function dotClass(state) {
+            const s = String(state || "ok").toLowerCase();
+            if (s === "bad" || s === "err" || s === "error") return "bad";
+            if (s === "warn" || s === "warning") return "warn";
+            return "ok";
+        }
+
+        function renderStatusGrid(items) {
+            if (!elStatusGrid) return;
+
+            if (!Array.isArray(items) || items.length === 0) {
+                elStatusGrid.innerHTML = `
+                    <div class="status-pill"><span class="status-dot ok"></span>CW1 T</div>
+                    <div class="status-pill"><span class="status-dot ok"></span>CW2 T</div>
+                    <div class="status-pill"><span class="status-dot ok"></span>CW3 T</div>
+                    <div class="status-pill"><span class="status-dot ok"></span>CW4 T</div>
+                    <div class="status-pill"><span class="status-dot ok"></span>CW1 CL</div>
+                    <div class="status-pill"><span class="status-dot ok"></span>CW2 CL</div>
+                    <div class="status-pill"><span class="status-dot ok"></span>CW3 CL</div>
+                    <div class="status-pill"><span class="status-dot ok"></span>CW4 CL</div>
+                    <div class="status-pill"><span class="status-dot ok"></span>FW1 T</div>
+                    <div class="status-pill"><span class="status-dot ok"></span>FW2 T</div>
+                    <div class="status-pill"><span class="status-dot ok"></span>FW3 T</div>
+                    <div class="status-pill"><span class="status-dot ok"></span>FW4 T</div>
+                    <div class="status-pill"><span class="status-dot ok"></span>TW1 CL</div>
+                    <div class="status-pill"><span class="status-dot ok"></span>TW2 CL</div>
+                    <div class="status-pill"><span class="status-dot ok"></span>TW3 CL</div>
+                    <div class="status-pill"><span class="status-dot ok"></span>TW4 CL</div>
+                `;
+                return;
+            }
+
+            const html = items.slice(0, 16).map(x => {
+                const cls = dotClass(x.state);
+                const label = String(x.label || x.key || "-");
+                return `<div class="status-pill"><span class="status-dot ${cls}"></span>${escapeHtml(label)}</div>`;
+            }).join("");
+
+            elStatusGrid.innerHTML = html;
+        }
+
+        function escapeHtml(s) {
+            return String(s)
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#39;");
+        }
+
+        function buildChart(elId, labels, values) {
+            const canvas = section.querySelector(`#${elId}`);
+            if (!canvas || !window.Chart) return null;
+
+            const ctx = canvas.getContext("2d");
+            return new window.Chart(ctx, {
+                type: "line",
+                data: {
+                    labels: labels || [],
+                    datasets: [{
+                        data: values || [],
+                        borderColor: "#e5e7eb",
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.28
+                    }]
+                },
+                options: {
+                    animation: false,
+                    maintainAspectRatio: false,
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: true }
+                    },
+                    scales: {
+                        x: {
+                            display: false,
+                            grid: { display: false }
+                        },
+                        y: {
+                            ticks: {
+                                color: "rgba(255,255,255,.45)",
+                                maxTicksLimit: 4
+                            },
+                            grid: {
+                                color: "rgba(255,255,255,.08)"
+                            },
+                            border: {
+                                color: "rgba(255,255,255,.08)"
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateChart(elId, labels, values) {
+            let c = chartMap[elId];
+            if (!c) {
+                c = buildChart(elId, labels, values);
+                if (c) chartMap[elId] = c;
+                return;
+            }
+
+            c.data.labels = labels || [];
+            c.data.datasets[0].data = values || [];
+            c.update("none");
+        }
+
+        function ensureAllCharts() {
+            for (const id of chartIds) {
+                if (!chartMap[id]) {
+                    updateChart(id, [], []);
+                }
+            }
+        }
+
+        function setFilterButtons(activeFilter) {
+            for (const btn of filterButtons) {
+                btn.classList.toggle("active", btn.getAttribute("data-filter") === activeFilter);
+            }
+        }
+
+        function fallbackSeriesByFilter(filterKey) {
+            switch (filterKey) {
+                case "cw_precl":
+                    return [
+                        { title: "CW Pre CL #1", latest: "-", group: "Group 1", state: "ok", labels: [], values: [] },
+                        { title: "CW Pre CL #2", latest: "-", group: "Group 2", state: "ok", labels: [], values: [] },
+                        { title: "CW Pre CL #3", latest: "-", group: "Group 3", state: "ok", labels: [], values: [] },
+                        { title: "CW Pre CL #4", latest: "-", group: "Group 4", state: "ok", labels: [], values: [] }
+                    ];
+                case "fw_turbid":
+                    return [
+                        { title: "FW Turbid #1", latest: "-", group: "Group 1", state: "ok", labels: [], values: [] },
+                        { title: "FW Turbid #2", latest: "-", group: "Group 2", state: "ok", labels: [], values: [] },
+                        { title: "FW Turbid #3", latest: "-", group: "Group 3", state: "ok", labels: [], values: [] },
+                        { title: "FW Turbid #4", latest: "-", group: "Group 4", state: "ok", labels: [], values: [] }
+                    ];
+                case "tw_postcl":
+                    return [
+                        { title: "TW Pos CL #1", latest: "-", group: "Group 1", state: "ok", labels: [], values: [] },
+                        { title: "TW Pos CL #2", latest: "-", group: "Group 2", state: "ok", labels: [], values: [] },
+                        { title: "TW Pos CL #3", latest: "-", group: "Group 3", state: "ok", labels: [], values: [] },
+                        { title: "TW Pos CL #4", latest: "-", group: "Group 4", state: "ok", labels: [], values: [] }
+                    ];
+                default:
+                    return [
+                        { title: "CW Turbid #1", latest: "-", group: "Group 1", state: "ok", labels: [], values: [] },
+                        { title: "CW Turbid #2", latest: "-", group: "Group 2", state: "ok", labels: [], values: [] },
+                        { title: "CW Turbid #3", latest: "-", group: "Group 3", state: "ok", labels: [], values: [] },
+                        { title: "CW Turbid #4", latest: "-", group: "Group 4", state: "ok", labels: [], values: [] }
+                    ];
+            }
+        }
+
+        function renderCards(activeFilter, payload) {
+            const allGroups = payload?.groups || {};
+            const rows = Array.isArray(allGroups[activeFilter]) ? allGroups[activeFilter] : fallbackSeriesByFilter(activeFilter);
+
+            for (let i = 0; i < 4; i++) {
+                const row = rows[i] || {};
+                const ref = cardRefs[i];
+                if (!ref) continue;
+
+                if (ref.title) ref.title.textContent = row.title || `Group #${i + 1}`;
+                if (ref.status) setBadge(ref.status, row.state || "ok");
+
+                updateChart(`labChart${i + 1}`, row.labels || [], row.values || []);
+            }
+        }
+
+        function renderTopChart(payload) {
+            const chart = payload?.topChart || {};
+            updateChart("labRwChart", chart.labels || [], chart.values || []);
+        }
+
+        function renderRecommend(payload) {
+            const d = payload?.recommend || {};
+
+            if (doseEls.paclP12) doseEls.paclP12.textContent = fmt(d?.pacl?.p12, 2);
+            if (doseEls.paclP34) doseEls.paclP34.textContent = fmt(d?.pacl?.p34, 2);
+            if (doseEls.alumP12) doseEls.alumP12.textContent = fmt(d?.alum?.p12, 2);
+            if (doseEls.alumP34) doseEls.alumP34.textContent = fmt(d?.alum?.p34, 2);
+        }
+
+        function renderUpdate(payload) {
+            const raw = payload?.updatedAt;
+            if (!elUpdateTop) return;
+
+            if (raw) {
+                const d = new Date(raw);
+                if (!Number.isNaN(d.getTime())) {
+                    elUpdateTop.textContent = fmtUpdate(d);
+                    return;
+                }
+            }
+
+            elUpdateTop.textContent = fmtUpdate(new Date());
+        }
+
+        function applyPayload(payload) {
+            const activeFilter = getCurrentFilter();
+            setFilterButtons(activeFilter);
+            renderRecommend(payload);
+            renderStatusGrid(payload?.status);
+            renderTopChart(payload);
+            renderCards(activeFilter, payload);
+            renderUpdate(payload);
+        }
+
+        function getMockPayload() {
+            const labels = ["10:00", "10:05", "10:10", "10:15", "10:20", "10:25", "10:30"];
+            return {
+                updatedAt: new Date().toISOString(),
+                recommend: {
+                    pacl: { p12: 12.3, p34: 11.8 },
+                    alum: { p12: 29.2, p34: 28.7 },
+                    precl: { p12: 1.12, p34: 1.08 },
+                    postcl: { p12: 0.84, p34: 0.79 }
+                },
+                status: [
+                    { label: "CW1 T", state: "ok" },
+                    { label: "CW2 T", state: "ok" },
+                    { label: "CW3 T", state: "warn" },
+                    { label: "CW4 T", state: "ok" },
+
+                    { label: "CW1 CL", state: "ok" },
+                    { label: "CW2 CL", state: "ok" },
+                    { label: "CW3 CL", state: "ok" },
+                    { label: "CW4 CL", state: "bad" },
+
+                    { label: "FW1 T", state: "ok" },
+                    { label: "FW2 T", state: "ok" },
+                    { label: "FW3 T", state: "ok" },
+                    { label: "FW4 T", state: "ok" },
+
+                    { label: "TW1 CL", state: "ok" },
+                    { label: "TW2 CL", state: "warn" },
+                    { label: "TW3 CL", state: "ok" },
+                    { label: "TW4 CL", state: "ok" }
+                ],
+                topChart: {
+                    labels,
+                    values: [8.4, 8.7, 8.2, 8.9, 9.3, 8.8, 8.5]
+                },
+                groups: {
+                    cw_turbid: [
+                        { title: "CW Turbid #1", latest: "1.12", group: "Group 1", state: "ok", labels, values: [1.08, 1.10, 1.09, 1.13, 1.12, 1.11, 1.12] },
+                        { title: "CW Turbid #2", latest: "1.09", group: "Group 2", state: "ok", labels, values: [1.02, 1.03, 1.05, 1.07, 1.08, 1.09, 1.09] },
+                        { title: "CW Turbid #3", latest: "1.18", group: "Group 3", state: "warn", labels, values: [1.15, 1.16, 1.17, 1.20, 1.19, 1.18, 1.18] },
+                        { title: "CW Turbid #4", latest: "1.05", group: "Group 4", state: "ok", labels, values: [1.00, 1.01, 1.02, 1.04, 1.03, 1.05, 1.05] }
+                    ],
+                    cw_precl: [
+                        { title: "CW Pre CL #1", latest: "1.22", group: "Group 1", state: "ok", labels, values: [1.18, 1.19, 1.20, 1.22, 1.21, 1.22, 1.22] },
+                        { title: "CW Pre CL #2", latest: "1.26", group: "Group 2", state: "ok", labels, values: [1.21, 1.22, 1.24, 1.23, 1.24, 1.25, 1.26] },
+                        { title: "CW Pre CL #3", latest: "1.31", group: "Group 3", state: "warn", labels, values: [1.24, 1.25, 1.27, 1.29, 1.30, 1.30, 1.31] },
+                        { title: "CW Pre CL #4", latest: "1.18", group: "Group 4", state: "ok", labels, values: [1.11, 1.12, 1.14, 1.15, 1.16, 1.17, 1.18] }
+                    ],
+                    fw_turbid: [
+                        { title: "FW Turbid #1", latest: "0.15", group: "Group 1", state: "ok", labels, values: [0.12, 0.12, 0.13, 0.14, 0.15, 0.15, 0.15] },
+                        { title: "FW Turbid #2", latest: "0.17", group: "Group 2", state: "ok", labels, values: [0.13, 0.14, 0.15, 0.15, 0.16, 0.16, 0.17] },
+                        { title: "FW Turbid #3", latest: "0.22", group: "Group 3", state: "warn", labels, values: [0.17, 0.18, 0.19, 0.20, 0.21, 0.21, 0.22] },
+                        { title: "FW Turbid #4", latest: "0.14", group: "Group 4", state: "ok", labels, values: [0.11, 0.11, 0.12, 0.13, 0.13, 0.14, 0.14] }
+                    ],
+                    tw_postcl: [
+                        { title: "TW Pos CL #1", latest: "0.73", group: "Group 1", state: "ok", labels, values: [0.68, 0.69, 0.70, 0.71, 0.72, 0.73, 0.73] },
+                        { title: "TW Pos CL #2", latest: "0.78", group: "Group 2", state: "ok", labels, values: [0.71, 0.72, 0.73, 0.75, 0.76, 0.77, 0.78] },
+                        { title: "TW Pos CL #3", latest: "0.85", group: "Group 3", state: "warn", labels, values: [0.77, 0.78, 0.79, 0.81, 0.82, 0.84, 0.85] },
+                        { title: "TW Pos CL #4", latest: "0.69", group: "Group 4", state: "ok", labels, values: [0.63, 0.64, 0.65, 0.66, 0.67, 0.68, 0.69] }
+                    }
+                }
+            };
+        }
+
+        let inFlight = false;
+        let timer = null;
+        let refreshSec = readSettings().refreshSec;
+
+        async function tick() {
+            if (inFlight) return;
+            inFlight = true;
+
+            try {
+                const res = await fetch(url, { method: "GET", cache: "no-store" });
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const payload = await res.json();
+                applyPayload(payload);
+            } catch (err) {
+                console.warn("LAB summary fallback to mock:", err);
+                applyPayload(getMockPayload());
+            } finally {
+                inFlight = false;
+            }
+        }
+
+        function restartPoller() {
+            if (timer) {
+                clearInterval(timer);
+                timer = null;
+            }
+            timer = setInterval(tick, refreshSec * 1000);
+        }
+
+        function createSettingsPopup() {
+            let pop = document.querySelector(".lab-settings-pop");
+            if (pop) return pop;
+
+            pop = document.createElement("div");
+            pop.className = "lab-settings-pop";
+            pop.innerHTML = `
+                <div class="lab-settings-title">LAB Settings</div>
+
+                <div class="lab-settings-row">
+                    <label for="labRefreshSel">Refresh interval</label>
+                    <select id="labRefreshSel">
+                        <option value="5">5 sec</option>
+                        <option value="10">10 sec</option>
+                        <option value="15">15 sec</option>
+                        <option value="30">30 sec</option>
+                        <option value="60">60 sec</option>
+                    </select>
+                </div>
+
+                <div class="lab-settings-actions">
+                    <button type="button" class="lab-cancel">Cancel</button>
+                    <button type="button" class="primary lab-save">Save</button>
+                </div>
+            `;
+
+            document.body.appendChild(pop);
+
+            pop.querySelector(".lab-cancel")?.addEventListener("click", () => {
+                pop.classList.remove("show");
+            });
+
+            pop.querySelector(".lab-save")?.addEventListener("click", async () => {
+                const sel = pop.querySelector("#labRefreshSel");
+                const v = Math.max(5, parseInt(sel?.value || "10", 10) || 10);
+
+                refreshSec = v;
+                saveSettings({ refreshSec: v });
+                pop.classList.remove("show");
+
+                restartPoller();
+                await tick();
+            });
+
+            document.addEventListener("click", (ev) => {
+                if (!pop.classList.contains("show")) return;
+                if (pop.contains(ev.target)) return;
+                if (btnSettings && btnSettings.contains(ev.target)) return;
+                pop.classList.remove("show");
+            });
+
+            return pop;
+        }
+
+        btnSettings?.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+
+            const pop = createSettingsPopup();
+            const sel = pop.querySelector("#labRefreshSel");
+            if (sel) sel.value = String(refreshSec);
+            pop.classList.toggle("show");
+        });
+
+        for (const btn of filterButtons) {
+            btn.addEventListener("click", () => {
+                const key = btn.getAttribute("data-filter") || "cw_turbid";
+                setCurrentFilter(key);
+                setFilterButtons(key);
+
+                try {
+                    const mock = getMockPayload();
+                    renderCards(key, mock);
+                } catch {
+                    // ignore
+                }
+            });
+        }
+
+        ensureAllCharts();
+        setFilterButtons(getCurrentFilter());
+        restartPoller();
+        tick();
+    })();
+</script>
