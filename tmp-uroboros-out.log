@@ -1,4 +1,0 @@
-[SCHED] Start, maxConcurrency=20
-[HTTP] Starting...
-[HTTP] Listening at http://+:8888/
-[MAIN] Started. Ctrl+C to stop.
