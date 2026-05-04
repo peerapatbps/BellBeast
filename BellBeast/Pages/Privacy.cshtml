@@ -1,48 +1,180 @@
-﻿@page
+@page
 @model PrivacyModel
 @{
     ViewData["Title"] = "Privacy Policy";
+    ViewData["ContentClass"] = "content";
 }
-<h1>@ViewData["Title"]</h1>
 
-<section>
-    <p>ประกาศนโยบายความเป็นส่วนตัวฉบับนี้จัดทำขึ้นเพื่อชี้แจงรายละเอียดเกี่ยวกับการเก็บรวบรวม ใช้ และรักษาความปลอดภัยของข้อมูลส่วนบุคคลสำหรับผู้ใช้งานระบบ โดยมีรายละเอียดดังต่อไปนี้:</p>
+@section Styles {
+    <style>
+        .privacy-page {
+            max-width: 980px;
+            margin: 0 auto;
+            color: #dbe7ff;
+        }
 
-    <h3>1. บทบาทหน้าที่ของระบบ</h3>
-    <p>
-        ระบบทำหน้าที่เป็น <strong>ตัวกลาง (Intermediary)</strong> ในการเชื่อมต่อระหว่างผู้ใช้งานและระบบฐานข้อมูล <strong>Aquadat</strong> เท่านั้น
-        เราไม่มีนโยบายในการจัดเก็บ สำเนา หรือบันทึกข้อมูลใดๆ ที่ถูกดึงออกมา (Query) จากฐานข้อมูล Aquadat เข้าสู่ระบบส่วนกลางของเรา
-        ข้อมูลเหล่านั้นจะถูกแสดงผลเพื่อการใช้งานแบบชั่วคราวตามคำขอของผู้ใช้เท่านั้น
+        .privacy-hero {
+            padding: 28px 32px;
+            border: 1px solid rgba(90, 170, 255, 0.28);
+            border-radius: 24px;
+            background:
+                radial-gradient(circle at top right, rgba(45, 140, 255, 0.22), transparent 35%),
+                linear-gradient(180deg, rgba(10, 22, 45, 0.96), rgba(7, 15, 32, 0.98));
+            box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+        }
+
+        .privacy-eyebrow {
+            margin: 0 0 10px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: #79b8ff;
+        }
+
+        .privacy-hero h1 {
+            margin: 0;
+            font-size: clamp(2rem, 4vw, 3rem);
+            line-height: 1.08;
+            color: #ffffff;
+        }
+
+        .privacy-summary {
+            margin: 18px 0 0;
+            max-width: 760px;
+            font-size: 1rem;
+            line-height: 1.8;
+            color: #c5d6f7;
+        }
+
+        .privacy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 18px;
+            margin-top: 24px;
+        }
+
+        .privacy-card {
+            padding: 22px 22px 20px;
+            border: 1px solid rgba(101, 163, 255, 0.2);
+            border-radius: 20px;
+            background: rgba(9, 19, 38, 0.88);
+        }
+
+        .privacy-card h2 {
+            margin: 0 0 10px;
+            font-size: 1.08rem;
+            color: #ffffff;
+        }
+
+        .privacy-card p,
+        .privacy-card li {
+            margin: 0;
+            line-height: 1.75;
+            color: #c7d6ee;
+        }
+
+        .privacy-card ul {
+            margin: 10px 0 0;
+            padding-left: 18px;
+        }
+
+        .privacy-card li + li {
+            margin-top: 8px;
+        }
+
+        .privacy-note {
+            margin-top: 24px;
+            padding: 18px 22px;
+            border-left: 4px solid #52a8ff;
+            border-radius: 14px;
+            background: rgba(11, 24, 48, 0.88);
+            color: #d5e3fb;
+            line-height: 1.75;
+        }
+
+        .privacy-footer {
+            margin-top: 18px;
+            font-size: 0.92rem;
+            color: #90a8c9;
+        }
+
+        @@media (max-width: 640px) {
+            .privacy-hero,
+            .privacy-card,
+            .privacy-note {
+                padding: 20px;
+            }
+        }
+    </style>
+}
+
+<div class="privacy-page">
+    <section class="privacy-hero">
+        <p class="privacy-eyebrow">BellBeast Privacy Notice</p>
+        <h1>นโยบายความเป็นส่วนตัว</h1>
+        <p class="privacy-summary">
+            เอกสารฉบับนี้จัดทำขึ้นเพื่ออธิบายแนวทางการเก็บ ใช้ และดูแลข้อมูลของผู้ใช้งานระบบ BellBeast
+            โดยระบบนี้มุ่งเน้นการให้บริการเข้าถึงข้อมูลเชิงปฏิบัติการอย่างปลอดภัย โปร่งใส และจำกัดเฉพาะข้อมูลที่จำเป็นต่อการใช้งานจริง
+        </p>
+    </section>
+
+    <section class="privacy-grid" aria-label="Privacy details">
+        <article class="privacy-card">
+            <h2>1. บทบาทของระบบ</h2>
+            <p>
+                BellBeast ทำหน้าที่เป็นตัวกลางในการเชื่อมต่อผู้ใช้งานกับระบบข้อมูลที่เกี่ยวข้อง เช่น Aquadat และเครื่องมือภายในอื่น ๆ
+                โดยไม่มีนโยบายจัดเก็บสำเนาข้อมูลผลลัพธ์จากการ query เข้าสู่ระบบส่วนกลางเพื่อใช้งานถาวร เว้นแต่เป็นข้อมูลที่จำเป็นต่อการทำงานของฟังก์ชันนั้นโดยตรง
+            </p>
+        </article>
+
+        <article class="privacy-card">
+            <h2>2. ข้อมูลที่ระบบจัดเก็บ</h2>
+            <ul>
+                <li>จัดเก็บเฉพาะข้อมูลที่จำเป็นต่อการยืนยันตัวตนและตรวจสอบการใช้งาน เช่น AD Username</li>
+                <li>ใช้เพื่อรองรับการอนุญาตเข้าใช้งาน การติดตามปัญหา และการวิเคราะห์การใช้งานในภาพรวม</li>
+                <li>ระบบไม่มีนโยบายเก็บรหัสผ่านของผู้ใช้งานไว้ในฐานข้อมูลของระบบ</li>
+            </ul>
+        </article>
+
+        <article class="privacy-card">
+            <h2>3. การใช้ข้อมูล</h2>
+            <p>
+                ข้อมูลที่จัดเก็บจะถูกใช้เท่าที่จำเป็นสำหรับการให้บริการ การรักษาความปลอดภัยของระบบ
+                การตรวจสอบย้อนหลังเมื่อเกิดเหตุผิดปกติ และการปรับปรุงประสิทธิภาพของเครื่องมือภายในองค์กร
+            </p>
+        </article>
+
+        <article class="privacy-card">
+            <h2>4. การรักษาความปลอดภัย</h2>
+            <p>
+                ระบบมีมาตรการควบคุมการเข้าถึงข้อมูลตามสิทธิ์ของผู้ใช้งาน และมุ่งลดความเสี่ยงจากการเข้าถึงโดยไม่ได้รับอนุญาต
+                ทั้งในระดับ session การพิสูจน์ตัวตน และการจัดการข้อมูลที่เกี่ยวข้องกับบัญชีผู้ใช้
+            </p>
+        </article>
+
+        <article class="privacy-card">
+            <h2>5. คุกกี้และ Session</h2>
+            <p>
+                ระบบอาจใช้คุกกี้หรือข้อมูล session เพื่อคงสถานะการเข้าสู่ระบบ ช่วยให้การใช้งานต่อเนื่องและลดความจำเป็นในการยืนยันตัวตนซ้ำโดยไม่จำเป็น
+            </p>
+        </article>
+
+        <article class="privacy-card">
+            <h2>6. การปรับปรุงนโยบาย</h2>
+            <p>
+                นโยบายฉบับนี้อาจได้รับการปรับปรุงตามความเหมาะสม เพื่อให้สอดคล้องกับการพัฒนาระบบ มาตรฐานความปลอดภัย
+                และข้อกำหนดที่เกี่ยวข้อง โดยเวอร์ชันล่าสุดจะแสดงผ่านหน้านี้
+            </p>
+        </article>
+    </section>
+
+    <section class="privacy-note">
+        หากผู้ใช้งานพบข้อสงสัยเกี่ยวกับการจัดการข้อมูล หรือพบพฤติกรรมของระบบที่ไม่สอดคล้องกับนโยบายนี้
+        ควรแจ้งผู้ดูแลระบบหรือทีมพัฒนาเพื่อตรวจสอบโดยเร็ว
+    </section>
+
+    <p class="privacy-footer">
+        อัปเดตล่าสุด: 5 พฤษภาคม 2569 โดยทีมพัฒนา BellBeast
     </p>
-
-    <h3>2. การเก็บรวบรวมข้อมูลส่วนบุคคล</h3>
-    <p>เพื่อให้สามารถตรวจสอบการเข้าถึงและปรับปรุงการให้บริการ เรามีการจัดเก็บข้อมูลเฉพาะที่จำเป็น ดังนี้:</p>
-    <ul>
-        <li><strong>ข้อมูลระบุตัวตน:</strong> ระบบจะจัดเก็บเฉพาะ <strong>AD Username</strong> ของผู้ใช้งานเท่านั้น</li>
-        <li><strong>วัตถุประสงค์:</strong> เพื่อใช้ในการบันทึกสถิติการใช้งาน (Engagement) และการตรวจสอบสิทธิ์การเข้าใช้งานระบบ</li>
-        <li><strong>ความปลอดภัยของรหัสผ่าน:</strong> ระบบ <strong>"ไม่มี"</strong> นโยบายการจัดเก็บรหัสผ่าน (Password) ของผู้ใช้งานไว้ในฐานข้อมูลของเราในทุกกรณี</li>
-    </ul>
-
-    <h3>3. การรักษาความปลอดภัยของข้อมูล</h3>
-    <p>
-        เราให้ความสำคัญกับความปลอดภัยของข้อมูลเป็นสูงสุด โดยมีมาตรการป้องกันการเข้าถึงข้อมูลโดยไม่ได้รับอนุญาต
-        และการรักษาความลับของ AD Username ที่จัดเก็บไว้เพื่อใช้ในเชิงสถิติเท่านั้น
-    </p>
-
-    <h3>4. คุกกี้ (Cookies)</h3>
-    <p>
-        ระบบอาจมีการใช้คุกกี้เพื่อวัตถุประสงค์ในการคงสถานะการเข้าสู่ระบบ (Session Management)
-        เพื่อให้ผู้ใช้งานได้รับความสะดวกในการใช้งานอย่างต่อเนื่อง
-    </p>
-
-    <h3>5. การเปลี่ยนแปลงนโยบายความเป็นส่วนตัว</h3>
-    <p>
-        เราขอสงวนสิทธิ์ในการปรับปรุงนโยบายนี้ตามความเหมาะสมเพื่อให้สอดคล้องกับมาตรฐานความปลอดภัยและกฎหมายที่เกี่ยวข้อง
-        โดยการเปลี่ยนแปลงใดๆ จะถูกประกาศให้ทราบผ่านหน้าเว็บไซต์นี้
-    </p>
-
-    <hr />
-    <p style="font-size: 0.9em; color: #666;">
-        อัปเดตล่าสุดเมื่อ: 5 มกราคม 2569 โดย ผู้พัฒนา TEAM MANGO
-    </p>
-</section>
+</div>

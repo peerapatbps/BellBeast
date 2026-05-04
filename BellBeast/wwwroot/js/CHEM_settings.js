@@ -7,7 +7,7 @@
     const MIN_REFRESH_SEC = 5;
     const MAX_REFRESH_SEC = 60;
 
-    const DEFAULT_CHLORINE_LOW_FILL_LIMIT = 20;
+    const DEFAULT_CHLORINE_LOW_FILL_LIMIT = 1;
 
     const CHLORINE_FILL_KEYS = [
         "CHLORINE1.LINEA.FILL",

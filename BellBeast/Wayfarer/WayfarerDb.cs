@@ -27,6 +27,7 @@ public sealed class WayfarerDb
 
         var conn = new SqliteConnection(BuildConnectionString(_dbPath));
         conn.Open();
+        AttachMetaDatabase(conn);
         return conn;
     }
 
@@ -52,9 +53,19 @@ public sealed class WayfarerDb
             DataSource = path,
             Mode = SqliteOpenMode.ReadOnly,
             Cache = SqliteCacheMode.Shared,
-            Pooling = true
+            Pooling = false
         };
 
         return csb.ToString();
+    }
+
+    private void AttachMetaDatabase(SqliteConnection conn)
+    {
+        if (!File.Exists(_metaDbPath)) return;
+
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "ATTACH DATABASE @metaPath AS meta";
+        cmd.Parameters.AddWithValue("@metaPath", _metaDbPath);
+        cmd.ExecuteNonQuery();
     }
 }

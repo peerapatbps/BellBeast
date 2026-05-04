@@ -1,7 +1,7 @@
 ﻿(function () {
     const STORAGE_KEY = "bb_cldetector_settings_v2";
     const DEFAULT_REFRESH_SEC = 5;
-    const DEFAULT_ALERT_LIMIT = 2.0;
+    const DEFAULT_ALERT_LIMIT = 1.0;
 
     function loadSettings() {
         const o = window.BBAlerts?.loadSettings(STORAGE_KEY, {}) || {};

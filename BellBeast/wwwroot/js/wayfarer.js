@@ -82,6 +82,12 @@
 
     const statusClass = (code) => `wf-chip wf-chip-status-${String(code || "").replace(/[^0-9]/g, "")}`;
     const sameText = (a, b) => String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+    const deptDisplay = (row) => row?.deptName || row?.maintenanceDeptName || row?.deptCode || "-";
+    const deptMetaDisplay = (row) => {
+        const code = row?.deptCode || "";
+        const text = row?.deptName || row?.maintenanceDeptName || "";
+        return text && text !== code ? code : "";
+    };
 
     function formatDateInput(date) {
         const year = date.getFullYear();
@@ -141,7 +147,16 @@
     async function loadFilters() {
         const data = await fetchJson(`${apiBase}/filters`, { headers: { Accept: "application/json" } });
         fillSelect(els.status, data.statuses || [], "All status", (x) => x.code, (x) => `${x.code} - ${x.name || "Unknown"}`);
-        fillSelect(els.type, data.types || [], "All type", (x) => x, (x) => x);
+        fillSelect(
+            els.type,
+            data.types || [],
+            "All type",
+            (x) => typeof x === "string" ? x : x.code,
+            (x) => {
+                if (typeof x === "string") return x;
+                return `${x.code} - ${x.name || "Unknown"}`;
+            }
+        );
         fillSelect(els.dept, data.departments || [], "All dept", (x) => x.code, (x) => `${x.code}${x.name ? ` - ${x.name}` : ""}`);
     }
 
@@ -219,7 +234,7 @@
                     </td>
                     <td>${escapeHtml(asDate(row.woDate))}</td>
                     <td><span class="wf-chip">${escapeHtml(row.woTypeCode || "-")}</span></td>
-                    <td><span class="${statusClass(row.woStatusCode)}">${escapeHtml(row.woStatusCode || "-")} - ${escapeHtml(row.woStatusName || "-")}</span></td>
+                    <td><span class="${statusClass(row.woStatusCode)}">${escapeHtml(row.woStatusCode || "-")}</span></td>
                     <td class="wf-problem">
                         <strong>${escapeHtml(row.woProblem || "-")}</strong>
                         ${taskText ? `<div class="wf-muted">${escapeHtml(taskText)}</div>` : ""}
@@ -229,8 +244,8 @@
                         <small class="wf-muted">${escapeHtml(row.eqName || row.eqNo || "-")}</small>
                     </td>
                     <td>
-                        <div>${escapeHtml(row.deptCode || "-")}</div>
-                        <small class="wf-muted">${escapeHtml(row.maintenanceDeptName || "")}</small>
+                        <div>${escapeHtml(deptDisplay(row))}</div>
+                        <small class="wf-muted">${escapeHtml(deptMetaDisplay(row))}</small>
                     </td>
                     <td>${escapeHtml(asMinutes(row.workDuration ?? row.actualDuration ?? row.scheduledDuration))}</td>
                 </tr>
@@ -337,8 +352,10 @@
                     ${kv({
                         "Scheduled start": asDateTime(o.scheduledStart),
                         "Scheduled finish": asDateTime(o.scheduledFinish),
+                        "Scheduled duration": asMinutes(o.scheduledDuration),
                         "Actual start": asDateTime(o.actualStart),
                         "Actual finish": asDateTime(o.actualFinish),
+                        "Actual duration": asMinutes(o.actualDuration),
                         "Complete": asDateTime(o.completeDate),
                         "Work duration": asMinutes(o.workDuration),
                         "Downtime": asMinutes(o.downtimeDuration)
@@ -355,7 +372,8 @@
                     ${kv({
                         "PU": o.puName || o.puNo,
                         "EQ": o.eqName || o.eqNo,
-                        "Dept": o.deptCode,
+                        "Dept": o.deptName || o.maintenanceDeptName || o.deptCode,
+                        "Dept code": o.deptCode,
                         "Maintenance": o.maintenanceDeptName,
                         "Request person": o.requestPersonName
                     })}
@@ -547,6 +565,7 @@
     });
 
     window.WayfarerOpenDetail = openDetail;
+    window.WayfarerReloadList = reloadFromFirstPage;
 
     (async function init() {
         applyDefaultDateRange();
@@ -620,6 +639,13 @@
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
+
+    const deptDisplay = (row) => row?.deptName || row?.maintenanceDeptName || row?.deptCode || "-";
+    const deptMetaDisplay = (row) => {
+        const code = row?.deptCode || "";
+        const text = row?.deptName || row?.maintenanceDeptName || "";
+        return text && text !== code ? code : "";
+    };
 
     const compact = (v, fallback = "-") => {
         if (v === null || v === undefined || v === "") return fallback;
@@ -840,6 +866,7 @@
         }
 
         if (mode === "mhmap") refreshMapSummary();
+        if (mode === "og" && previousMode !== mode) window.WayfarerReloadList?.();
     }
 
     function statusBreakdownHtml(marker) {
@@ -904,10 +931,10 @@
                 <tr data-wo-no="${escapeHtml(row.woNo)}">
                     <td><strong>${escapeHtml(row.woNo)}</strong><span class="wf-wo-code">${escapeHtml(row.woCode || "")}</span></td>
                     <td>${escapeHtml(asDate(row.woDate))}</td>
-                    <td><span class="${statusClass(row.woStatusCode)}">${escapeHtml(row.woStatusCode || "-")} - ${escapeHtml(row.woStatusName || "-")}</span></td>
+                    <td><span class="${statusClass(row.woStatusCode)}">${escapeHtml(row.woStatusCode || "-")}</span></td>
                     <td><div>${escapeHtml(row.puName || row.puNo || "-")}</div><small class="wf-muted">${escapeHtml(row.eqName || row.eqNo || "-")}</small></td>
                     <td class="wf-problem"><strong>${escapeHtml(row.woProblem || "-")}</strong>${taskText ? `<div class="wf-muted">${escapeHtml(taskText)}</div>` : ""}</td>
-                    <td><div>${escapeHtml(row.deptCode || "-")}</div><small class="wf-muted">${escapeHtml(row.maintenanceDeptName || "")}</small></td>
+                    <td><div>${escapeHtml(deptDisplay(row))}</div><small class="wf-muted">${escapeHtml(deptMetaDisplay(row))}</small></td>
                 </tr>
             `;
         }).join("");
@@ -994,10 +1021,15 @@
         marker.addEventListener("mouseenter", (e) => showMapTip(marker, e));
         marker.addEventListener("mousemove", moveMapTip);
         marker.addEventListener("mouseleave", hideMapTip);
-        marker.addEventListener("click", () => selectMapBranch(marker));
+        marker.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            selectMapBranch(marker);
+        });
         marker.addEventListener("keydown", (e) => {
             if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
+                e.stopPropagation();
                 selectMapBranch(marker);
             }
         });

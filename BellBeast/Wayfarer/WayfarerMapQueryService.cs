@@ -6,10 +6,12 @@ namespace BellBeast.Wayfarer;
 public sealed class WayfarerMapQueryService
 {
     private readonly string _dbPath;
+    private readonly string _metaDbPath;
 
     public WayfarerMapQueryService(IConfiguration configuration, IWebHostEnvironment env)
     {
         _dbPath = ResolveDbPath(configuration, env);
+        _metaDbPath = ResolveMetaDbPath(configuration, env);
     }
 
     public async Task<IReadOnlyList<WayfarerMapBranchSummary>> GetMapSummaryAsync(
@@ -23,10 +25,9 @@ public sealed class WayfarerMapQueryService
 
         var filters = new List<string>
         {
-            "t.rn = 1",
-            "t.branch_pu_code IS NOT NULL",
-            "t.branch_pu_code <> ''",
-            "t.branch_pu_code LIKE 'WPS-MH01-%'"
+            "b.branch_pu_code IS NOT NULL",
+            "b.branch_pu_code <> ''",
+            "b.branch_pu_code LIKE 'WPS-MH01-%'"
         };
 
         if (IsIsoDate(from))
@@ -48,37 +49,25 @@ public sealed class WayfarerMapQueryService
         var where = "WHERE " + string.Join(" AND ", filters);
 
         cmd.CommandText = $"""
-            WITH task_branch AS (
+            WITH branch_lookup AS (
                 SELECT
-                    t.wo_no,
-                    CASE
-                        WHEN instr(substr(t.pu_code, 11), '-') > 0 THEN substr(t.pu_code, 1, 10 + instr(substr(t.pu_code, 11), '-') - 1)
-                        ELSE t.pu_code
-                    END AS branch_pu_code,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY
-                            CASE
-                                WHEN instr(substr(t.pu_code, 11), '-') > 0 THEN substr(t.pu_code, 1, 10 + instr(substr(t.pu_code, 11), '-') - 1)
-                                ELSE t.pu_code
-                            END,
-                            t.wo_no
-                        ORDER BY COALESCE(t.task_order, 999999), t.wo_task_no
-                    ) AS rn
-                FROM pm_wo_task t
+                    puNo,
+                    COALESCE(branch1PuCode, rootPuCode, puCode) AS branch_pu_code
+                FROM meta.meta_pu_branches
             )
             SELECT
-                t.branch_pu_code AS puCode,
+                b.branch_pu_code AS puCode,
                 COUNT(*) AS total,
                 SUM(CASE WHEN COALESCE(s.wo_status_code, i.wo_status_code) IN ('10','15','20') THEN 1 ELSE 0 END) AS waiting,
                 SUM(CASE WHEN COALESCE(s.wo_status_code, i.wo_status_code) = '30' THEN 1 ELSE 0 END) AS scheduled,
                 SUM(CASE WHEN COALESCE(s.wo_status_code, i.wo_status_code) = '50' THEN 1 ELSE 0 END) AS inProgress,
                 SUM(CASE WHEN COALESCE(s.wo_status_code, i.wo_status_code) IN ('70','80','99') OR s.complete_date IS NOT NULL THEN 1 ELSE 0 END) AS completed
-            FROM task_branch t
-            INNER JOIN pm_wo_index i ON i.wo_no = t.wo_no
+            FROM pm_wo_index i
+            INNER JOIN branch_lookup b ON b.puNo = i.pu_no
             LEFT JOIN pm_wo_schedule_status s ON s.wo_no = i.wo_no
             {where}
-            GROUP BY t.branch_pu_code
-            ORDER BY t.branch_pu_code
+            GROUP BY b.branch_pu_code
+            ORDER BY b.branch_pu_code
             """;
 
         var items = new List<WayfarerMapBranchSummary>();
@@ -114,7 +103,7 @@ public sealed class WayfarerMapQueryService
         var filters = new List<string>
         {
             "1 = 1",
-            "t.wo_no IS NOT NULL"
+            "b.branch_pu_code = @puCode"
         };
 
         if (IsIsoDate(from))
@@ -136,6 +125,14 @@ public sealed class WayfarerMapQueryService
         var where = "WHERE " + string.Join(" AND ", filters);
         const string branchFrom = """
             FROM pm_wo_index i
+            INNER JOIN (
+                SELECT
+                    puNo,
+                    COALESCE(branch1PuCode, rootPuCode, puCode) AS branch_pu_code,
+                    COALESCE(branch1PuName, rootPuName, puName) AS branch_pu_name
+                FROM meta.meta_pu_branches
+            ) b ON b.puNo = i.pu_no
+            LEFT JOIN meta.meta_departments dep ON dep.deptCode = i.dept_code
             LEFT JOIN pm_wo_schedule_status s ON s.wo_no = i.wo_no
             LEFT JOIN (
                 SELECT * FROM (
@@ -143,7 +140,6 @@ public sealed class WayfarerMapQueryService
                         t.*,
                         ROW_NUMBER() OVER (PARTITION BY t.wo_no ORDER BY COALESCE(t.task_order, 999999), t.wo_task_no) AS rn
                     FROM pm_wo_task t
-                    WHERE t.pu_code = @puCode OR t.pu_code LIKE (@puCode || '-%')
                 ) tx WHERE tx.rn = 1
             ) t ON t.wo_no = i.wo_no
             LEFT JOIN (
@@ -226,8 +222,9 @@ public sealed class WayfarerMapQueryService
                 i.eq_no,
                 i.pu_no,
                 i.dept_code,
+                dep.deptName AS dept_name,
                 t.task_name,
-                t.pu_name,
+                COALESCE(t.pu_name, b.branch_pu_name) AS pu_name,
                 t.eq_name,
                 req.request_person_name,
                 md.maintenance_dept_name,
@@ -263,6 +260,7 @@ public sealed class WayfarerMapQueryService
                 EqNo: GetLong(reader, "eq_no"),
                 PuNo: GetLong(reader, "pu_no"),
                 DeptCode: GetString(reader, "dept_code"),
+                DeptName: GetString(reader, "dept_name"),
                 TaskName: GetString(reader, "task_name"),
                 PuName: GetString(reader, "pu_name"),
                 EqName: GetString(reader, "eq_name"),
@@ -288,17 +286,25 @@ public sealed class WayfarerMapQueryService
     {
         if (!File.Exists(_dbPath))
             throw new FileNotFoundException($"Wayfarer database not found: {_dbPath}", _dbPath);
+        if (!File.Exists(_metaDbPath))
+            throw new FileNotFoundException($"Wayfarer meta database not found: {_metaDbPath}", _metaDbPath);
 
         var cs = new SqliteConnectionStringBuilder
         {
             DataSource = _dbPath,
             Mode = SqliteOpenMode.ReadOnly,
             Cache = SqliteCacheMode.Shared,
-            Pooling = true
+            Pooling = false
         }.ToString();
 
         var conn = new SqliteConnection(cs);
         await conn.OpenAsync(ct);
+
+        await using var attach = conn.CreateCommand();
+        attach.CommandText = "ATTACH DATABASE @metaPath AS meta";
+        attach.Parameters.AddWithValue("@metaPath", _metaDbPath);
+        await attach.ExecuteNonQueryAsync(ct);
+
         return conn;
     }
 
@@ -330,6 +336,27 @@ public sealed class WayfarerMapQueryService
             Path.Combine(env.ContentRootPath, "bin", "Release", "net9.0", "publish", "App_Data", "wayfarer.db"),
             Path.Combine(env.ContentRootPath, "bin", "Release", "net9.0", "win-x64", "publish", "App_Data", "wayfarer.db"),
             Path.Combine(env.ContentRootPath, "bin", "Debug", "net9.0", "publish", "App_Data", "wayfarer.db")
+        };
+
+        var fallback = fallbacks.FirstOrDefault(HasUsableDb);
+        return fallback ?? primary;
+    }
+
+    private static string ResolveMetaDbPath(IConfiguration configuration, IWebHostEnvironment env)
+    {
+        var configured = configuration["Wayfarer:MetaDbPath"] ?? "App_Data/wayfarer_meta.db";
+        var primary = Path.IsPathRooted(configured)
+            ? configured
+            : Path.Combine(env.ContentRootPath, configured);
+
+        if (HasUsableDb(primary))
+            return primary;
+
+        var fallbacks = new[]
+        {
+            Path.Combine(env.ContentRootPath, "bin", "Release", "net9.0", "publish", "App_Data", "wayfarer_meta.db"),
+            Path.Combine(env.ContentRootPath, "bin", "Release", "net9.0", "win-x64", "publish", "App_Data", "wayfarer_meta.db"),
+            Path.Combine(env.ContentRootPath, "bin", "Debug", "net9.0", "publish", "App_Data", "wayfarer_meta.db")
         };
 
         var fallback = fallbacks.FirstOrDefault(HasUsableDb);

@@ -6,7 +6,7 @@
         zone4Filter: "CW Turbid",
         refreshMin: 10,
         alertEnabled: false,
-        alertLimit: 2,
+        alertLimit: 4,
         alertMuted: false
     };
 

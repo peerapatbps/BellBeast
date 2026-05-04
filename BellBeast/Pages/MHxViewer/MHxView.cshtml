@@ -2204,12 +2204,18 @@
 
         const BLOCKS = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(blocks.Select(x => new { key = x.key, label = x.label })));
         const DEFAULT_SLOTS = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(defaultSlots));
+        const VALID_SLOT_KEYS = new Set(BLOCKS.map(x => String(x.key).trim().toUpperCase()));
+
+        function normalizeSlotKey(value){
+            const key = value == null ? "" : String(value).trim().toUpperCase();
+            if (!key || key === "0" || !VALID_SLOT_KEYS.has(key)) return "EMPTY";
+            return key;
+        }
 
         function normalize(arr){
             const base = [...DEFAULT_SLOTS];
             for (let i = 0; i < base.length; i++){
-                const v = (arr && arr[i] != null) ? String(arr[i]).trim().toUpperCase() : "";
-                base[i] = v ? v : "EMPTY";
+                base[i] = normalizeSlotKey(arr && arr[i]);
             }
             return base;
         }
@@ -2236,7 +2242,7 @@
         async function renderSlotsFromLayout(layout){
             const slots = Array.from(grid.querySelectorAll(".bb-slot"));
             for (let i = 0; i < slots.length; i++){
-                const key = (layout[i] || "EMPTY").toString().trim().toUpperCase() || "EMPTY";
+                const key = normalizeSlotKey(layout[i]);
 
                 // ✅ URL ชัวร์ ไม่เดา path: SLOT_URL ถูก gen โดย Razor
                 const url = `${SLOT_URL}&key=${encodeURIComponent(key)}`;
@@ -2330,14 +2336,14 @@
                     opt.value = b.key;
                     opt.textContent = b.label;
 
-                    const key = String(b.key).trim().toUpperCase();
-                    if (key === String(slots[i]).trim().toUpperCase()) opt.selected = true;
+                    const key = normalizeSlotKey(b.key);
+                    if (key === normalizeSlotKey(slots[i])) opt.selected = true;
 
                     sel.appendChild(opt);
                 }
 
                 sel.addEventListener("change", () => {
-                    slots[i] = String(sel.value).trim().toUpperCase();
+                    slots[i] = normalizeSlotKey(sel.value);
                     editor._draftSlots = [...slots];
                 });
 

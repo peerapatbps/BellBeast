@@ -3,7 +3,7 @@
 
     const API_URL = "/api/event/summary";
     const DEFAULT_REFRESH_MIN = 15;
-    const DEFAULT_ALERT_LIMIT = 3;
+    const DEFAULT_ALERT_LIMIT = 1;
 
     const CAP = {
         ALUM: 625.0,
@@ -411,6 +411,8 @@
     }
 
     function startTimer(scope) {
+        if (!scope) return;
+
         if (scope._eventTimer) {
             clearInterval(scope._eventTimer);
             scope._eventTimer = null;
@@ -424,19 +426,23 @@
         }, refreshMs);
     }
 
+    function resolveEventScope(root) {
+        if (root?.matches?.("section.event-block")) return root;
+        if (root?.querySelector) return root.querySelector("section.event-block");
+        return document.querySelector("section.event-block");
+    }
+
     function restartWithin(root) {
-        const scope = root && root.matches?.("section.event-block")
-            ? root
-            : (document.querySelector("section.event-block") || document);
+        const scope = resolveEventScope(root);
+        if (!scope) return;
 
         refreshAll(scope).catch(err => console.error("[EVENTview] initial failed:", err));
         startTimer(scope);
     }
 
     function initWithin(root) {
-        const scope = root && root.matches?.("section.event-block")
-            ? root
-            : (document.querySelector("section.event-block") || document);
+        const scope = resolveEventScope(root);
+        if (!scope) return;
 
         if (scope._eventBound === true) return;
         scope._eventBound = true;
@@ -445,9 +451,8 @@
     }
 
     function destroyWithin(root) {
-        const scope = root && root.matches?.("section.event-block")
-            ? root
-            : (document.querySelector("section.event-block") || document);
+        const scope = resolveEventScope(root);
+        if (!scope) return;
 
         if (scope._eventTimer) clearInterval(scope._eventTimer);
 

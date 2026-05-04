@@ -1,6 +1,8 @@
 using Microsoft.Data.Sqlite;
 using ClosedXML.Excel;
 using System.Globalization;
+using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace BellBeast.Wayfarer;
 
@@ -34,9 +36,7 @@ public static class WayfarerApiExtensions
             await using var conn = db.OpenReadOnlyConnection();
 
             var statuses = await ReadStatusFiltersAsync(conn, ct);
-            var types = await ReadScalarListAsync<string>(conn,
-                "SELECT DISTINCT wo_type_code FROM pm_wo_index WHERE wo_type_code IS NOT NULL AND wo_type_code <> '' ORDER BY wo_type_code",
-                ct);
+            var types = await ReadTypeFiltersAsync(db, conn, ct);
             var departments = await ReadDeptFiltersAsync(db, conn, ct);
 
             await using var latestCmd = conn.CreateCommand();
@@ -65,11 +65,24 @@ public static class WayfarerApiExtensions
             return Results.Ok(new WayfarerListResponse(page, pageSize, total, summary, items));
         });
 
-        api.MapGet("/workorders/{woNo:long}", async (long woNo, WayfarerDb db, CancellationToken ct) =>
+        api.MapGet("/workorders/{woNo:long}", async (long woNo, WayfarerDb db, IHttpClientFactory httpFactory, IWebHostEnvironment env, CancellationToken ct) =>
         {
             await using var conn = db.OpenReadOnlyConnection();
             var detail = await ReadDetailAsync(conn, woNo, ct);
-            if (detail is null) return Results.NotFound(new { message = $"Work order {woNo} not found" });
+            if (detail is null)
+            {
+                var remoteMissing = await TryReadRemoteDetailAsync(httpFactory, env, woNo, ct);
+                if (remoteMissing is not null) return Results.Ok(remoteMissing);
+                return Results.NotFound(new { message = $"Work order {woNo} not found" });
+            }
+
+            if (IsSparseDetail(detail))
+            {
+                var remote = await TryReadRemoteDetailAsync(httpFactory, env, woNo, ct);
+                if (remote is not null) detail = MergeDetail(detail, remote);
+            }
+
+            detail = EnrichDetail(detail);
             return Results.Ok(detail);
         });
 
@@ -143,15 +156,19 @@ public static class WayfarerApiExtensions
             WHERE role_type = 'maintenance_dept'
             GROUP BY wo_no
         ) md ON md.wo_no = i.wo_no
+        LEFT JOIN meta.meta_departments dep ON dep.deptCode = i.dept_code
+        LEFT JOIN meta.meta_pu_branches pu ON pu.puNo = i.pu_no
         """;
 
     private static string SelectList => """
         SELECT i.wo_no, i.detail_url, i.wo_code, i.wo_date, i.wo_problem,
                COALESCE(s.wo_status_code, i.wo_status_code) AS wo_status_code,
                s.wo_status_name,
-               i.wo_type_code, i.eq_no, i.pu_no, i.dept_code,
-               t.task_name, t.pu_name, t.eq_name,
-               req.request_person_name, md.maintenance_dept_name,
+               i.wo_type_code, i.eq_no, i.pu_no, i.dept_code, dep.deptName AS dept_name,
+               t.task_name,
+               COALESCE(t.pu_name, pu.branch1PuName, pu.rootPuName, pu.puName) AS pu_name,
+               t.eq_name,
+               req.request_person_name, COALESCE(md.maintenance_dept_name, dep.deptName) AS maintenance_dept_name,
                s.sch_start_d AS scheduled_start, s.sch_finish_d AS scheduled_finish, s.sch_duration AS scheduled_duration,
                s.act_start_d AS actual_start, s.act_finish_d AS actual_finish, s.act_duration AS actual_duration,
                s.work_duration, s.dt_duration AS downtime_duration, s.complete_date,
@@ -175,6 +192,7 @@ public static class WayfarerApiExtensions
                     t.eq_name LIKE @q OR
                     t.pu_name LIKE @q OR
                     i.dept_code LIKE @q OR
+                    dep.deptName LIKE @q OR
                     md.maintenance_dept_name LIKE @q OR
                     req.request_person_name LIKE @q
                 )
@@ -391,6 +409,193 @@ public static class WayfarerApiExtensions
         );
     }
 
+    private static bool IsSparseDetail(WayfarerDetailResponse detail)
+    {
+        var overview = detail.Overview;
+        if (overview is null) return true;
+
+        var hasSchedule =
+            !string.IsNullOrWhiteSpace(overview.ScheduledStart) ||
+            !string.IsNullOrWhiteSpace(overview.ScheduledFinish) ||
+            !string.IsNullOrWhiteSpace(overview.ActualStart) ||
+            !string.IsNullOrWhiteSpace(overview.ActualFinish) ||
+            overview.ScheduledDuration.HasValue ||
+            overview.ActualDuration.HasValue ||
+            overview.WorkDuration.HasValue ||
+            overview.DowntimeDuration.HasValue ||
+            !string.IsNullOrWhiteSpace(overview.CompleteDate);
+
+        var hasRelatedRows =
+            detail.Tasks.Count > 0 ||
+            detail.People.Count > 0 ||
+            detail.History.Count > 0 ||
+            detail.DamageFailure.Count > 0 ||
+            detail.ActualManhrs.Count > 0 ||
+            detail.Flags is not null;
+
+        return !hasSchedule || !hasRelatedRows;
+    }
+
+    private static async Task<WayfarerDetailResponse?> TryReadRemoteDetailAsync(
+        IHttpClientFactory httpFactory,
+        IWebHostEnvironment env,
+        long woNo,
+        CancellationToken ct)
+    {
+        try
+        {
+            var cfg = LoadBackendConfig(env);
+            if (cfg is null) return null;
+
+            var url = $"{cfg.Value.baseUrl}{cfg.Value.wayfarerApiPath.TrimEnd('/')}/workorders/{woNo}";
+            var client = httpFactory.CreateClient();
+            client.Timeout = TimeSpan.FromSeconds(60);
+
+            using var response = await client.GetAsync(url, ct);
+            if (!response.IsSuccessStatusCode) return null;
+
+            return await response.Content.ReadFromJsonAsync<WayfarerDetailResponse>(new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            }, ct);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static WayfarerDetailResponse MergeDetail(WayfarerDetailResponse local, WayfarerDetailResponse remote)
+    {
+        var localOverview = local.Overview;
+        var remoteOverview = remote.Overview;
+
+        if (localOverview is null) return remote;
+        if (remoteOverview is null) return local;
+
+        var mergedOverview = localOverview with
+        {
+            WoStatusName = Pick(remoteOverview.WoStatusName, localOverview.WoStatusName),
+            DeptName = Pick(remoteOverview.DeptName, localOverview.DeptName),
+            TaskName = Pick(remoteOverview.TaskName, localOverview.TaskName),
+            PuName = Pick(remoteOverview.PuName, localOverview.PuName),
+            EqName = Pick(remoteOverview.EqName, localOverview.EqName),
+            RequestPersonName = Pick(remoteOverview.RequestPersonName, localOverview.RequestPersonName),
+            MaintenanceDeptName = Pick(remoteOverview.MaintenanceDeptName, localOverview.MaintenanceDeptName),
+            ScheduledStart = Pick(remoteOverview.ScheduledStart, localOverview.ScheduledStart),
+            ScheduledFinish = Pick(remoteOverview.ScheduledFinish, localOverview.ScheduledFinish),
+            ScheduledDuration = remoteOverview.ScheduledDuration ?? localOverview.ScheduledDuration,
+            ActualStart = Pick(remoteOverview.ActualStart, localOverview.ActualStart),
+            ActualFinish = Pick(remoteOverview.ActualFinish, localOverview.ActualFinish),
+            ActualDuration = remoteOverview.ActualDuration ?? localOverview.ActualDuration,
+            WorkDuration = remoteOverview.WorkDuration ?? localOverview.WorkDuration,
+            DowntimeDuration = remoteOverview.DowntimeDuration ?? localOverview.DowntimeDuration,
+            CompleteDate = Pick(remoteOverview.CompleteDate, localOverview.CompleteDate)
+        };
+
+        return new WayfarerDetailResponse(
+            mergedOverview,
+            local.Tasks.Count > 0 ? local.Tasks : remote.Tasks,
+            local.People.Count > 0 ? local.People : remote.People,
+            local.History.Count > 0 ? local.History : remote.History,
+            local.DamageFailure.Count > 0 ? local.DamageFailure : remote.DamageFailure,
+            local.ActualManhrs.Count > 0 ? local.ActualManhrs : remote.ActualManhrs,
+            local.Flags ?? remote.Flags
+        );
+    }
+
+    private static WayfarerDetailResponse EnrichDetail(WayfarerDetailResponse detail)
+    {
+        var overview = detail.Overview;
+        if (overview is null) return detail;
+
+        string? requestPersonName = overview.RequestPersonName;
+        string? maintenanceDeptName = overview.MaintenanceDeptName;
+        string? deptName = overview.DeptName;
+
+        foreach (var row in detail.People)
+        {
+            var role = GetRowString(row, "role_type");
+            var personName = GetRowString(row, "person_name");
+            var rowDeptCode = GetRowString(row, "dept_code");
+            var rowDeptName = GetRowString(row, "dept_name");
+
+            if (string.IsNullOrWhiteSpace(deptName) && !string.IsNullOrWhiteSpace(rowDeptName) &&
+                (string.IsNullOrWhiteSpace(overview.DeptCode) || string.Equals(rowDeptCode, overview.DeptCode, StringComparison.OrdinalIgnoreCase)))
+            {
+                deptName = rowDeptName;
+            }
+
+            if (string.IsNullOrWhiteSpace(requestPersonName) &&
+                string.Equals(role, "request_person", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(personName))
+            {
+                requestPersonName = personName;
+            }
+
+            if (string.IsNullOrWhiteSpace(maintenanceDeptName) &&
+                string.Equals(role, "maintenance_dept", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(rowDeptName))
+            {
+                maintenanceDeptName = rowDeptName;
+            }
+        }
+
+        if (requestPersonName == overview.RequestPersonName &&
+            maintenanceDeptName == overview.MaintenanceDeptName &&
+            deptName == overview.DeptName)
+        {
+            return detail;
+        }
+
+        return new WayfarerDetailResponse(
+            overview with
+            {
+                RequestPersonName = requestPersonName,
+                MaintenanceDeptName = maintenanceDeptName,
+                DeptName = deptName
+            },
+            detail.Tasks,
+            detail.People,
+            detail.History,
+            detail.DamageFailure,
+            detail.ActualManhrs,
+            detail.Flags
+        );
+    }
+
+    private static string? Pick(string? preferred, string? fallback)
+        => string.IsNullOrWhiteSpace(preferred) ? fallback : preferred;
+
+    private static string? GetRowString(IReadOnlyDictionary<string, object?> row, string key)
+        => row.TryGetValue(key, out var value) ? value?.ToString() : null;
+
+    private static (string baseUrl, string wayfarerApiPath)? LoadBackendConfig(IWebHostEnvironment env)
+    {
+        var path = Path.Combine(env.ContentRootPath, "App_Data", "backend-config.json");
+        if (!File.Exists(path)) return null;
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(path), new JsonDocumentOptions
+        {
+            AllowTrailingCommas = true,
+            CommentHandling = JsonCommentHandling.Skip
+        });
+
+        static string GetStr(JsonDocument doc, string name)
+            => doc.RootElement.TryGetProperty(name, out var el) ? (el.GetString() ?? "").Trim() : "";
+
+        var baseUrl = GetStr(doc, "backendBaseUrl").TrimEnd('/');
+        var wayfarerApiPath = GetStr(doc, "wayfarerApiPath");
+
+        if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(wayfarerApiPath))
+            return null;
+
+        if (!wayfarerApiPath.StartsWith("/"))
+            wayfarerApiPath = "/" + wayfarerApiPath;
+
+        return (baseUrl, wayfarerApiPath);
+    }
+
     private static WayfarerWorkOrderListItem MapListItem(SqliteDataReader r) => new(
         WoNo: GetLong(r, "wo_no") ?? 0,
         DetailUrl: GetString(r, "detail_url"),
@@ -403,6 +608,7 @@ public static class WayfarerApiExtensions
         EqNo: GetLong(r, "eq_no"),
         PuNo: GetLong(r, "pu_no"),
         DeptCode: GetString(r, "dept_code"),
+        DeptName: GetString(r, "dept_name"),
         TaskName: GetString(r, "task_name"),
         PuName: GetString(r, "pu_name"),
         EqName: GetString(r, "eq_name"),
@@ -490,6 +696,57 @@ public static class WayfarerApiExtensions
         while (await fallbackReader.ReadAsync(ct))
         {
             fallbackList.Add(new WayfarerDeptFilter(GetString(fallbackReader, "code"), GetString(fallbackReader, "name")));
+        }
+        return fallbackList;
+    }
+
+    private static async Task<IReadOnlyList<WayfarerTypeFilter>> ReadTypeFiltersAsync(WayfarerDb db, SqliteConnection mainConn, CancellationToken ct)
+    {
+        try
+        {
+            await using var metaConn = db.OpenReadOnlyMetaConnection();
+            await using var cmd = metaConn.CreateCommand();
+            cmd.CommandText = """
+                SELECT workClassShort AS code, workClassName AS name
+                FROM meta_work_classes
+                WHERE workClassShort IS NOT NULL
+                  AND workClassShort <> ''
+                ORDER BY workClassShort
+                """;
+
+            var metaList = new List<WayfarerTypeFilter>();
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                metaList.Add(new WayfarerTypeFilter(GetString(reader, "code"), GetString(reader, "name")));
+            }
+
+            if (metaList.Count > 0)
+                return metaList;
+        }
+        catch (FileNotFoundException)
+        {
+            // Fall back to live data if metadata DB has not been deployed yet.
+        }
+        catch (SqliteException)
+        {
+            // Fall back to live data if metadata schema changes or is incomplete.
+        }
+
+        await using var fallbackCmd = mainConn.CreateCommand();
+        fallbackCmd.CommandText = """
+            SELECT DISTINCT wo_type_code AS code
+            FROM pm_wo_index
+            WHERE wo_type_code IS NOT NULL
+              AND wo_type_code <> ''
+            ORDER BY wo_type_code
+            """;
+
+        var fallbackList = new List<WayfarerTypeFilter>();
+        await using var fallbackReader = await fallbackCmd.ExecuteReaderAsync(ct);
+        while (await fallbackReader.ReadAsync(ct))
+        {
+            fallbackList.Add(new WayfarerTypeFilter(GetString(fallbackReader, "code"), null));
         }
         return fallbackList;
     }
@@ -599,7 +856,7 @@ public static class WayfarerApiExtensions
             ws.Cell(rowIndex, 8).Value = row.TaskName;
             ws.Cell(rowIndex, 9).Value = row.PuName ?? row.PuNo?.ToString();
             ws.Cell(rowIndex, 10).Value = row.EqName ?? row.EqNo?.ToString();
-            ws.Cell(rowIndex, 11).Value = row.DeptCode;
+            ws.Cell(rowIndex, 11).Value = row.DeptName ?? row.DeptCode;
             ws.Cell(rowIndex, 12).Value = row.MaintenanceDeptName;
             ws.Cell(rowIndex, 13).Value = NormalizeExportValue("scheduled_start", row.ScheduledStart);
             ws.Cell(rowIndex, 14).Value = NormalizeExportValue("scheduled_finish", row.ScheduledFinish);
@@ -637,7 +894,7 @@ public static class WayfarerApiExtensions
             ["Task"] = overview.TaskName,
             ["PU"] = overview.PuName ?? overview.PuNo?.ToString(),
             ["EQ"] = overview.EqName ?? overview.EqNo?.ToString(),
-            ["Dept"] = overview.DeptCode,
+            ["Dept"] = overview.DeptName ?? overview.DeptCode,
             ["Maintenance Dept"] = overview.MaintenanceDeptName,
             ["Request Person"] = overview.RequestPersonName,
             ["Scheduled Start"] = overview.ScheduledStart,

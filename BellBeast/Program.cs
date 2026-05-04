@@ -166,6 +166,7 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<EngineAdminService>();
 builder.Services.AddSingleton<WayfarerMapQueryService>();
+builder.Services.AddWayfarerData(builder.Configuration);
 
 var app = builder.Build();
 
@@ -346,6 +347,8 @@ app.MapGet("/api/wayfarer/map-branch-workorders", async (HttpContext ctx, Wayfar
     var response = await svc.GetBranchWorkOrdersAsync(puCode, from, to, statusGroups, ct);
     return Results.Ok(response);
 });
+
+app.MapWayfarerApi();
 
 app.MapMethods("/api/wayfarer/{**path}", new[] { "GET", "POST" }, async (HttpContext ctx, IHttpClientFactory factory, string? path) =>
 {

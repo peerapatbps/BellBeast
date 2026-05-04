@@ -20,6 +20,7 @@ public sealed record WayfarerWorkOrderListItem(
     long? EqNo,
     long? PuNo,
     string? DeptCode,
+    string? DeptName,
     string? TaskName,
     string? PuName,
     string? EqName,
@@ -46,11 +47,12 @@ public sealed record WayfarerListResponse(
 );
 
 public sealed record WayfarerStatusFilter(string? Code, string? Name);
+public sealed record WayfarerTypeFilter(string? Code, string? Name);
 public sealed record WayfarerDeptFilter(string? Code, string? Name);
 
 public sealed record WayfarerFilterResponse(
     IReadOnlyList<WayfarerStatusFilter> Statuses,
-    IReadOnlyList<string> Types,
+    IReadOnlyList<WayfarerTypeFilter> Types,
     IReadOnlyList<WayfarerDeptFilter> Departments,
     string? LatestFetchedAtUtc
 );

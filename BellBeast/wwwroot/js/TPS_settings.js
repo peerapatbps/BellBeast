@@ -4,9 +4,9 @@
     const STORAGE_KEY = "tps_refresh_settings_v3";
     const DEFAULT_REFRESH_SEC = 15;
 
-    const DEFAULT_PRESSURE_LOW_LIMIT = 2.5;
-    const DEFAULT_PRESSURE_HIGH_LIMIT = 4.5;
-    const DEFAULT_SERVICE_WATER_FLOW_LOW_LIMIT = 5.0;
+    const DEFAULT_PRESSURE_LOW_LIMIT = 1.0;
+    const DEFAULT_PRESSURE_HIGH_LIMIT = 2.5;
+    const DEFAULT_SERVICE_WATER_FLOW_LOW_LIMIT = 150;
 
     let _booted = false;
     let _activeSection = null;

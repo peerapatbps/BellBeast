@@ -19,8 +19,8 @@
     const MIN_ONLINELAB_REFRESH_SEC = 300;
     const MAX_ONLINELAB_REFRESH_SEC = 900;
 
-    const DEFAULT_FLOW_LOW_LIMIT = 1000;
-    const DEFAULT_AIR_SUM_LOW_LIMIT = 1.0;
+    const DEFAULT_FLOW_LOW_LIMIT = 5000;
+    const DEFAULT_AIR_SUM_LOW_LIMIT = 4.0;
 
     const boundSections = new WeakSet();
     let pollTimer = null;
