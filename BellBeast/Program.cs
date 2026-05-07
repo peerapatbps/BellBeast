@@ -190,6 +190,17 @@ app.UseStaticFiles();
 app.UseRouting();
 app.UseCors("LAN");
 
+app.Use(async (ctx, next) =>
+{
+    if (ctx.Request.Path == "/")
+    {
+        ctx.Response.Redirect("/MHxViewer/MHxView");
+        return;
+    }
+
+    await next();
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 

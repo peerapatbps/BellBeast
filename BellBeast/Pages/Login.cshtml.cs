@@ -76,7 +76,7 @@ namespace BellBeast.Pages
             var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
             await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
 
-            return RedirectToPage("/Index");
+            return Redirect("/Index");
         }
 
         // =====================================================

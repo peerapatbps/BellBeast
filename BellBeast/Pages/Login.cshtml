@@ -1,38 +1,322 @@
-﻿@page
+@page
 @model BellBeast.Pages.LoginModel
 @{
     ViewData["Title"] = "Login";
+    ViewData["ContentClass"] = "login-content";
 }
 
-<h2>Login AD เพื่อใช้งานระบบ</h2>
+<section class="login-shell">
+    <div class="login-backdrop login-backdrop-a" aria-hidden="true"></div>
+    <div class="login-backdrop login-backdrop-b" aria-hidden="true"></div>
 
-<form method="post" id="loginForm">
-    <div>
-        <label>AD Username</label><br />
-        <input asp-for="Username" id="txtUsername" autocomplete="username" />
-    </div>
-
-    <div style="margin-top:8px;">
-        <label>AD Password</label><br />
-        <input asp-for="Password" id="txtPassword" type="password" autocomplete="current-password" />
-    </div>
-
-    <div style="margin-top:8px;">
-        <input asp-for="UseDefaultAd" id="chkUseDefaultAd" type="checkbox" />
-        <label asp-for="UseDefaultAd">เข้าสู่ระบบด้วยบัญชีทดสอบ</label>
-    </div>
-
-    <div style="margin-top:12px;">
-        <button type="submit">Login</button>
-    </div>
-
-    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
-    {
-        <div style="color:red; margin-top:10px;">
-            @Model.ErrorMessage
+    <div class="login-layout">
+        <div class="login-banner" aria-label="Aquadat production data search system">
+            <img src="~/images/aquadat-login-banner.png" alt="Aquadat ระบบสืบค้นข้อมูลการผลิต" />
         </div>
-    }
-</form>
+
+        <div class="login-card">
+            <div class="login-card-head">
+                <div class="login-kicker">BellBeast</div>
+                <h1 class="login-title">Login AD เพื่อใช้งานระบบ</h1>
+                <p class="login-subtitle">
+                    กรุณาเข้าสู่ระบบด้วยบัญชี AD ของคุณเพื่อเข้าใช้งาน
+                </p>
+            </div>
+
+            <form method="post" id="loginForm" class="login-form">
+                <div class="form-field">
+                    <label class="form-label" for="txtUsername">AD Username</label>
+                    <input class="form-input" asp-for="Username" id="txtUsername" autocomplete="username" />
+                </div>
+
+                <div class="form-field">
+                    <label class="form-label" for="txtPassword">AD Password</label>
+                    <input class="form-input" asp-for="Password" id="txtPassword" type="password" autocomplete="current-password" />
+                </div>
+
+                <label class="form-check" for="chkUseDefaultAd">
+                    <input asp-for="UseDefaultAd" id="chkUseDefaultAd" type="checkbox" />
+                    <span>เข้าสู่ระบบด้วยบัญชีทดสอบ</span>
+                </label>
+
+                <button class="login-submit" type="submit">Login</button>
+
+                @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+                {
+                    <div class="login-error" role="alert">
+                        @Model.ErrorMessage
+                    </div>
+                }
+            </form>
+        </div>
+    </div>
+</section>
+
+@section Styles {
+    <style>
+        .login-content {
+            min-height: calc(100vh - 116px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .login-shell {
+            position: relative;
+            width: 100%;
+            max-width: 980px;
+        }
+
+        .login-layout {
+            position: relative;
+            z-index: 1;
+            display: grid;
+            grid-template-columns: minmax(340px, 420px) minmax(420px, 520px);
+            gap: 22px;
+            align-items: stretch;
+        }
+
+        .login-banner {
+            min-height: 520px;
+            border-radius: 24px;
+            overflow: hidden;
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            box-shadow: 0 24px 70px rgba(0, 0, 0, 0.36);
+            background: rgba(15, 23, 42, 0.72);
+        }
+
+        .login-banner img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            min-height: 520px;
+            object-fit: cover;
+            object-position: center;
+        }
+
+        .login-card {
+            position: relative;
+            z-index: 1;
+            min-height: 520px;
+            padding: 34px 30px 28px;
+            border-radius: 24px;
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            background:
+                linear-gradient(180deg, rgba(15, 23, 42, 0.88), rgba(15, 23, 42, 0.74));
+            box-shadow: 0 24px 70px rgba(0, 0, 0, 0.36);
+            backdrop-filter: blur(16px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .login-backdrop {
+            position: absolute;
+            border-radius: 999px;
+            filter: blur(10px);
+            pointer-events: none;
+        }
+
+        .login-backdrop-a {
+            top: -36px;
+            right: -28px;
+            width: 180px;
+            height: 180px;
+            background: radial-gradient(circle, rgba(56, 189, 248, 0.28), rgba(56, 189, 248, 0));
+        }
+
+        .login-backdrop-b {
+            bottom: -42px;
+            left: -36px;
+            width: 220px;
+            height: 220px;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.22), rgba(59, 130, 246, 0));
+        }
+
+        .login-card {
+            position: relative;
+            z-index: 1;
+            padding: 34px 30px 28px;
+            border-radius: 24px;
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            background:
+                linear-gradient(180deg, rgba(15, 23, 42, 0.88), rgba(15, 23, 42, 0.74));
+            box-shadow: 0 24px 70px rgba(0, 0, 0, 0.36);
+            backdrop-filter: blur(16px);
+        }
+
+        .login-card-head {
+            margin-bottom: 24px;
+        }
+
+        .login-kicker {
+            color: #7dd3fc;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .login-title {
+            margin: 10px 0 8px;
+            color: #f8fafc;
+            font-size: 30px;
+            line-height: 1.2;
+        }
+
+        .login-subtitle {
+            margin: 0;
+            color: #94a3b8;
+            font-size: 15px;
+            line-height: 1.7;
+        }
+
+        .login-form {
+            display: grid;
+            gap: 18px;
+        }
+
+        .form-field {
+            display: grid;
+            gap: 8px;
+        }
+
+        .form-label {
+            color: #dbeafe;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .form-input {
+            width: 100%;
+            min-height: 52px;
+            padding: 14px 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            background: rgba(15, 23, 42, 0.72);
+            color: #f8fafc;
+            font-size: 15px;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+        }
+
+        .form-input::placeholder {
+            color: #64748b;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: rgba(96, 165, 250, 0.82);
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.18);
+            background: rgba(15, 23, 42, 0.92);
+        }
+
+        .form-input:disabled {
+            color: #94a3b8;
+            background: rgba(51, 65, 85, 0.72);
+            cursor: not-allowed;
+        }
+
+        .form-check {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            background: rgba(2, 6, 23, 0.24);
+            color: #dbeafe;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .form-check input {
+            accent-color: #38bdf8;
+        }
+
+        .login-submit {
+            width: 100%;
+            min-height: 54px;
+            border: 0;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #2563eb, #0ea5e9);
+            color: #eff6ff;
+            font-size: 16px;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            cursor: pointer;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+        }
+
+        .login-submit:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 18px 35px rgba(37, 99, 235, 0.28);
+            filter: brightness(1.04);
+        }
+
+        .login-submit:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(125, 211, 252, 0.22), 0 18px 35px rgba(37, 99, 235, 0.28);
+        }
+
+        .login-error {
+            padding: 14px 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(248, 113, 113, 0.22);
+            background: rgba(127, 29, 29, 0.24);
+            color: #fecaca;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        @@media (max-width: 900px) {
+            .login-shell {
+                max-width: 520px;
+            }
+
+            .login-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .login-banner {
+                min-height: 260px;
+            }
+
+                .login-banner img {
+                    min-height: 260px;
+                    object-position: center;
+                }
+
+            .login-card {
+                min-height: auto;
+            }
+        }
+
+        @@media (max-width: 640px) {
+            .login-content {
+                padding: 16px;
+            }
+
+            .login-banner {
+                min-height: 220px;
+                border-radius: 20px;
+            }
+
+                .login-banner img {
+                    min-height: 220px;
+                }
+
+            .login-card {
+                padding: 26px 20px 22px;
+                border-radius: 20px;
+            }
+
+            .login-title {
+                font-size: 26px;
+            }
+        }
+    </style>
+}
 
 @section Scripts {
     <script>
@@ -48,13 +332,9 @@
                     p.value = "";
                     u.disabled = true;
                     p.disabled = true;
-                    u.style.backgroundColor = "#f0f0f0";
-                    p.style.backgroundColor = "#f0f0f0";
                 } else {
                     u.disabled = false;
                     p.disabled = false;
-                    u.style.backgroundColor = "";
-                    p.style.backgroundColor = "";
                 }
             }
 

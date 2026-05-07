@@ -33,6 +33,11 @@
         align-items: start;
     }
 
+    .bb-grid > .bb-banner {
+        grid-column: 1 / -1;
+        margin-bottom: 0;
+    }
+
     /* จอเล็กให้เรียงลง */
     @@media (max-width: 900px) {
         .bb-grid {
@@ -132,6 +137,22 @@
         margin-bottom: 10px;
     }
 
+    .bb-banner {
+        width: 100%;
+        margin-bottom: 12px;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,.10);
+        background: rgba(0,0,0,.18);
+    }
+
+    .bb-banner img {
+        display: block;
+        width: 100%;
+        height: auto;
+        object-fit: cover;
+    }
+
     .bb-result-total {
         font-size: 13px;
         font-weight: 600;
@@ -194,6 +215,9 @@
 
 <div class="bb-wrap">
     <div class="bb-grid">
+        <div class="bb-banner">
+            <img src="~/images/chem-report_banner.png" alt="CHEM report banner" />
+        </div>
 
         <!-- LEFT -->
         <div class="bb-card">
