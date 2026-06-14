@@ -5,7 +5,7 @@
         <canvas id="dpsTrend1" class="bb-trend-chart-ptc"
                 data-select="dpsTrendSel1"
                 data-default="UZ5411P"
-                data-backend-port="8888"
+                data-backend-port="443"
                 data-y-top="0.15"
                 data-y-band="0.70"
                 data-y-bot="0.15"></canvas>
@@ -195,10 +195,8 @@ window.BBTrend = (function () {
     // Backend fetch
     // =========================
     function inferBackendUrl(canvas, key) {
-        const port = (canvas.getAttribute("data-backend-port") || "8888").trim();
-        const proto = (location.protocol === "https:") ? "https" : "http";
-        const host = location.hostname;
-        return `${proto}://${host}:${port}/api/ptc/series?key=${encodeURIComponent(String(key || "").trim())}`;
+        const base = (canvas.getAttribute("data-backend-base") || location.origin).trim().replace(/\/+$/, "");
+        return `${base}/api/ptc/series?key=${encodeURIComponent(String(key || "").trim())}`;
     }
 
     async function fetchSeriesPoints(canvas, key) {

@@ -72,10 +72,7 @@
     // URL helper
     // ============================
     function inferBackendBase(root) {
-        const port = "8888";
-        const proto = (location.protocol === "https:") ? "https" : "http";
-        const host = location.hostname;
-        return `${proto}://${host}:${port}`;
+        return location.origin;
     }
 
     function apiUrl(root, path) {

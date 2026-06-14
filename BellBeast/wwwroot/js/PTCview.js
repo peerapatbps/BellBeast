@@ -1,10 +1,10 @@
 ﻿/* =========================================================
    PTCview.js  (backend-driven)
    - ใช้กับ: <canvas class="bb-trend-chart-ptc" ...
-               data-select="<selectId>" data-latest="<divId>" data-backend-port="8888"
+               data-select="<selectId>" data-latest="<divId>" data-backend-port="443"
                data-y-top data-y-band data-y-bot>
    - ต้องมี Chart.js + time adapter โหลดไว้ก่อน
-   - ดึง upper/lower จาก backend port 8888 (รูปแบบข้อมูล: [{hhmm,upper,lower}, ...] หรือ {points:[...]} )
+   - ดึง upper/lower ผ่าน route ของ BellBeast บนพอร์ต 443 (รูปแบบข้อมูล: [{hhmm,upper,lower}, ...] หรือ {points:[...]} )
    ========================================================= */
 
 window.BBTrendPTC = (function () {
@@ -104,14 +104,11 @@ window.BBTrendPTC = (function () {
     }
 
     function inferBackendUrl(canvas, key, forceTs) {
-        const port = (canvas.getAttribute("data-backend-port") || "8888").trim();
-        const proto = (location.protocol === "https:") ? "https" : "http";
-        const host = location.hostname;
-
+        const base = (canvas.getAttribute("data-backend-base") || location.origin).trim().replace(/\/+$/, "");
         const k = encodeURIComponent(String(key || "").trim());
         const t = encodeURIComponent(String(forceTs || Date.now()));
 
-        return `${proto}://${host}:${port}/api/ptc/series?key=${k}&_ts=${t}`;
+        return `${base}/api/ptc/series?key=${k}&_ts=${t}`;
     }
 
     // ✅ Fetch เฉพาะตอน “ต้องอัปเดตข้อมูล”

@@ -97,15 +97,8 @@
     }
 
     function getDefaultDateRange(today = new Date()) {
-        const currentYear = today.getFullYear();
-        const currentMonth = today.getMonth();
-        const usePreviousFullMonths = today.getDate() < 10;
-
-        const endMonth = usePreviousFullMonths ? currentMonth - 1 : currentMonth;
-        const startMonth = endMonth - 1;
-
-        const from = new Date(currentYear, startMonth, 1);
-        const to = new Date(currentYear, endMonth + 1, 0);
+        const from = new Date(today.getFullYear(), today.getMonth() - 2, 1);
+        const to = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
         return {
             from: formatDateInput(from),

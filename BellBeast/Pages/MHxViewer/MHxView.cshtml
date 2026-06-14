@@ -34,26 +34,37 @@
 <style>
     /* ===== Base ===== */
     :root {
-        --bg: #1f2326;
-        --panel: #2a2f33;
-        --card: #2f353a;
-        --card2: #2b3136;
+        --bg: #0c1318;
+        --panel: rgba(255,255,255,.055);
+        --card: rgba(255,255,255,.07);
+        --card2: rgba(255,255,255,.05);
         --stroke: rgba(255,255,255,.10);
-        --muted: rgba(255,255,255,.65);
+        --muted: rgba(255,255,255,.60);
         --text: rgba(255,255,255,.92);
         --green: #5ad36d;
         --red: #ff5b5b;
         --amber: #ffcc4d;
         --cyan: #33d1ff;
+        --card-h: 450px;             /* single place to change all card heights */
     }
 
-    html, body {
+    html {
+        height: 100%;
+        overflow-y: scroll;          /* always reserve scrollbar gutter — prevents ~17px width shift when scrollbar appears/disappears after minimize/restore */
+        scrollbar-gutter: stable;    /* modern browsers: hide track when not needed but keep gutter reserved */
+    }
+
+    body {
         height: 100%;
     }
 
     body {
         margin: 0;
-        background: var(--bg);
+        background:
+            radial-gradient(1100px 520px at 55% -8%,  rgba(70,160,90,.16),  transparent 58%),
+            radial-gradient(750px  380px at 5%  18%,  rgba(46,200,210,.09), transparent 55%),
+            radial-gradient(900px  460px at 92% 55%,  rgba(70,100,220,.10), transparent 55%),
+            linear-gradient(180deg, #0c1318, #0f1820);
         color: var(--text);
         font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans Thai", sans-serif;
         overflow-x: hidden;
@@ -78,19 +89,23 @@
 
     /* ===== Topbar ===== */
     .bb-topbar {
-        height: 44px;
-        background: #5c8f4a;
+        height: 48px;
+        background: linear-gradient(135deg, rgba(68,128,55,.52), rgba(45,95,38,.40));
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
         display: flex;
         align-items: center;
-        padding: 0 12px;
-        border-bottom: 1px solid rgba(0,0,0,.25);
+        padding: 0 14px;
+        border-bottom: 1px solid rgba(100,180,80,.18);
+        box-shadow: 0 1px 0 rgba(0,0,0,.30), 0 2px 12px rgba(0,0,0,.22);
     }
 
         .bb-topbar .hamb {
             width: 28px;
             height: 28px;
-            border-radius: 6px;
-            background: rgba(255,255,255,.18);
+            border-radius: 8px;
+            background: rgba(255,255,255,.14);
+            border: 1px solid rgba(255,255,255,.12);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -113,38 +128,42 @@
         width: 30px;
         height: 30px;
         border-radius: 10px;
-        background: rgba(255,255,255,.20);
+        background: rgba(255,255,255,.12);
+        border: 1px solid rgba(255,255,255,.14);
         display: flex;
         align-items: center;
         justify-content: center;
-        border: 1px solid rgba(0,0,0,.15);
-        cursor: pointer; /* ✅ เปลี่ยนเมาส์เป็นรูปมือ */
-        transition: transform .15s ease, background .15s ease;
+        cursor: pointer;
+        transition: transform .15s ease, background .15s ease, box-shadow .15s ease;
     }
 
         .bb-ico:hover {
-            background: rgba(255,255,255,.28);
+            background: rgba(255,255,255,.22);
+            border-color: rgba(255,255,255,.22);
             transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,.28);
         }
 
         .bb-ico span {
             font-size: 14px;
         }
 
-    /* ===== Wrapper ===== */
+    /* ===== Wrapper =====
+       width : 100% of parent — NOT 100vw (100vw includes scrollbar width).
+       min-height : 100% of parent — NOT 100vh/100dvh (viewport units shift by
+                   ~17px when a vertical scrollbar appears or disappears on
+                   minimize→restore, cascading into every grid column and
+                   triggering Chart.js ResizeObserver repaints).
+       Scrollbar width is now fixed by html { overflow-y: scroll } above, so
+       100% here is always stable.
+    ===== */
     .bb-wrap {
-        width: 100vw;
-        min-height: 100vh;
+        width: 100%;
+        min-height: 100%;
         max-width: none !important;
         margin: 0 !important;
         padding: 10px;
         box-sizing: border-box;
-    }
-
-    @@supports (height: 100dvh) {
-        .bb-wrap {
-            min-height: 100dvh;
-        }
     }
 
     /* =========================================================
@@ -176,9 +195,12 @@
 
     /* ===== Section panel ===== */
     .bb-section {
-        background: var(--panel);
-        border: 1px solid var(--stroke);
-        border-radius: 10px;
+        background: linear-gradient(145deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+        border: 1px solid rgba(255,255,255,.10);
+        border-radius: 18px;
+        box-shadow: 0 8px 32px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.07);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
         overflow: hidden;
         /* ✅ ทำให้ body ของ section ยืดตามความสูงแถว */
         display: flex;
@@ -190,9 +212,10 @@
     .bb-section-h {
         display: flex;
         align-items: center;
-        padding: 6px 10px;
-        background: rgba(0,0,0,.18);
-        border-bottom: 1px solid var(--stroke);
+        padding: 7px 12px;
+        background: rgba(0,0,0,.22);
+        border: 1px solid rgba(255,255,255,.07);
+        border-radius: 12px;
         font-weight: 800;
     }
 
@@ -226,23 +249,27 @@
     .bb-ico {
         width: 28px;
         height: 28px;
-        border-radius: 8px;
-        background: rgba(255,255,255,.12);
-        border: 1px solid rgba(0,0,0,.20);
+        border-radius: 9px;
+        background: rgba(255,255,255,.09);
+        border: 1px solid rgba(255,255,255,.12);
         display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
         padding: 0;
         color: inherit;
+        transition: background .14s ease, border-color .14s ease, box-shadow .14s ease, transform .10s ease;
     }
 
         .bb-ico:hover {
-            background: rgba(255,255,255,.18);
+            background: rgba(255,255,255,.17);
+            border-color: rgba(255,255,255,.20);
+            box-shadow: 0 3px 10px rgba(0,0,0,.30);
         }
 
         .bb-ico:active {
             transform: translateY(1px);
+            box-shadow: none;
         }
 
         .bb-ico span {
@@ -250,19 +277,21 @@
         }
 
         .bb-ico.is-muted {
-            background: rgba(255,255,255,.08);
-            opacity: .7;
+            background: rgba(255,255,255,.06);
+            border-color: rgba(255,255,255,.08);
+            opacity: .65;
         }
 
         .bb-ico.is-armed {
-            background: rgba(255,204,77,.16);
-            border-color: rgba(255,204,77,.28);
+            background: rgba(255,204,77,.18);
+            border-color: rgba(255,204,77,.32);
+            box-shadow: 0 0 10px rgba(255,204,77,.14);
         }
 
         .bb-ico.is-alerting {
-            background: rgba(255,91,91,.2);
-            border-color: rgba(255,91,91,.35);
-            box-shadow: 0 0 0 1px rgba(255,91,91,.2), 0 0 12px rgba(255,91,91,.25);
+            background: rgba(255,91,91,.22);
+            border-color: rgba(255,91,91,.38);
+            box-shadow: 0 0 0 1px rgba(255,91,91,.20), 0 0 14px rgba(255,91,91,.28);
         }
 
     .zone {
@@ -283,13 +312,16 @@
 
     .pump {
         height: 36px;
-        border-radius: 6px;
-        border: 1px solid rgba(0,0,0,.25);
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,.10);
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 0 8px;
+        padding: 0 10px;
         background: rgba(255,255,255,.06);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
     }
 
         .pump .tag {
@@ -300,9 +332,9 @@
         .pump .st {
             font-size: 11px;
             font-weight: 800;
-            padding: 2px 6px;
+            padding: 2px 8px;
             border-radius: 999px;
-            border: 1px solid rgba(0,0,0,.25);
+            border: 1px solid rgba(0,0,0,.20);
         }
 
     .st.on {
@@ -338,10 +370,13 @@
     }
 
     .kpi {
-        background: var(--card);
-        border: 1px solid var(--stroke);
-        border-radius: 10px;
-        padding: 10px;
+        background: linear-gradient(145deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+        border: 1px solid rgba(255,255,255,.09);
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.07);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        padding: 12px;
         min-height: 175px;
     }
 
@@ -389,9 +424,12 @@
         }
 
     .mini-card {
-        background: var(--card2);
-        border: 1px solid var(--stroke);
-        border-radius: 10px;
+        background: linear-gradient(145deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+        border: 1px solid rgba(255,255,255,.08);
+        border-radius: 16px;
+        box-shadow: 0 4px 18px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.06);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
         padding: 10px;
         min-height: 140px;
     }
@@ -417,33 +455,35 @@
     .chart {
         flex: 1;
         min-height: 76px;
-        border-radius: 10px;
-        border: 1px dashed rgba(255,255,255,.18);
-        background: rgba(255,255,255,.04);
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,.10);
+        background: rgba(0,0,0,.22);
         display: flex;
         align-items: center;
         justify-content: center;
-        color: rgba(255,255,255,.55);
+        color: rgba(255,255,255,.45);
         font-size: 12px;
         margin-top: 8px;
     }
 
-    /* ✅ override chart placeholder เดิม ให้ canvas แสดงจริง */
+    /* ✅ override chart placeholder เดิม ให้ canvas แสดงจริง
+       triple-lock height + contain:strict so Chart.js ResizeObserver
+       never sees a size change caused by an ancestor reflow           */
     .mini-card .chart {
         position: relative;
         height: 140px;
         min-height: 140px;
-        display: block; /* ✅ ทับ display:flex เดิม */
+        max-height: 140px;         /* lock: prevent height creep from flex/grid */
+        display: block;            /* override display:flex from generic .chart  */
+        overflow: hidden;
+        contain: strict;           /* size + layout + style isolation: this box's
+                                      dimensions are completely self-contained     */
     }
 
         .mini-card .chart canvas.bb-trend-chart {
-            width: 100% !important;
-            height: 100% !important;
-            display: block !important;
-        }
-
-
-        .mini-card .chart canvas.bb-trend-chart {
+            position: absolute;    /* pull out of flow so width/height are unambiguous */
+            top: 0;
+            left: 0;
             width: 100% !important;
             height: 100% !important;
             display: block !important;
@@ -483,9 +523,12 @@
     }
 
         .matrix .leftbox {
-            background: rgba(0,0,0,.12);
-            border: 1px solid var(--stroke);
-            border-radius: 10px;
+            background: rgba(255,255,255,.05);
+            border: 1px solid rgba(255,255,255,.09);
+            border-radius: 14px;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
             padding: 10px;
         }
 
@@ -503,11 +546,11 @@
         }
 
     .tagpill {
-        padding: 2px 8px;
+        padding: 2px 9px;
         border-radius: 999px;
         font-weight: 800;
         font-size: 11px;
-        border: 1px solid rgba(0,0,0,.25);
+        border: 1px solid rgba(255,255,255,.14);
     }
 
         .tagpill.a {
@@ -534,9 +577,9 @@
 
     .u {
         height: 26px;
-        border-radius: 7px;
-        border: 1px solid rgba(0,0,0,.25);
-        background: rgba(255,255,255,.05);
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,.10);
+        background: rgba(255,255,255,.06);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -565,9 +608,12 @@
     }
 
     .chem-box {
-        background: var(--card);
-        border: 1px solid var(--stroke);
-        border-radius: 10px;
+        background: linear-gradient(145deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+        border: 1px solid rgba(255,255,255,.09);
+        border-radius: 16px;
+        box-shadow: 0 4px 18px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.06);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
         padding: 10px;
         display: flex;
         flex-direction: column;
@@ -593,8 +639,9 @@
 
     .tank .cell {
         border: 1px solid rgba(255,255,255,.10);
-        border-radius: 10px;
-        background: rgba(255,255,255,.05);
+        border-radius: 12px;
+        background: rgba(255,255,255,.06);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
         padding: 8px;
     }
 
@@ -610,9 +657,12 @@
     }
 
     .sidepanel {
-        background: rgba(0,0,0,.18);
-        border: 1px solid var(--stroke);
-        border-radius: 10px;
+        background: rgba(0,0,0,.28);
+        border: 1px solid rgba(255,255,255,.09);
+        border-radius: 14px;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
         padding: 10px;
         min-height: 160px;
         display: flex;
@@ -641,14 +691,21 @@
         align-items: center;
         justify-content: center;
         height: 28px;
-        padding: 0 10px;
-        border-radius: 8px;
-        background: rgba(255,255,255,.10);
-        border: 1px solid rgba(0,0,0,.25);
+        padding: 0 12px;
+        border-radius: 10px;
+        background: rgba(255,255,255,.09);
+        border: 1px solid rgba(255,255,255,.13);
         color: rgba(255,255,255,.9);
         font-weight: 800;
         font-size: 12px;
         width: fit-content;
+        cursor: pointer;
+        transition: background .14s ease, border-color .14s ease;
+    }
+
+    .smallbtn:hover {
+        background: rgba(255,255,255,.16);
+        border-color: rgba(255,255,255,.20);
     }
 
     .dot {
@@ -920,10 +977,10 @@
     .tank-kpi .well {
         position: relative;
         flex: 1;
-        border-radius: 12px;
-        background: rgba(0,0,0,.22);
+        border-radius: 14px;
+        background: rgba(0,0,0,.35);
         overflow: hidden;
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.10), inset 0 2px 8px rgba(0,0,0,.20);
     }
 
     /* เติมจากล่างขึ้นบน (ใช้ --fill 0..100 บน .gauge) */
@@ -1002,23 +1059,27 @@
         height: 26px;
         padding: 0 10px;
         border-radius: 10px;
-        border: 1px solid var(--stroke);
-        background: rgba(0,0,0,.22);
+        border: 1px solid rgba(255,255,255,.12);
+        background: rgba(0,0,0,.30);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
         color: rgba(255,255,255,.90);
         font-size: 12px;
         font-weight: 800;
         outline: none;
         cursor: pointer;
+        transition: border-color .14s ease, box-shadow .14s ease;
     }
 
         /* เงา/ขอบตอนโฟกัส */
         .bb-dd:focus {
-            box-shadow: 0 0 0 2px rgba(51,209,255,.18);
+            border-color: rgba(51,209,255,.38);
+            box-shadow: 0 0 0 2px rgba(51,209,255,.14);
         }
 
         /* option ใน dropdown (บาง browser จะไม่สน style มาก) */
         .bb-dd option {
-            background: #22282c;
+            background: #141e26;
             color: rgba(255,255,255,.92);
         }
 
@@ -1173,9 +1234,12 @@
         --accent: var(--green);
         --accentSoft: rgba(90,211,109,.18);
         --ink: rgba(255,255,255,.92);
-        background: rgba(0,0,0,.10);
-        border: 1px solid var(--stroke);
-        border-radius: 12px;
+        background: linear-gradient(145deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+        border: 1px solid rgba(255,255,255,.09);
+        border-radius: 16px;
+        box-shadow: 0 4px 20px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.06);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
         padding: 8px;
         box-sizing: border-box;
         overflow: hidden;
@@ -1514,9 +1578,9 @@
     .chem-well {
         position: relative;
         height: 116px;
-        border-radius: 12px;
-        background: rgba(0,0,0,.28);
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+        border-radius: 14px;
+        background: rgba(0,0,0,.35);
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,.10), inset 0 2px 8px rgba(0,0,0,.20);
         overflow: hidden;
     }
 
@@ -1558,16 +1622,28 @@
     .bb-slots {
         display: grid;
         grid-template-columns: repeat(2, minmax(0,1fr));
+        grid-auto-rows: var(--card-h); /* belt-and-suspenders track size */
         gap: 10px;
-        align-items: stretch;
+        align-items: start;        /* IMPORTANT: do NOT let grid stretch override slot height */
     }
 
     .bb-slot {
         min-width: 0;
+        height:     var(--card-h); /* triple-lock: height cannot deviate regardless of */
+        min-height: var(--card-h); /* content size, grid behaviour, or Chromium cache    */
+        max-height: var(--card-h);
+        overflow: hidden;          /* clip anything that escapes */
+        display: flex;
+        flex-direction: column;
+        contain: layout;           /* isolate layout: slot cannot be affected by
+                                      siblings or ancestor reflow cycles */
     }
 
         .bb-slot > .bb-section {
             min-width: 0;
+            flex: 1 1 0;           /* fill slot; basis 0 prevents content fighting height */
+            min-height: 0;         /* allow flexbox to size from 0 upward */
+            overflow: hidden;
         }
 
     @@media (max-width: 1100px) {
@@ -1580,7 +1656,9 @@
     .bb-modal-backdrop {
         position: fixed;
         inset: 0;
-        background: rgba(0,0,0,.55);
+        background: rgba(0,0,0,.48);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
         display: none;
         align-items: center;
         justify-content: center;
@@ -1604,10 +1682,12 @@
         z-index: 1;
         width: min(900px, 96vw);
         max-height: calc(100dvh - 36px);
-        background: #22282c;
-        border: 1px solid var(--stroke);
-        border-radius: 14px;
-        box-shadow: 0 18px 60px rgba(0,0,0,.55);
+        background: rgba(14,20,28,.82);
+        backdrop-filter: blur(28px);
+        -webkit-backdrop-filter: blur(28px);
+        border: 1px solid rgba(255,255,255,.12);
+        border-radius: 20px;
+        box-shadow: 0 24px 80px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.08);
         overflow: hidden;
         display: flex;
         flex-direction: column;
@@ -1618,9 +1698,9 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 10px 12px;
+        padding: 12px 16px;
         background: rgba(255,255,255,.06);
-        border-bottom: 1px solid var(--stroke);
+        border-bottom: 1px solid rgba(255,255,255,.09);
     }
 
         .bb-modal-h .t {
@@ -1632,14 +1712,20 @@
             width: 34px;
             height: 34px;
             border-radius: 10px;
-            border: 1px solid var(--stroke);
-            background: rgba(0,0,0,.22);
-            color: rgba(255,255,255,.88);
+            border: 1px solid rgba(255,255,255,.11);
+            background: rgba(255,255,255,.07);
+            color: rgba(255,255,255,.80);
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 900;
+            transition: background .14s ease, color .14s ease;
+        }
+
+        .bb-modal-h .x:hover {
+            background: rgba(255,255,255,.13);
+            color: rgba(255,255,255,.95);
         }
 
     .bb-modal-b {
@@ -1658,10 +1744,11 @@
     }
 
     .slot-card {
-        background: rgba(0,0,0,.14);
-        border: 1px solid var(--stroke);
-        border-radius: 12px;
-        padding: 10px;
+        background: rgba(255,255,255,.05);
+        border: 1px solid rgba(255,255,255,.09);
+        border-radius: 14px;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+        padding: 12px;
     }
 
         .slot-card .hdr {
@@ -1686,9 +1773,11 @@
         position: sticky;
         bottom: 0;
         z-index: 2;
-        padding: 10px 12px;
-        border-top: 1px solid var(--stroke);
-        background: #22282c;
+        padding: 10px 14px;
+        border-top: 1px solid rgba(255,255,255,.09);
+        background: rgba(255,255,255,.05);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
         display: flex;
         gap: 10px;
         justify-content: flex-end;
@@ -1697,27 +1786,44 @@
 
     .bb-btn {
         height: 32px;
-        padding: 0 12px;
+        padding: 0 14px;
         border-radius: 10px;
-        border: 1px solid var(--stroke);
-        background: rgba(0,0,0,.22);
+        border: 1px solid rgba(255,255,255,.12);
+        background: rgba(255,255,255,.08);
         color: rgba(255,255,255,.92);
         font-weight: 900;
         font-size: 12px;
         cursor: pointer;
+        transition: background .14s ease, border-color .14s ease, box-shadow .14s ease;
     }
+
+        .bb-btn:hover {
+            background: rgba(255,255,255,.14);
+            border-color: rgba(255,255,255,.20);
+        }
 
         .bb-btn.primary {
             position: relative;
             z-index: 3;
-            background: rgba(51,209,255,.16);
-            border-color: rgba(51,209,255,.22);
+            background: rgba(51,209,255,.18);
+            border-color: rgba(51,209,255,.30);
+            box-shadow: 0 0 14px rgba(51,209,255,.12);
             pointer-events: auto;
+        }
+
+        .bb-btn.primary:hover {
+            background: rgba(51,209,255,.26);
+            box-shadow: 0 0 20px rgba(51,209,255,.18);
         }
 
         .bb-btn.danger {
             background: rgba(255,91,91,.12);
-            border-color: rgba(255,91,91,.22);
+            border-color: rgba(255,91,91,.24);
+        }
+
+        .bb-btn.danger:hover {
+            background: rgba(255,91,91,.20);
+            border-color: rgba(255,91,91,.36);
         }
 
 
@@ -1775,43 +1881,56 @@
     .bb-rating-btn {
         width: 38px;
         height: 34px;
-        border-radius: 12px;
-        border: 1px solid var(--stroke);
-        background: rgba(0,0,0,.20);
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,.11);
+        background: rgba(255,255,255,.07);
         color: rgba(255,255,255,.78);
         font-weight: 900;
         cursor: pointer;
+        transition: background .14s ease, border-color .14s ease;
     }
 
+        .bb-rating-btn:hover {
+            background: rgba(255,255,255,.12);
+        }
+
         .bb-rating-btn.is-active {
-            background: rgba(51,209,255,.18);
-            border-color: rgba(51,209,255,.42);
+            background: rgba(51,209,255,.20);
+            border-color: rgba(51,209,255,.45);
             color: #fff;
-            box-shadow: 0 0 0 2px rgba(51,209,255,.08) inset;
+            box-shadow: 0 0 12px rgba(51,209,255,.18);
         }
 
     .bb-rating-clear {
         height: 34px;
         padding: 0 10px;
-        border-radius: 12px;
-        border: 1px solid var(--stroke);
-        background: rgba(0,0,0,.16);
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,.10);
+        background: rgba(255,255,255,.05);
         color: var(--muted);
         font-size: 12px;
         font-weight: 800;
         cursor: pointer;
+        transition: background .14s ease;
+    }
+
+    .bb-rating-clear:hover {
+        background: rgba(255,255,255,.10);
     }
 
     .bb-feedback-input,
     .bb-feedback-textarea {
         width: 100%;
         border-radius: 12px;
-        border: 1px solid var(--stroke);
-        background: rgba(0,0,0,.22);
+        border: 1px solid rgba(255,255,255,.11);
+        background: rgba(0,0,0,.30);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
         color: rgba(255,255,255,.92);
         outline: none;
         padding: 10px 11px;
         font-size: 13px;
+        transition: border-color .14s ease, box-shadow .14s ease;
     }
 
     .bb-feedback-textarea {
@@ -1822,7 +1941,7 @@
 
         .bb-feedback-input:focus,
         .bb-feedback-textarea:focus {
-            border-color: rgba(51,209,255,.45);
+            border-color: rgba(51,209,255,.40);
             box-shadow: 0 0 0 2px rgba(51,209,255,.10);
         }
 
@@ -1842,12 +1961,14 @@
         display: none;
         margin-top: 8px;
         border-radius: 12px;
-        padding: 9px 10px;
+        padding: 9px 12px;
         font-size: 12px;
         font-weight: 800;
         line-height: 1.35;
         border: 1px solid rgba(255,255,255,.10);
-        background: rgba(0,0,0,.18);
+        background: rgba(0,0,0,.25);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
         color: var(--muted);
     }
 
@@ -2443,4 +2564,8 @@
     document.addEventListener("DOMContentLoaded", function () {
       window.MHxCharts.initWithin(document);
     });
+
+    // Equal-height guard removed: .bb-slot now has an explicit height: 450px
+    // so card height is never derived from grid track sizing or align-items,
+    // and cannot be staled by Chromium's intrinsic-size cache after minimize/maximize.
 </script>

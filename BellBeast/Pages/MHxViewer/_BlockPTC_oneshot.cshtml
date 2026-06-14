@@ -1,5 +1,5 @@
 ﻿﻿@{
-// dropdown options (ต้องตรงกับ key ที่ backend :8888 รองรับ)
+// dropdown options (ต้องตรงกับ key ที่ route ฝั่ง BellBeast รองรับ)
 var series = new[] {
         "P046",
         "P050",
@@ -241,7 +241,7 @@ var latestR = $"ptcLatestR_{uid}";
                         data-default="UZ5411P"
                         data-select="@selL"
                         data-latest="@latestL"
-                        data-backend-port="8888"
+                        data-backend-port="443"
                         data-y-top="0.20"
                         data-y-band="0.60"
                         data-y-bot="0.20"></canvas>
@@ -252,7 +252,7 @@ var latestR = $"ptcLatestR_{uid}";
                         data-default="UZ5411P"
                         data-select="@selR"
                         data-latest="@latestR"
-                        data-backend-port="8888"
+                        data-backend-port="443"
                         data-y-top="0.20"
                         data-y-band="0.60"
                         data-y-bot="0.20"></canvas>

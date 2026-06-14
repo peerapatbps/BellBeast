@@ -39,4 +39,11 @@ public class EngineAdminService
     {
         await _http.PostAsJsonAsync("tasks/enqueue", new { name });
     }
+
+    public async Task<object?> RunTestsAsync()
+    {
+        var resp = await _http.GetAsync("admin/test/run");
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadFromJsonAsync<object>();
+    }
 }

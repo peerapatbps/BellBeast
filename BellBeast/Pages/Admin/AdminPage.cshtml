@@ -1,39 +1,94 @@
-﻿@page
+@page
 @model AdminPageModel
 @{
     ViewData["Title"] = "Engine Admin";
 }
 
+<!-- ── Regression Test Modal ──────────────────────────────── -->
+<div class="bb-modal-backdrop" id="testModal" aria-hidden="true">
+    <div class="bb-modal bb-test-modal" role="dialog" aria-modal="true" aria-label="Regression Tests">
+
+        <div class="bb-modal-h">
+            <div class="t">&#129514; Regression Tests</div>
+            <button class="x" id="testModalClose" type="button" aria-label="Close">&#10005;</button>
+        </div>
+
+        <!-- progress / summary bar -->
+        <div class="test-sum-bar" id="testSumBar">
+            <span class="test-sum-text" id="testSumText">Waiting&hellip;</span>
+            <div class="test-prog-track">
+                <div class="test-prog-fill" id="testProgFill"></div>
+            </div>
+            <span class="test-sum-badge" id="testSumBadge"></span>
+        </div>
+
+        <!-- scrollable test list -->
+        <div class="bb-test-body" id="testList"></div>
+
+        <div class="bb-modal-f">
+            <button class="bb-btn" id="testModalCloseFooter" type="button">Close</button>
+        </div>
+
+    </div>
+</div>
+
 <div class="bb-wrap">
-    <!-- Fixed-height header -->
-    <div class="bb-head">
-        <div class="bb-left">
-            <div class="bb-title" title="Engine Control Panel">Engine Control Panel</div>
-            <div class="bb-sub">
-                <span class="pill" id="pillPoll">poll: <span id="pollSecText">2</span>s</span>
-                <span class="pill" id="pillLast">last: <span id="lastTs">-</span></span>
-                <span class="pill" id="pillEngine">
-                    <span class="dot" id="engineDot"></span>
-                    <span id="engineText">unknown</span>
-                </span>
+
+    <!-- ── Header card ──────────────────────────────────────── -->
+    <header class="bb-header">
+        <div class="bb-brand">
+            <div class="bb-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+            </div>
+            <div class="bb-brand-text">
+                <div class="bb-title">Engine Control Panel</div>
+                <div class="bb-subtitle">Uroboros &middot; Backend Orchestrator</div>
             </div>
         </div>
 
-        <div class="bb-actions">
-            <button class="btn warn" id="btnPause" type="button" onclick="pauseEngine()">Pause</button>
-            <button class="btn ok" id="btnResume" type="button" onclick="resumeEngine()">Resume</button>
-            <button class="btn danger" id="btnCancelAll" type="button" onclick="cancelAll()">Cancel All</button>
-            <button class="btn" type="button" onclick="clearConsole()">Clear</button>
+        <div class="bb-status-row">
+            <span class="pill" id="pillEngine">
+                <span class="dot" id="engineDot"></span>
+                <span id="engineText">unknown</span>
+            </span>
+            <span class="pill" id="pillPoll">poll: <span id="pollSecText">2</span>s</span>
+            <span class="pill" id="pillLast">last: <span id="lastTs">&mdash;</span></span>
         </div>
-    </div>
 
-    <!-- Block 1: Console -->
+        <div class="bb-actions">
+            <button class="btn warn"   id="btnPause"    type="button" onclick="pauseEngine()">&#9646;&#9646; Pause</button>
+            <button class="btn ok"     id="btnResume"   type="button" onclick="resumeEngine()">&#9654; Resume</button>
+            <button class="btn danger" id="btnCancelAll" type="button" onclick="cancelAll()">&#10005; Cancel All</button>
+            <button class="btn test"   id="btnRunTests" type="button" onclick="runTests()">&#9654; Run Tests</button>
+        </div>
+    </header>
+
+    <!-- ── Console panel ────────────────────────────────────── -->
     <section class="panel">
         <div class="panel-head">
-            <div class="panel-title">Console</div>
+            <div class="panel-title">
+                <span class="term-dots">
+                    <span class="td-r"></span>
+                    <span class="td-y"></span>
+                    <span class="td-g"></span>
+                </span>
+                Console
+                <span class="log-badge" id="logCountBadge">0</span>
+            </div>
             <div class="panel-right">
-                <span class="muted">backend:</span>
-                <code id="backendBase">loading...</code>
+                <div class="filter-grp" id="filterGrp">
+                    <button class="fb fb-active" data-filter="all">All</button>
+                    <button class="fb" data-filter="ok">OK</button>
+                    <button class="fb" data-filter="warn">Warn</button>
+                    <button class="fb" data-filter="err">Err</button>
+                </div>
+                <span class="vr"></span>
+                <span class="muted fs12">backend:</span>
+                <code id="backendBase">loading&hellip;</code>
+                <button class="btn sm" type="button" onclick="clearConsole()">Clear</button>
             </div>
         </div>
         <div class="panel-body console" id="consoleBox"></div>
@@ -44,7 +99,7 @@
         </div>
     </section>
 
-    <!-- Block 2: Tasks -->
+    <!-- ── Tasks panel — DO NOT MODIFY ─────────────────────── -->
     <section class="panel">
         <div class="panel-head">
             <div class="panel-title">Tasks</div>
@@ -76,10 +131,11 @@
 
         <div class="panel-foot">
             <span class="muted" id="statusHint">
-                * Interval ใส่ “วินาที” (ส่งไป backend เป็น ms) | * โฟกัส input ในตาราง = หยุด refresh ชั่วคราว
+                * Interval ใส่ "วินาที" (ส่งไป backend เป็น ms) | * โฟกัส input ในตาราง = หยุด refresh ชั่วคราว
             </span>
         </div>
     </section>
+
 </div>
 
 <style>
@@ -92,74 +148,116 @@
         --good: #2ee59d;
         --warn: #ffcc66;
         --bad: #ff667a;
+        --blue: #4678ff;
         --shadow: 0 12px 40px rgba(0,0,0,.45);
         --radius: 18px;
         --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
         --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans Thai", "Noto Sans", sans-serif;
     }
 
+    /* ── Body ─────────────────────────────────────────────── */
     body {
-        background: radial-gradient(1200px 600px at 50% 10%, rgba(70,120,255,.18), transparent 60%), radial-gradient(900px 450px at 20% 10%, rgba(46,229,157,.12), transparent 55%), radial-gradient(900px 450px at 80% 30%, rgba(255,102,122,.10), transparent 55%), linear-gradient(180deg, var(--bg0), var(--bg1));
+        background:
+            radial-gradient(1200px 600px at 50% 10%,  rgba(70,120,255,.18), transparent 60%),
+            radial-gradient(900px  450px at 20% 10%,  rgba(46,229,157,.12), transparent 55%),
+            radial-gradient(900px  450px at 80% 30%,  rgba(255,102,122,.10), transparent 55%),
+            linear-gradient(180deg, var(--bg0), var(--bg1));
         color: var(--text);
         font-family: var(--sans);
     }
 
+    /* ── Wrapper ──────────────────────────────────────────── */
     .bb-wrap {
-        width: min(1200px, calc(100% - 24px));
-        margin: 16px auto;
-        padding: 16px;
+        width: min(1240px, calc(100% - 24px));
+        margin: 20px auto 48px;
     }
 
-    /* ✅ fixed-height header (กัน text ยาวดัน height) */
-    .bb-head {
+    /* ── Header card ──────────────────────────────────────── */
+    .bb-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 12px;
-        min-height: 86px;
-        max-height: 86px;
-        overflow: hidden;
+        gap: 16px;
+        padding: 16px 20px;
+        background: linear-gradient(135deg,
+            rgba(255,255,255,.08) 0%,
+            rgba(255,255,255,.04) 100%);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.07);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        margin-bottom: 16px;
     }
 
-    .bb-left {
+    /* Brand */
+    .bb-brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex: 1 1 0;
         min-width: 0;
     }
 
+    .bb-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 13px;
+        background: linear-gradient(145deg, rgba(70,120,255,.24), rgba(70,120,255,.08));
+        border: 1px solid rgba(70,120,255,.38);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        color: rgba(110,160,255,.92);
+        box-shadow: 0 4px 18px rgba(70,120,255,.22);
+    }
+
+    .bb-brand-text { min-width: 0; }
+
     .bb-title {
-        font-size: 22px;
+        font-size: 20px;
         font-weight: 800;
         letter-spacing: .2px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        max-width: 100%;
+        background: linear-gradient(90deg, #e8f0ff 40%, rgba(110,160,255,.92) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
     }
 
-    .bb-sub {
+    .bb-subtitle {
+        font-size: 11px;
+        color: var(--muted);
+        font-family: var(--mono);
+        margin-top: 3px;
+        white-space: nowrap;
+        letter-spacing: .4px;
+    }
+
+    /* Status pills */
+    .bb-status-row {
         display: flex;
         gap: 8px;
         align-items: center;
-        flex-wrap: nowrap; /* ไม่ให้ดันลงหลายบรรทัด */
-        margin-top: 6px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: 100%;
+        flex-shrink: 0;
     }
 
     .pill {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
-        padding: 6px 10px;
+        gap: 7px;
+        padding: 6px 12px;
         border-radius: 999px;
         background: rgba(255,255,255,.06);
         border: 1px solid var(--line);
         font-family: var(--mono);
         font-size: 12px;
         color: var(--muted);
-        flex: 0 0 auto;
+        white-space: nowrap;
+        transition: border-color .2s ease, background .2s ease;
     }
 
     .dot {
@@ -168,37 +266,47 @@
         border-radius: 50%;
         background: rgba(255,255,255,.35);
         box-shadow: 0 0 0 3px rgba(255,255,255,.06);
+        transition: background .2s ease, box-shadow .2s ease;
     }
 
+    /* Action buttons row */
     .bb-actions {
         display: flex;
         gap: 8px;
         flex-wrap: wrap;
         justify-content: flex-end;
-        flex: 0 0 auto;
+        flex-shrink: 0;
     }
 
+    /* ── Panels ───────────────────────────────────────────── */
     .panel {
-        background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.04));
+        background: linear-gradient(180deg,
+            rgba(255,255,255,.07),
+            rgba(255,255,255,.04));
         border: 1px solid var(--line);
         border-radius: var(--radius);
         box-shadow: var(--shadow);
         overflow: hidden;
-        margin-top: 12px;
+        margin-top: 14px;
         backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
     }
 
     .panel-head {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 12px 14px;
+        padding: 12px 16px;
         border-bottom: 1px solid var(--line);
         background: rgba(0,0,0,.18);
     }
 
     .panel-title {
+        display: flex;
+        align-items: center;
+        gap: 9px;
         font-weight: 800;
+        font-size: 14px;
         letter-spacing: .2px;
     }
 
@@ -214,110 +322,181 @@
             font-family: var(--mono);
             padding: 4px 8px;
             border-radius: 10px;
-            background: rgba(0,0,0,.25);
+            background: rgba(0,0,0,.28);
             border: 1px solid var(--line);
             color: rgba(232,240,255,.85);
+            font-size: 12px;
         }
 
-    .panel-body {
-        padding: 12px 14px;
-    }
+    .panel-body { padding: 12px 16px; }
 
     .panel-foot {
-        padding: 10px 14px;
+        padding: 10px 16px;
         border-top: 1px solid var(--line);
         background: rgba(0,0,0,.12);
         color: var(--muted);
         font-size: 12px;
     }
 
-    .muted {
-        color: var(--muted);
+    /* ── Terminal dots (macOS-style) ─────────────────────── */
+    .term-dots {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        margin-right: 2px;
     }
 
-    .btn {
-        background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+    .term-dots span {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+    }
+
+    .td-r { background: rgba(255,96,96,.72); }
+    .td-y { background: rgba(255,200,56,.72); }
+    .td-g { background: rgba(46,229,157,.72); }
+
+    /* ── Log count badge ─────────────────────────────────── */
+    .log-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 22px;
+        height: 18px;
+        padding: 0 6px;
+        border-radius: 999px;
+        background: rgba(70,120,255,.16);
+        border: 1px solid rgba(70,120,255,.28);
+        font-size: 11px;
+        font-family: var(--mono);
+        color: rgba(110,160,255,.90);
+        font-weight: 600;
+    }
+
+    /* ── Console filter group ────────────────────────────── */
+    .filter-grp {
+        display: inline-flex;
+        gap: 2px;
+        background: rgba(0,0,0,.28);
         border: 1px solid var(--line);
-        color: var(--text);
-        padding: 9px 12px;
-        border-radius: 12px;
-        cursor: pointer;
-        font-weight: 700;
-        letter-spacing: .1px;
-        transition: transform .05s ease, background .15s ease, border-color .15s ease;
-        user-select: none;
+        border-radius: 10px;
+        padding: 3px;
     }
 
-        .btn:hover {
-            background: rgba(255,255,255,.10);
-            border-color: rgba(255,255,255,.14);
-        }
+    .fb {
+        padding: 4px 9px;
+        border-radius: 7px;
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        font-size: 11px;
+        font-family: var(--mono);
+        font-weight: 600;
+        cursor: pointer;
+        letter-spacing: .3px;
+        transition: background .12s ease, color .12s ease;
+    }
 
-        .btn:active {
-            transform: translateY(1px);
-        }
+    .fb:hover { background: rgba(255,255,255,.08); color: var(--text); }
 
-        .btn.sm {
-            padding: 7px 10px;
-            border-radius: 10px;
-            font-size: 12px;
-        }
+    .fb.fb-active,
+    .fb.active { background: rgba(255,255,255,.11); color: var(--text); }
 
-        .btn.ok {
-            border-color: rgba(46,229,157,.35);
-        }
+    /* ── Vertical rule separator ─────────────────────────── */
+    .vr {
+        display: inline-block;
+        width: 1px;
+        height: 16px;
+        background: var(--line);
+        flex-shrink: 0;
+    }
 
-        .btn.warn {
-            border-color: rgba(255,204,102,.35);
-        }
+    .fs12 { font-size: 12px; }
 
-        .btn.danger {
-            border-color: rgba(255,102,122,.35);
-        }
-
-        .btn:disabled {
-            opacity: .55;
-            cursor: not-allowed;
-            transform: none;
-        }
-
+    /* ── Console body ────────────────────────────────────── */
     .console {
         font-family: var(--mono);
         font-size: 13px;
-        line-height: 1.55;
-        min-height: 180px;
-        max-height: 260px;
+        line-height: 1.6;
+        min-height: 160px;
+        max-height: 300px;
         overflow: auto;
-        background: rgba(0,0,0,.20);
-        border-radius: 14px;
-        border: 1px solid var(--line);
-        padding: 10px 10px;
+        background: rgba(0,0,0,.38);
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,.06);
+        padding: 12px 14px;
         white-space: pre-wrap;
     }
 
     .log-line {
         display: block;
-        margin: 2px 0;
+        padding: 2px 4px;
+        border-radius: 4px;
+        margin: 1px 0;
+        transition: background .08s ease;
     }
+
+    .log-line:hover { background: rgba(255,255,255,.04); }
 
     .log-ts {
-        color: rgba(232,240,255,.55);
-        margin-right: 8px;
+        color: rgba(232,240,255,.38);
+        margin-right: 10px;
+        font-size: 11px;
+        user-select: none;
     }
 
-    .log-ok {
-        color: var(--good);
+    .log-ok   { color: rgba(46,229,157,.95); }
+    .log-warn { color: rgba(255,204,102,.95); }
+    .log-err  { color: rgba(255,102,122,.95); }
+
+    /* ── Buttons ─────────────────────────────────────────── */
+    .btn {
+        background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.04));
+        border: 1px solid var(--line);
+        color: var(--text);
+        padding: 9px 14px;
+        border-radius: 12px;
+        cursor: pointer;
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: .1px;
+        transition: transform .05s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease;
+        user-select: none;
     }
 
-    .log-warn {
-        color: var(--warn);
-    }
+        .btn:hover {
+            background: rgba(255,255,255,.11);
+            border-color: rgba(255,255,255,.16);
+            box-shadow: 0 4px 16px rgba(0,0,0,.28);
+        }
 
-    .log-err {
-        color: var(--bad);
-    }
+        .btn:active { transform: translateY(1px); box-shadow: none; }
 
-    /* table */
+        .btn.sm {
+            padding: 6px 10px;
+            border-radius: 9px;
+            font-size: 12px;
+        }
+
+        .btn.ok      { border-color: rgba(46,229,157,.35); }
+        .btn.ok:hover    { border-color: rgba(46,229,157,.55); background: rgba(46,229,157,.08); }
+
+        .btn.warn    { border-color: rgba(255,204,102,.35); }
+        .btn.warn:hover  { border-color: rgba(255,204,102,.55); background: rgba(255,204,102,.08); }
+
+        .btn.danger  { border-color: rgba(255,102,122,.35); }
+        .btn.danger:hover { border-color: rgba(255,102,122,.55); background: rgba(255,102,122,.08); }
+
+        .btn.test    { border-color: rgba(130,180,255,.35); }
+        .btn.test:hover  { border-color: rgba(130,180,255,.55); background: rgba(130,180,255,.08); }
+
+        .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* ── Misc ────────────────────────────────────────────── */
+    .muted { color: var(--muted); }
+
+    /* ── Table panel (Tasks) ─────────────────────────────── */
     .table-wrap {
         padding: 0;
         background: rgba(0,0,0,.16);
@@ -353,44 +532,19 @@
             white-space: nowrap;
         }
 
-        .tbl tbody tr:hover td {
-            background: rgba(255,255,255,.04);
-        }
+        .tbl tbody tr:hover td { background: rgba(255,255,255,.04); }
 
-    .c-name {
-        width: 260px;
-    }
+    /* Column widths */
+    .c-name     { width: 260px; }
+    .c-group    { width: 110px; color: var(--muted); }
+    .c-enabled  { width: 120px; }
+    .c-interval { width: 170px; }
+    .c-next     { width: 190px; }
+    .c-running  { width: 110px; }
+    .c-last     { width: 220px; }
+    .c-actions  { width: 120px; text-align: right; }
 
-    .c-group {
-        width: 110px;
-        color: var(--muted);
-    }
-
-    .c-enabled {
-        width: 120px;
-    }
-
-    .c-interval {
-        width: 170px;
-    }
-    /* ให้พอวาง input+save */
-    .c-next {
-        width: 190px;
-    }
-
-    .c-running {
-        width: 110px;
-    }
-
-    .c-last {
-        width: 220px;
-    }
-
-    .c-actions {
-        width: 120px;
-        text-align: right;
-    }
-
+    /* Tags */
     .tag {
         display: inline-flex;
         align-items: center;
@@ -404,18 +558,11 @@
         color: rgba(232,240,255,.85);
     }
 
-        .tag.good {
-            border-color: rgba(46,229,157,.35);
-        }
+        .tag.good { border-color: rgba(46,229,157,.35); }
+        .tag.warn { border-color: rgba(255,204,102,.35); }
+        .tag.bad  { border-color: rgba(255,102,122,.35); }
 
-        .tag.warn {
-            border-color: rgba(255,204,102,.35);
-        }
-
-        .tag.bad {
-            border-color: rgba(255,102,122,.35);
-        }
-
+    /* Interval input */
     .in {
         width: 92px;
         padding: 7px 8px;
@@ -433,6 +580,7 @@
             box-shadow: 0 0 0 3px rgba(70,120,255,.15);
         }
 
+    /* Row actions */
     .row-actions {
         display: flex;
         gap: 8px;
@@ -440,7 +588,7 @@
         align-items: center;
     }
 
-    /* ✅ Toggle switch */
+    /* Toggle switch */
     .sw {
         position: relative;
         display: inline-flex;
@@ -452,9 +600,7 @@
         font-size: 12px;
     }
 
-        .sw input {
-            display: none;
-        }
+        .sw input { display: none; }
 
     .sw-track {
         width: 54px;
@@ -480,48 +626,274 @@
         box-shadow: 0 6px 18px rgba(0,0,0,.35);
     }
 
-    .sw.on .sw-track {
-        background: rgba(46,229,157,.22);
-        border-color: rgba(46,229,157,.35);
+    .sw.on .sw-track { background: rgba(46,229,157,.22); border-color: rgba(46,229,157,.35); }
+    .sw.on .sw-knob  { left: 28px; background: rgba(46,229,157,.95); }
+
+    /* ── Responsive ───────────────────────────────────────── */
+    @@media (max-width: 960px) {
+        .bb-header { flex-wrap: wrap; }
+        .bb-status-row { order: 3; width: 100%; }
+        .bb-actions { justify-content: flex-end; }
+        .c-last, .c-next, .c-group { display: none; }
+        .c-actions { width: 90px; }
+        .c-name { width: auto; }
     }
 
-    .sw.on .sw-knob {
-        left: 28px;
-        background: rgba(46,229,157,.95);
+    @@media (max-width: 600px) {
+        .bb-subtitle { display: none; }
+        .filter-grp  { display: none; }
+        .bb-status-row { gap: 6px; }
+        .pill { padding: 5px 9px; font-size: 11px; }
     }
 
-    @@media (max-width: 900px) {
-        .bb-head {
-            flex-direction: column;
-            align-items: flex-start;
-            min-height: 110px;
-            max-height: 110px;
-        }
+    /* ── Modal base (shared) ───────────────────────────────────── */
+    .bb-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        background: rgba(0,0,0,0);
+        padding: 16px;
+    }
 
-        .bb-actions {
-            width: 100%;
-            justify-content: flex-start;
-        }
+    .bb-modal-backdrop.is-open { display: flex; }
 
-        .c-last {
-            display: none;
-        }
+    .bb-modal {
+        background: #1a2332;
+        border-radius: 16px;
+        border: 1px solid rgba(255,255,255,.10);
+        box-shadow: 0 18px 60px rgba(0,0,0,.55);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        position: relative;
+    }
 
-        .c-next {
-            display: none;
-        }
+    .bb-modal-h {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 18px;
+        border-bottom: 1px solid rgba(255,255,255,.08);
+        background: rgba(0,0,0,.18);
+        flex-shrink: 0;
+    }
 
-        .c-group {
-            display: none;
-        }
+    .bb-modal-h .t {
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: .2px;
+    }
 
-        .c-actions {
-            width: 90px;
-        }
+    .bb-modal-h .x {
+        background: none;
+        border: none;
+        color: rgba(255,255,255,.45);
+        cursor: pointer;
+        font-size: 14px;
+        padding: 4px 8px;
+        border-radius: 8px;
+        line-height: 1;
+        transition: color .15s ease, background .15s ease;
+    }
 
-        .c-name {
-            width: auto;
-        }
+    .bb-modal-h .x:hover { color: var(--text); background: rgba(255,255,255,.08); }
+
+    .bb-modal-f {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 12px 16px;
+        border-top: 1px solid rgba(255,255,255,.08);
+        background: rgba(0,0,0,.18);
+        flex-shrink: 0;
+    }
+
+    .bb-btn {
+        padding: 8px 20px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,.14);
+        background: rgba(255,255,255,.08);
+        color: var(--text);
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background .15s ease, border-color .15s ease;
+        user-select: none;
+    }
+
+    .bb-btn:hover { background: rgba(255,255,255,.13); border-color: rgba(255,255,255,.22); }
+    .bb-btn:active { transform: translateY(1px); }
+
+    /* ── Regression Test Modal ─────────────────────────────────── */
+    .bb-test-modal {
+        width: min(700px, 96vw);
+        max-height: calc(100dvh - 48px);
+    }
+
+    /* ── Backdrop + panel entrance / exit animations ──────────── */
+    #testModal.is-open:not(.is-closing) {
+        animation: tmBdIn .22s ease forwards;
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+    }
+
+    #testModal.is-closing {
+        animation: tmBdOut .18s ease forwards;
+        pointer-events: none;
+    }
+
+    #testModal.is-open:not(.is-closing) .bb-modal {
+        animation: tmPanelIn .24s cubic-bezier(.34,1.3,.64,1) forwards;
+    }
+
+    #testModal.is-closing .bb-modal {
+        animation: tmPanelOut .18s ease forwards;
+    }
+
+    @@keyframes tmBdIn {
+        from { background: rgba(0,0,0,0);    backdrop-filter: blur(0); }
+        to   { background: rgba(0,0,0,.55);  backdrop-filter: blur(4px); }
+    }
+
+    @@keyframes tmBdOut {
+        from { background: rgba(0,0,0,.55);  backdrop-filter: blur(4px); }
+        to   { background: rgba(0,0,0,0);    backdrop-filter: blur(0); }
+    }
+
+    @@keyframes tmPanelIn {
+        from { opacity: 0; transform: scale(.93) translateY(12px); }
+        to   { opacity: 1; transform: scale(1)   translateY(0); }
+    }
+
+    @@keyframes tmPanelOut {
+        from { opacity: 1; transform: scale(1)   translateY(0); }
+        to   { opacity: 0; transform: scale(.93) translateY(8px); }
+    }
+
+    .test-sum-bar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 9px 14px;
+        background: rgba(0,0,0,.18);
+        border-bottom: 1px solid rgba(255,255,255,.09);
+        font-size: 12px;
+        font-weight: 900;
+        flex-shrink: 0;
+    }
+
+    .test-sum-text { min-width: 120px; }
+
+    .test-prog-track {
+        flex: 1;
+        height: 5px;
+        border-radius: 3px;
+        background: rgba(255,255,255,.10);
+        overflow: hidden;
+    }
+
+    .test-prog-fill {
+        height: 100%;
+        border-radius: 3px;
+        width: 0%;
+        background: rgba(90,211,109,.8);
+        transition: width .3s ease, background .3s ease;
+    }
+
+    .test-sum-badge {
+        font-size: 11px;
+        font-weight: 900;
+        padding: 2px 10px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        opacity: 0;
+        transition: opacity .25s;
+        white-space: nowrap;
+    }
+
+    .test-sum-badge.ok   { background: rgba(90,211,109,.18); color: #b8ffc8; border-color: rgba(90,211,109,.28); opacity: 1; }
+    .test-sum-badge.fail { background: rgba(255,91,91,.18);  color: #ffd0d0; border-color: rgba(255,91,91,.28);  opacity: 1; }
+
+    .bb-test-body {
+        overflow-y: auto;
+        min-height: 160px;
+        max-height: calc(100dvh - 240px);
+        padding: 4px 0 14px;
+    }
+
+    .test-section-hdr {
+        padding: 12px 14px 4px;
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: .8px;
+        text-transform: uppercase;
+        color: rgba(255,255,255,.38);
+        border-bottom: 1px solid rgba(255,255,255,.07);
+        margin: 0 0 3px;
+    }
+
+    .test-section-hdr:first-child { padding-top: 6px; }
+
+    .test-item {
+        display: grid;
+        grid-template-columns: 16px 1fr auto;
+        align-items: start;
+        column-gap: 9px;
+        padding: 4px 14px;
+        border-radius: 6px;
+        margin: 0 6px 1px;
+        opacity: 0;
+        transform: translateY(4px);
+        animation: testReveal .15s ease forwards;
+    }
+
+    @@keyframes testReveal { to { opacity: 1; transform: translateY(0); } }
+
+    .test-item.fail { background: rgba(255,91,91,.07); }
+
+    .test-icon {
+        font-size: 11px;
+        font-weight: 900;
+        padding-top: 3px;
+        text-align: center;
+        line-height: 1;
+    }
+
+    .test-item.pass .test-icon { color: #5ad36d; }
+    .test-item.fail .test-icon { color: #ff5b5b; }
+
+    .test-name {
+        font-size: 12px;
+        line-height: 1.55;
+        color: rgba(255,255,255,.82);
+    }
+
+    .test-item.fail .test-name { color: #ffdcdc; }
+
+    .test-dur {
+        font-size: 10px;
+        opacity: .38;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+        padding-top: 3px;
+    }
+
+    .test-err-msg {
+        grid-column: 2 / 4;
+        font-size: 11px;
+        color: #ff9898;
+        padding: 1px 0 4px;
+        line-height: 1.4;
+    }
+
+    .test-fetch-err {
+        padding: 8px 14px;
+        font-size: 12px;
+        color: rgba(255,170,170,.75);
     }
 </style>
 
@@ -1130,4 +1502,386 @@
         await tick(true);
         setInterval(() => tick(false), POLL_SEC * 1000);
     })();
+
+    // ============================
+    // Console filter (additive — does not modify any function above)
+    // ============================
+    (function initConsoleFilter(){
+        const box    = document.getElementById('consoleBox');
+        const badge  = document.getElementById('logCountBadge');
+        const grp    = document.getElementById('filterGrp');
+        if (!box || !badge || !grp) return;
+
+        let activeFilter = 'all';
+
+        // Map a .log-line element to its level string
+        function lineLevel(el){
+            if (el.querySelector('.log-ok'))   return 'ok';
+            if (el.querySelector('.log-warn')) return 'warn';
+            if (el.querySelector('.log-err'))  return 'err';
+            return 'info';
+        }
+
+        // Show/hide a single line according to current filter
+        function applyToLine(el){
+            el.style.display =
+                (activeFilter === 'all' || lineLevel(el) === activeFilter) ? '' : 'none';
+        }
+
+        // Reapply filter to all existing lines + update badge
+        function applyFilter(){
+            box.querySelectorAll('.log-line').forEach(applyToLine);
+            badge.textContent = String(box.querySelectorAll('.log-line').length);
+        }
+
+        // Watch for new log lines and clear events
+        const obs = new MutationObserver(() => {
+            box.querySelectorAll('.log-line').forEach(applyToLine);
+            badge.textContent = String(box.querySelectorAll('.log-line').length);
+        });
+        obs.observe(box, { childList: true });
+
+        // Filter button clicks
+        grp.querySelectorAll('.fb').forEach(btn => {
+            btn.addEventListener('click', () => {
+                grp.querySelectorAll('.fb').forEach(b => b.classList.remove('fb-active', 'active'));
+                btn.classList.add('fb-active');
+                activeFilter = btn.dataset.filter || 'all';
+                applyFilter();
+            });
+        });
+    })();
+
+    // ============================
+    // Regression Test Modal
+    // ============================
+
+    // ── Modal open / close ────────────────────────────────────────
+    function openTestModal() {
+        const modal = document.getElementById('testModal');
+        modal.classList.remove('is-closing');           // clear any leftover exit state
+        document.getElementById('testList').innerHTML      = '';
+        document.getElementById('testSumText').textContent = 'Running…';
+        document.getElementById('testProgFill').style.cssText = 'width:0%;background:rgba(90,211,109,.8)';
+        const badge = document.getElementById('testSumBadge');
+        badge.textContent = '';
+        badge.className   = 'test-sum-badge';
+        modal.classList.add('is-open');
+        modal.setAttribute('aria-hidden', 'false');
+        document.documentElement.classList.add('bb-modal-open');
+        document.body.classList.add('bb-modal-open');
+    }
+
+    function closeTestModal() {
+        const modal = document.getElementById('testModal');
+        if (!modal.classList.contains('is-open') || modal.classList.contains('is-closing')) return;
+        modal.classList.add('is-closing');
+        modal.setAttribute('aria-hidden', 'true');
+        setTimeout(() => {
+            modal.classList.remove('is-open', 'is-closing');
+            const anyOpen = !!document.querySelector('.bb-modal-backdrop.is-open');
+            document.documentElement.classList.toggle('bb-modal-open', anyOpen);
+            document.body.classList.toggle('bb-modal-open', anyOpen);
+            document.getElementById('btnRunTests').disabled = false;
+        }, 200);
+    }
+
+    // Wire close button, footer close, backdrop click, Escape
+    (function () {
+        function init() {
+            const modal        = document.getElementById('testModal');
+            const closeBtn     = document.getElementById('testModalClose');
+            const closeBtnFoot = document.getElementById('testModalCloseFooter');
+            if (closeBtn)     closeBtn.addEventListener('click', closeTestModal);
+            if (closeBtnFoot) closeBtnFoot.addEventListener('click', closeTestModal);
+            if (modal)        modal.addEventListener('click', e => { if (e.target === modal) closeTestModal(); });
+            document.addEventListener('keydown', e => {
+                if (e.key === 'Escape' && document.getElementById('testModal')?.classList.contains('is-open'))
+                    closeTestModal();
+            });
+        }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+        else init();
+    })();
+
+    // ── Progress helpers ──────────────────────────────────────────
+    function updateTestProgress(passed, failed, total) {
+        const pct  = total > 0 ? (passed / total * 100).toFixed(1) : 0;
+        const fill = document.getElementById('testProgFill');
+        fill.style.width      = pct + '%';
+        fill.style.background = failed > 0 ? 'rgba(255,91,91,.8)' : 'rgba(90,211,109,.8)';
+        document.getElementById('testSumText').textContent =
+            total === 0 ? 'Running…' : `${passed} / ${total} passed`;
+    }
+
+    function finalizeTestProgress(passed, failed, total) {
+        updateTestProgress(passed, failed, total);
+        const allOk = failed === 0 && total > 0;
+        const badge = document.getElementById('testSumBadge');
+        badge.textContent = allOk ? '✓ All passed' : `✗ ${failed} failed`;
+        badge.className   = 'test-sum-badge ' + (allOk ? 'ok' : 'fail');
+    }
+
+    // ── DOM helpers ───────────────────────────────────────────────
+    function escH(s) {
+        return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function addSectionHeader(label) {
+        const el = document.createElement('div');
+        el.className   = 'test-section-hdr';
+        el.textContent = label;
+        document.getElementById('testList').appendChild(el);
+    }
+
+    function addFetchError(label, msg) {
+        const el = document.createElement('div');
+        el.className   = 'test-fetch-err';
+        el.textContent = `${label}: ${msg}`;
+        document.getElementById('testList').appendChild(el);
+    }
+
+    function addTestItem(c) {
+        const item = document.createElement('div');
+        item.className = 'test-item ' + (c.passed ? 'pass' : 'fail');
+
+        const icon  = document.createElement('span');
+        icon.className   = 'test-icon';
+        icon.textContent = c.passed ? '✓' : '✗';
+
+        const name  = document.createElement('span');
+        name.className   = 'test-name';
+        name.textContent = c.name;
+
+        const dur   = document.createElement('span');
+        dur.className   = 'test-dur';
+        dur.textContent = c.durationMs + ' ms';
+
+        item.appendChild(icon);
+        item.appendChild(name);
+        item.appendChild(dur);
+
+        if (!c.passed && c.error) {
+            const err = document.createElement('span');
+            err.className   = 'test-err-msg';
+            err.textContent = c.error;
+            item.appendChild(err);
+        }
+
+        document.getElementById('testList').appendChild(item);
+    }
+
+    // ── Core runner ───────────────────────────────────────────────
+    async function renderSuite(label, cases, onEach) {
+        addSectionHeader(label);
+        for (const c of cases) {
+            addTestItem(c);
+            onEach(c.passed);
+            await new Promise(r => setTimeout(r, 14)); // staggered reveal
+        }
+    }
+
+    // ── E2E helpers ───────────────────────────────────────────────
+    // ทุก test เรียก fetch() จริงจาก browser → BellBeast → (Uroboros)
+    // ผล "pass" = ได้ HTTP status / body ที่คาดหวังจริง
+
+    async function runE2ECase(name, fn) {
+        const t0 = performance.now();
+        try {
+            await fn();
+            return { name, passed: true, error: null,
+                     durationMs: Math.round(performance.now() - t0) };
+        } catch (e) {
+            return { name, passed: false, error: e.message,
+                     durationMs: Math.round(performance.now() - t0) };
+        }
+    }
+
+    function e2eAssert(condition, message) {
+        if (!condition) throw new Error(message ?? 'Assertion failed');
+    }
+
+    function e2eAssertStatus(expected, actual, path) {
+        if (expected !== actual)
+            throw new Error(`Expected HTTP ${expected} but got ${actual}  [${path}]`);
+    }
+
+    async function runTests() {
+        document.getElementById('btnRunTests').disabled = true;
+        openTestModal();
+
+        let gPass = 0, gFail = 0, gTotal = 0;
+
+        function tick(passed) {
+            if (passed) gPass++; else gFail++;
+            gTotal++;
+            updateTestProgress(gPass, gFail, gTotal);
+        }
+
+        // ① BellBeast local — unit/config tests (no real HTTP, no engine)
+        try {
+            const resp = await fetch('/api/admin/test/run-local');
+            if (resp.ok) {
+                const r = await resp.json();
+                await renderSuite('BellBeast', r.cases ?? [], tick);
+            } else {
+                addFetchError('BellBeast', `HTTP ${resp.status}`);
+            }
+        } catch (e) { addFetchError('BellBeast', e.message); }
+
+        // ② BellBeast E2E — fetch() จริงจาก browser ไป BellBeast (ไม่ต้องการ engine)
+        {
+            const cases = [];
+
+            // GET /api/backend-config
+            cases.push(await runE2ECase('E2E | GET /api/backend-config → 200', async () => {
+                const r = await fetch('/api/backend-config');
+                e2eAssertStatus(200, r.status, '/api/backend-config');
+            }));
+
+            cases.push(await runE2ECase('E2E | GET /api/backend-config → Content-Type: application/json', async () => {
+                const r = await fetch('/api/backend-config');
+                const ct = r.headers.get('content-type') ?? '';
+                e2eAssert(ct.includes('application/json'), `Got Content-Type: ${ct}`);
+            }));
+
+            cases.push(await runE2ECase('E2E | GET /api/backend-config → backendBaseUrl non-empty', async () => {
+                const r = await fetch('/api/backend-config');
+                const j = await r.json();
+                e2eAssert(j.backendBaseUrl && j.backendBaseUrl.trim() !== '',
+                    'backendBaseUrl must not be empty');
+            }));
+
+            cases.push(await runE2ECase("E2E | GET /api/backend-config → key 'queryCsvPath' present", async () => {
+                const r = await fetch('/api/backend-config');
+                const j = await r.json();
+                e2eAssert('queryCsvPath' in j, "Missing key 'queryCsvPath'");
+            }));
+
+            cases.push(await runE2ECase("E2E | GET /api/backend-config → key 'wayfarerApiPath' present", async () => {
+                const r = await fetch('/api/backend-config');
+                const j = await r.json();
+                e2eAssert('wayfarerApiPath' in j, "Missing key 'wayfarerApiPath'");
+            }));
+
+            // GET /api/admin/auth/me  (ส่ง cookie session จริงจาก browser)
+            cases.push(await runE2ECase('E2E | GET /api/admin/auth/me → 200 (authenticated)', async () => {
+                const r = await fetch('/api/admin/auth/me');
+                e2eAssertStatus(200, r.status, '/api/admin/auth/me');
+            }));
+
+            cases.push(await runE2ECase('E2E | GET /api/admin/auth/me → body.ok === true', async () => {
+                const r = await fetch('/api/admin/auth/me');
+                const j = await r.json();
+                e2eAssert(j.ok === true,
+                    `Expected ok=true, got ok=${JSON.stringify(j.ok)}`);
+            }));
+
+            // POST /api/admin/enqueue — validation (ไม่แตะ engine)
+            cases.push(await runE2ECase('E2E | POST /api/admin/enqueue (missing name) → 400', async () => {
+                const r = await fetch('/api/admin/enqueue', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: '{}'
+                });
+                e2eAssertStatus(400, r.status, '/api/admin/enqueue');
+            }));
+
+            await renderSuite('BellBeast E2E', cases, tick);
+        }
+
+        // ③ Engine E2E — fetch() จริง ผ่าน BellBeast → Uroboros (ต้องการ engine online)
+        //    pause → resume เพื่อ restore state; cancelall จะล้าง task ที่รันอยู่
+        {
+            const cases = [];
+
+            cases.push(await runE2ECase('E2E | POST /api/admin/pause → 200', async () => {
+                const r = await fetch('/api/admin/pause', { method: 'POST' });
+                e2eAssertStatus(200, r.status, '/api/admin/pause');
+            }));
+
+            cases.push(await runE2ECase('E2E | POST /api/admin/resume → 200  (restores scheduler)', async () => {
+                const r = await fetch('/api/admin/resume', { method: 'POST' });
+                e2eAssertStatus(200, r.status, '/api/admin/resume');
+            }));
+
+            cases.push(await runE2ECase('E2E | POST /api/admin/cancelall → 200', async () => {
+                const r = await fetch('/api/admin/cancelall', { method: 'POST' });
+                e2eAssertStatus(200, r.status, '/api/admin/cancelall');
+            }));
+
+            await renderSuite('Engine E2E', cases, tick);
+        }
+
+        // ④ Task Last Run — ตรวจผลการทำงานล่าสุดของแต่ละ task จาก Uroboros
+        //    ผ่านเมื่อ lastOkAtUtc ≥ lastFailAtUtc (หรือไม่มี fail เลย)
+        {
+            const TASK_NAMES = [
+                'tps.refresh',        'dps.refresh',         'rws1.refresh',
+                'rws2.refresh',       'chem1.refresh',       'chem2.refresh',
+                'branch.refresh',     'rcv38.refresh',       'ptc.query.once',
+                'onlinelab.query',    'Aquadat.refresh',     'AquadatFWS.refresh',
+                'DB_upload.refresh',  'DB_download.refresh', 'MDB_upload.refresh',
+                'MDB_download.refresh', 'LAB.import.daily'
+            ];
+
+            const cases = [];
+            let statusRows = null;
+
+            // ── ดึง status ครั้งเดียว ─────────────────────────────────────────
+            cases.push(await runE2ECase(
+                'Task Last Run | GET /api/admin/tasks/status → 200', async () =>
+            {
+                const r = await fetch('/api/admin/tasks/status');
+                e2eAssertStatus(200, r.status, '/api/admin/tasks/status');
+                const j = await r.json();
+                statusRows = j.tasks ?? j;
+                e2eAssert(Array.isArray(statusRows) && statusRows.length > 0,
+                    'Expected non-empty tasks array');
+            }));
+
+            // ── 1 test ต่อ task ───────────────────────────────────────────────
+            const byName = statusRows
+                ? Object.fromEntries(statusRows.map(r => [(r.name ?? '').toLowerCase(), r]))
+                : {};
+
+            for (const name of TASK_NAMES) {
+                const n = name;
+                cases.push(await runE2ECase(`Task Last Run | ${n}`, async () => {
+                    if (!statusRows)
+                        throw new Error('tasks/status unavailable — engine may be offline');
+
+                    const row = byName[n.toLowerCase()];
+                    e2eAssert(row !== undefined,
+                        `'${n}' not found in status (not registered?)`);
+                    e2eAssert(row.lastOkAtUtc != null,
+                        `'${n}' has never completed OK`);
+
+                    const okMs   = new Date(row.lastOkAtUtc).getTime();
+                    const failMs = row.lastFailAtUtc ? new Date(row.lastFailAtUtc).getTime() : 0;
+                    e2eAssert(okMs >= failMs,
+                        `Last run FAIL at ${row.lastFailAtUtc}` +
+                        (row.lastError ? ` — ${row.lastError}` : ''));
+                }));
+            }
+
+            await renderSuite('Task Last Run', cases, tick);
+        }
+
+        // ⑤ Uroboros engine self-tests (requires live engine)
+        try {
+            const resp = await fetch('/api/admin/test/run');
+            if (resp.ok) {
+                const r = await resp.json();
+                await renderSuite('Uroboros', r.cases ?? [], tick);
+            } else {
+                addFetchError('Uroboros', `HTTP ${resp.status} — engine may be offline`);
+            }
+        } catch (e) { addFetchError('Uroboros', `${e.message} — engine may be offline`); }
+
+        finalizeTestProgress(gPass, gFail, gTotal);
+        // also echo a one-liner to the engine console
+        logLine(gFail === 0 ? 'ok' : 'err',
+            `[Tests] ${gPass}/${gTotal} passed, ${gFail} failed`);
+    }
 </script>

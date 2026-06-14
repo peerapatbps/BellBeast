@@ -2,8 +2,10 @@
     section.event-block .bb-section-b {
         margin: 5px;
         padding-right: 10px;
-        height: 380px;
+        min-height: 380px;   /* was: height:380px — hard value made this card a rigid
+                                anchor that broke grid row equalization after resize */
         box-sizing: border-box;
+        flex: 1 1 auto;      /* allow the body to fill whatever height the grid gives */
     }
 
     section.event-block .event-grid {

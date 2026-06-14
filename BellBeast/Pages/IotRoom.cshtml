@@ -1,0 +1,892 @@
+@page
+@model BellBeast.Pages.IotRoomModel
+@{
+    ViewData["Title"] = "IoT Room";
+    ViewData["ContentClass"] = "iot-content";
+}
+
+<style>
+    .iot-content {
+        flex: 1;
+        min-height: 0;
+        height: calc(100dvh - 92px);
+        max-height: calc(100dvh - 92px);
+        padding: 18px;
+        display: flex;
+        overflow: hidden;
+    }
+
+    .iot-page {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .iot-layout {
+        height: 100%;
+        min-height: 0;
+        display: grid;
+        grid-template-rows: minmax(0, 8fr) minmax(0, 70fr) minmax(0, 22fr);
+        gap: 18px;
+        overflow: hidden;
+    }
+
+    .iot-top,
+    .iot-middle,
+    .iot-bottom {
+        width: 90%;
+        margin: 0 auto;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .iot-top {
+        display: grid;
+        grid-template-columns: minmax(280px, 3fr) minmax(0, 7fr);
+        gap: 18px;
+    }
+
+    .iot-middle,
+    .iot-bottom {
+        display: flex;
+        justify-content: center;
+    }
+
+    .iot-card {
+        height: 100%;
+        min-height: 0;
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(15, 23, 42, 0.82), rgba(15, 23, 42, 0.56));
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.22);
+        overflow: hidden;
+    }
+
+    .iot-hero {
+        min-height: 0;
+        padding: 18px 24px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 8px;
+        background: linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(30, 41, 59, 0.72));
+    }
+
+    .iot-title {
+        margin: 0;
+        font-size: clamp(22px, 2.2vw, 32px);
+        font-weight: 800;
+        color: #e8eefc;
+    }
+
+    .iot-subtitle {
+        margin: 0;
+        font-size: 12px;
+        font-weight: 600;
+        color: rgba(148, 163, 184, 0.7);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+
+    /* ── Member Panel (top-right) ── */
+    .iot-members-card {
+        padding: 0 16px;
+        display: flex;
+        align-items: center;
+        overflow: hidden;
+        gap: 0;
+    }
+
+    .iot-members-list {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: center;
+        gap: 8px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 10px 0;
+        /* hide scrollbar on non-hover, show on hover */
+        scrollbar-width: thin;
+        scrollbar-color: rgba(148, 163, 184, 0.2) transparent;
+    }
+
+    .iot-members-list::-webkit-scrollbar {
+        height: 4px;
+    }
+
+    .iot-members-list::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .iot-members-list::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, 0.18);
+        border-radius: 999px;
+    }
+
+    .iot-member-count {
+        font-size: 11px;
+        font-weight: 700;
+        padding: 3px 9px;
+        border-radius: 999px;
+        background: rgba(34, 197, 94, 0.14);
+        border: 1px solid rgba(34, 197, 94, 0.22);
+        color: #bbf7d0;
+        flex-shrink: 0;
+    }
+
+    .iot-member-count.empty {
+        background: rgba(51, 65, 85, 0.22);
+        border-color: rgba(148, 163, 184, 0.14);
+        color: rgba(148, 163, 184, 0.7);
+    }
+
+    .iot-member-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.14);
+        background: rgba(2, 6, 23, 0.46);
+        font-size: 12px;
+        white-space: nowrap;
+    }
+
+    .iot-member-chip.online {
+        border-color: rgba(34, 197, 94, 0.28);
+        background: rgba(22, 163, 74, 0.12);
+    }
+
+    .iot-member-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: rgba(148, 163, 184, 0.3);
+        flex-shrink: 0;
+    }
+
+    .iot-member-chip.online .iot-member-dot {
+        background: #4ade80;
+        box-shadow: 0 0 6px rgba(74, 222, 128, 0.7);
+        animation: iot-pulse 2s ease-in-out infinite;
+    }
+
+    @@keyframes iot-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.55; }
+    }
+
+    .iot-member-name {
+        color: #e2e8f0;
+        font-weight: 600;
+    }
+
+    .iot-member-type {
+        color: rgba(148, 163, 184, 0.7);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .iot-member-age {
+        color: rgba(148, 163, 184, 0.5);
+        font-size: 10px;
+    }
+
+    .iot-member-state {
+        color: rgba(125, 211, 252, 0.75);
+        font-size: 10px;
+        font-family: monospace;
+        border-left: 1px solid rgba(148, 163, 184, 0.2);
+        padding-left: 6px;
+        margin-left: 2px;
+    }
+
+    .iot-members-empty {
+        color: rgba(148, 163, 184, 0.55);
+        font-size: 12px;
+        padding: 4px 0;
+    }
+
+    /* ── Message log (middle) ── */
+    .iot-panel {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .iot-messages-shell {
+        height: 100%;
+        min-height: 0;
+        padding: 18px;
+        background:
+            linear-gradient(rgba(16, 185, 129, 0.04), rgba(16, 185, 129, 0.00)),
+            repeating-linear-gradient(
+                180deg,
+                rgba(148, 163, 184, 0.03) 0,
+                rgba(148, 163, 184, 0.03) 1px,
+                transparent 1px,
+                transparent 48px
+            );
+    }
+
+    .iot-messages {
+        height: 100%;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        scroll-behavior: smooth;
+    }
+
+    .iot-messages::-webkit-scrollbar {
+        width: 10px;
+    }
+
+    .iot-messages::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, 0.25);
+        border-radius: 999px;
+    }
+
+    .iot-messages::-webkit-scrollbar-track {
+        background: rgba(2, 6, 23, 0.25);
+    }
+
+    .iot-message-stack {
+        min-height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .iot-empty {
+        min-height: 100%;
+        display: grid;
+        place-items: center;
+        color: rgba(148, 163, 184, 0.88);
+        text-align: center;
+        padding: 24px;
+    }
+
+    .iot-log-entry {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid transparent;
+        font-size: 13px;
+    }
+
+    .iot-log-entry.join {
+        border-color: rgba(34, 197, 94, 0.18);
+        background: rgba(22, 163, 74, 0.08);
+    }
+
+    .iot-log-entry.command {
+        border-color: rgba(96, 165, 250, 0.18);
+        background: rgba(59, 130, 246, 0.08);
+    }
+
+    .iot-log-entry.expire {
+        border-color: rgba(248, 113, 113, 0.18);
+        background: rgba(127, 29, 29, 0.1);
+    }
+
+    .iot-log-entry.reconnect {
+        border-color: rgba(251, 191, 36, 0.18);
+        background: rgba(161, 98, 7, 0.1);
+    }
+
+    .iot-log-entry.data {
+        border-color: rgba(125, 211, 252, 0.15);
+        background: rgba(14, 116, 144, 0.08);
+    }
+
+    .iot-log-time {
+        color: rgba(148, 163, 184, 0.55);
+        font-size: 11px;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .iot-log-icon {
+        font-size: 13px;
+        flex-shrink: 0;
+    }
+
+    .iot-log-msg {
+        color: #e2e8f0;
+        word-break: break-word;
+    }
+
+    /* ── Compose (bottom) ── */
+    .iot-compose {
+        height: 100%;
+        min-height: 0;
+        padding: 18px 20px;
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) auto;
+        gap: 12px;
+        background: rgba(2, 6, 23, 0.34);
+    }
+
+    .iot-input {
+        width: 100%;
+        min-height: 0;
+        height: 100%;
+        resize: none;
+        padding: 14px 16px;
+        border-radius: 14px;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        background: rgba(2, 6, 23, 0.72);
+        color: #e5e7eb;
+        font: inherit;
+        outline: none;
+        font-family: monospace;
+    }
+
+    .iot-input:focus {
+        border-color: rgba(96, 165, 250, 0.65);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+    }
+
+    .iot-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .iot-hint {
+        color: rgba(148, 163, 184, 0.7);
+        font-size: 11px;
+        font-family: monospace;
+    }
+
+    .iot-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .iot-btn {
+        padding: 10px 14px;
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.78);
+        color: #e5e7eb;
+        font-weight: 700;
+        cursor: pointer;
+        font-size: 13px;
+    }
+
+    .iot-btn:hover {
+        background: rgba(30, 41, 59, 0.92);
+    }
+
+    .iot-btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+    }
+
+    .iot-btn.primary {
+        border-color: rgba(96, 165, 250, 0.28);
+        background: linear-gradient(135deg, rgba(37, 99, 235, 0.94), rgba(29, 78, 216, 0.82));
+    }
+
+    .iot-btn.cf {
+        border-color: rgba(251, 191, 36, 0.3);
+        background: linear-gradient(135deg, rgba(120, 53, 15, 0.7), rgba(161, 98, 7, 0.5));
+        color: #fde68a;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .iot-btn.cf:hover {
+        background: linear-gradient(135deg, rgba(161, 98, 7, 0.85), rgba(120, 53, 15, 0.7));
+    }
+
+    .iot-btn.cf.connected {
+        border-color: rgba(34, 197, 94, 0.3);
+        background: linear-gradient(135deg, rgba(5, 46, 22, 0.7), rgba(22, 101, 52, 0.5));
+        color: #bbf7d0;
+    }
+
+    .cf-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+        opacity: 0.7;
+    }
+
+    /* ── Cloudflare modal ── */
+    .cf-modal-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(2, 6, 23, 0.75);
+        z-index: 100;
+        place-items: center;
+        padding: 16px;
+    }
+
+    .cf-modal-backdrop.open { display: grid; }
+
+    .cf-modal {
+        width: min(560px, 100%);
+        max-height: 90dvh;
+        overflow-y: auto;
+        border: 1px solid rgba(251, 191, 36, 0.24);
+        border-radius: 20px;
+        background: linear-gradient(180deg, rgba(10, 17, 38, 0.99), rgba(15, 23, 42, 0.98));
+        box-shadow: 0 32px 80px rgba(0, 0, 0, 0.6);
+        padding: 26px 28px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .cf-modal::-webkit-scrollbar { width: 6px; }
+    .cf-modal::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.2); border-radius: 999px; }
+
+    .cf-modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .cf-modal-title-wrap { display: flex; align-items: center; gap: 10px; }
+
+    .cf-modal-title {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 800;
+        color: #fde68a;
+    }
+
+    .cf-state-badge {
+        font-size: 11px;
+        font-weight: 700;
+        padding: 3px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        background: rgba(51, 65, 85, 0.3);
+        color: rgba(148, 163, 184, 0.9);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        transition: all 0.25s;
+    }
+
+    .cf-state-badge.running {
+        border-color: rgba(34, 197, 94, 0.3);
+        background: rgba(22, 163, 74, 0.18);
+        color: #bbf7d0;
+    }
+
+    .cf-state-badge.starting {
+        border-color: rgba(251, 191, 36, 0.28);
+        background: rgba(120, 53, 15, 0.2);
+        color: #fde68a;
+    }
+
+    .cf-state-badge.error {
+        border-color: rgba(248, 113, 113, 0.28);
+        background: rgba(127, 29, 29, 0.2);
+        color: #fca5a5;
+    }
+
+    .cf-modal-close {
+        background: none;
+        border: none;
+        color: rgba(148, 163, 184, 0.7);
+        cursor: pointer;
+        font-size: 20px;
+        line-height: 1;
+        padding: 4px;
+        flex-shrink: 0;
+    }
+
+    .cf-modal-close:hover { color: #e5e7eb; }
+
+    /* big status indicator */
+    .cf-status-hero {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 16px 18px;
+        border-radius: 14px;
+        border: 1px solid rgba(148, 163, 184, 0.12);
+        background: rgba(2, 6, 23, 0.46);
+        transition: border-color 0.3s, background 0.3s;
+    }
+
+    .cf-status-hero.running {
+        border-color: rgba(34, 197, 94, 0.22);
+        background: rgba(22, 163, 74, 0.09);
+    }
+
+    .cf-status-hero.starting {
+        border-color: rgba(251, 191, 36, 0.2);
+        background: rgba(120, 53, 15, 0.1);
+    }
+
+    .cf-status-hero.error {
+        border-color: rgba(248, 113, 113, 0.22);
+        background: rgba(127, 29, 29, 0.1);
+    }
+
+    .cf-status-orb {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        background: rgba(148, 163, 184, 0.3);
+        transition: background 0.3s;
+    }
+
+    .cf-status-hero.running  .cf-status-orb { background: #4ade80; box-shadow: 0 0 8px rgba(74,222,128,0.7); animation: iot-pulse 2s ease-in-out infinite; }
+    .cf-status-hero.starting .cf-status-orb { background: #fbbf24; box-shadow: 0 0 8px rgba(251,191,36,0.5); animation: iot-pulse 0.8s ease-in-out infinite; }
+    .cf-status-hero.error    .cf-status-orb { background: #f87171; }
+
+    .cf-status-info { flex: 1; min-width: 0; }
+
+    .cf-status-main {
+        font-size: 14px;
+        font-weight: 700;
+        color: #e2e8f0;
+        line-height: 1.3;
+    }
+
+    .cf-status-sub {
+        font-size: 11px;
+        color: rgba(148, 163, 184, 0.7);
+        margin-top: 3px;
+        font-family: monospace;
+        word-break: break-all;
+    }
+
+    /* section title */
+    .cf-section-title {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: rgba(148, 163, 184, 0.6);
+        margin: 0 0 6px 0;
+    }
+
+    /* endpoint rows */
+    .cf-endpoint-row {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(148, 163, 184, 0.12);
+        background: rgba(2, 6, 23, 0.55);
+        margin-bottom: 6px;
+    }
+
+    .cf-endpoint-method {
+        font-size: 10px;
+        font-weight: 800;
+        padding: 3px 6px;
+        border-radius: 6px;
+        background: rgba(37, 99, 235, 0.22);
+        border: 1px solid rgba(96, 165, 250, 0.2);
+        color: #93c5fd;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+    }
+
+    .cf-endpoint-url {
+        font-family: monospace;
+        font-size: 11px;
+        color: #e2e8f0;
+        word-break: break-all;
+        min-width: 0;
+    }
+
+    .cf-copy-btn {
+        background: rgba(51, 65, 85, 0.5);
+        border: 1px solid rgba(148, 163, 184, 0.14);
+        border-radius: 7px;
+        color: rgba(148, 163, 184, 0.8);
+        cursor: pointer;
+        font-size: 11px;
+        padding: 4px 8px;
+        white-space: nowrap;
+        flex-shrink: 0;
+        transition: background 0.15s;
+    }
+
+    .cf-copy-btn:hover  { background: rgba(71, 85, 105, 0.7); color: #e2e8f0; }
+    .cf-copy-btn.copied { color: #4ade80; border-color: rgba(34, 197, 94, 0.3); }
+
+    /* process log */
+    .cf-log-box {
+        border-radius: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.1);
+        background: rgba(2, 6, 23, 0.7);
+        overflow: hidden;
+    }
+
+    .cf-log-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 7px 12px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+        background: rgba(15, 23, 42, 0.7);
+    }
+
+    .cf-log-label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: rgba(148, 163, 184, 0.5);
+    }
+
+    .cf-log-pre {
+        margin: 0;
+        padding: 10px 12px;
+        font-family: monospace;
+        font-size: 10px;
+        line-height: 1.55;
+        color: #94a3b8;
+        overflow-y: auto;
+        max-height: 140px;
+        white-space: pre-wrap;
+        word-break: break-all;
+    }
+
+    .cf-log-pre::-webkit-scrollbar { width: 5px; }
+    .cf-log-pre::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.18); border-radius: 999px; }
+
+    /* ESP32 snippet */
+    .cf-code-block {
+        border-radius: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.1);
+        background: rgba(2, 6, 23, 0.7);
+        overflow: hidden;
+    }
+
+    .cf-code-label {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 7px 12px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+        background: rgba(15, 23, 42, 0.7);
+    }
+
+    .cf-code-lang {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: rgba(148, 163, 184, 0.5);
+    }
+
+    .cf-code-pre {
+        margin: 0;
+        padding: 12px 14px;
+        font-family: monospace;
+        font-size: 10.5px;
+        line-height: 1.6;
+        color: #cbd5e1;
+        overflow-x: auto;
+        max-height: 220px;
+        white-space: pre;
+    }
+
+    .cf-code-pre::-webkit-scrollbar { width: 5px; height: 5px; }
+    .cf-code-pre::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.18); border-radius: 999px; }
+
+    .cf-modal-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: space-between;
+        flex-wrap: wrap;
+    }
+
+    .cf-modal-actions-left, .cf-modal-actions-right {
+        display: flex;
+        gap: 10px;
+    }
+
+    .iot-btn.danger {
+        border-color: rgba(248, 113, 113, 0.28);
+        background: linear-gradient(135deg, rgba(127, 29, 29, 0.7), rgba(153, 27, 27, 0.5));
+        color: #fca5a5;
+    }
+
+    .iot-btn.danger:hover {
+        background: linear-gradient(135deg, rgba(153, 27, 27, 0.85), rgba(127, 29, 29, 0.7));
+    }
+
+    @@media (max-width: 560px) {
+        .iot-top {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @@media (max-width: 700px) {
+        .iot-content {
+            padding: 12px;
+        }
+
+        .iot-layout {
+            gap: 12px;
+            grid-template-rows: auto minmax(0, 1fr) minmax(180px, auto);
+        }
+
+        .iot-toolbar {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .iot-actions {
+            justify-content: stretch;
+        }
+
+        .iot-actions .iot-btn {
+            flex: 1;
+        }
+    }
+</style>
+
+<div class="iot-page" data-iot-root>
+    <div class="iot-layout">
+
+        <section class="iot-top">
+            <div class="iot-card iot-hero">
+                <h1 class="iot-title">IoT Room</h1>
+            </div>
+
+            <aside class="iot-card iot-members-card" aria-label="Connected Devices">
+                <div id="iotMembersList" class="iot-members-list">
+                    <span class="iot-members-empty">No devices connected.</span>
+                </div>
+                <span id="iotMemberCount" class="iot-member-count empty" style="display:none">0 online</span>
+            </aside>
+        </section>
+
+        <section class="iot-middle">
+            <div class="iot-card iot-panel">
+                <div class="iot-messages-shell">
+                    <div id="iotMessages" class="iot-messages">
+                        <div class="iot-message-stack">
+                            <div class="iot-empty">Room is ready. Waiting for devices to connect...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="iot-bottom">
+            <div class="iot-card iot-panel">
+                <div class="iot-compose">
+                    <textarea id="iotInput" class="iot-input"
+                        placeholder='{"Device A", "LED", "255,255,255"}'></textarea>
+                    <div class="iot-toolbar">
+                        <div class="iot-hint">Format: {"DeviceName", "Type", "Value"} — Enter to send</div>
+                        <div class="iot-actions">
+                            <button id="cfConnectButton" type="button" class="iot-btn cf">
+                                <span class="cf-dot"></span>
+                                Cloudflare
+                            </button>
+                            <a href="/LedDemo" class="iot-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">💡 LED Demo</a>
+                            <button id="clearLogButton" type="button" class="iot-btn">Clear Log</button>
+                            <button id="sendCommandButton" type="button" class="iot-btn primary">Send Command</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+</div>
+
+<!-- Cloudflare Tunnel Control Modal -->
+<div id="cfModalBackdrop" class="cf-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="cfModalTitle">
+    <div class="cf-modal">
+
+        <div class="cf-modal-header">
+            <div class="cf-modal-title-wrap">
+                <h2 id="cfModalTitle" class="cf-modal-title">Cloudflare Tunnel</h2>
+                <span id="cfStateBadge" class="cf-state-badge">stopped</span>
+            </div>
+            <button id="cfModalClose" class="cf-modal-close" aria-label="Close">&times;</button>
+        </div>
+
+        <!-- Big status indicator -->
+        <div id="cfStatusHero" class="cf-status-hero">
+            <span class="cf-status-orb"></span>
+            <div class="cf-status-info">
+                <div id="cfStatusMain" class="cf-status-main">Tunnel Stopped</div>
+                <div id="cfStatusSub"  class="cf-status-sub">กด Start เพื่อเปิด connection</div>
+            </div>
+        </div>
+
+        <!-- Device Endpoints (shown when running) -->
+        <div id="cfEndpointsSection">
+            <p class="cf-section-title">Device Endpoints</p>
+            <div class="cf-endpoint-row">
+                <span class="cf-endpoint-method">POST</span>
+                <span id="cfJoinUrl" class="cf-endpoint-url"></span>
+                <button class="cf-copy-btn" data-copy-target="cfJoinUrl">Copy</button>
+            </div>
+            <div class="cf-endpoint-row">
+                <span class="cf-endpoint-method">POST</span>
+                <span id="cfPollUrl" class="cf-endpoint-url"></span>
+                <button class="cf-copy-btn" data-copy-target="cfPollUrl">Copy</button>
+            </div>
+        </div>
+
+        <!-- Process log -->
+        <div class="cf-log-box">
+            <div class="cf-log-header">
+                <span class="cf-log-label">cloudflared output</span>
+                <button id="cfCopyLog" class="cf-copy-btn">Copy log</button>
+            </div>
+            <pre id="cfLogPre" class="cf-log-pre">— not started —</pre>
+        </div>
+
+        <!-- ESP32 snippet -->
+        <div>
+            <p class="cf-section-title">ESP32 / Arduino Snippet</p>
+            <div class="cf-code-block">
+                <div class="cf-code-label">
+                    <span class="cf-code-lang">C++ (Arduino)</span>
+                    <button id="cfCopySnippet" class="cf-copy-btn">Copy code</button>
+                </div>
+                <pre id="cfCodePre" class="cf-code-pre"></pre>
+            </div>
+        </div>
+
+        <div class="cf-modal-actions">
+            <div class="cf-modal-actions-left">
+                <button id="cfStopBtn"  class="iot-btn danger"   disabled>Stop Tunnel</button>
+            </div>
+            <div class="cf-modal-actions-right">
+                <button id="cfStartBtn" class="iot-btn primary">Start Tunnel</button>
+                <button id="cfModalCloseBtn" class="iot-btn">Close</button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+@section Scripts {
+    <script src="/js/iotroom.js?v=20260604a"></script>
+}

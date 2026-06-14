@@ -1,0 +1,15 @@
+@page
+@{
+    ViewData["Title"] = "BellBeast AI Chat 2";
+    ViewData["ContentClass"] = "chat-content";
+    ViewData["ChatPageHeading"] = "BellBeast AI Chat 2";
+    ViewData["ChatInputPlaceholder"] = "Ask BellBeast AI house 2 something...";
+    ViewData["ChatApiPrefix"] = "/api/ai/chat2";
+    ViewData["ChatStoragePrefix"] = "bellbeast-chat2";
+}
+
+@await Html.PartialAsync("Shared/_ChatShell")
+
+@section Scripts {
+    <script src="/js/chat.js?v=20260605a"></script>
+}

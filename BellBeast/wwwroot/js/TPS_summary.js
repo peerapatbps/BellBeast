@@ -304,15 +304,15 @@
                     applyPumpStatus(pe, pumps[pumpName]);
                 }
 
-                // ---- TR FLOW + Total Daily (flow*24) ----
+                // ---- TR FLOW + Total Daily ----
                 const trFlow = (typeof data?.TR_flow === "number") ? data.TR_flow : Number(data?.TR_flow);
                 const trFlowText = fmtNumber(trFlow, 0);
                 if (elTrFlow) elTrFlow.textContent = (trFlowText ?? "-");
                 setStatus(elTrFlowStatus, trFlowText !== null);
 
-                const daily = Number.isFinite(trFlow) ? (trFlow * 24.0) : NaN;
-                const dailyText = fmtNumber(daily, 0);
-                if (elTotalDaily) elTotalDaily.textContent = (dailyText ?? "-");
+                const sumFlow = (typeof data?.TR_sumflow === "number") ? data.TR_sumflow : Number(data?.TR_sumflow);
+                const sumFlowText = fmtNumber(sumFlow, 0);
+                if (elTotalDaily) elTotalDaily.textContent = (sumFlowText ?? "-");
 
                 // ---- Pressure ----
                 const pText = fmtNumber(data?.TR_pressure, 2);

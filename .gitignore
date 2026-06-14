@@ -1,5 +1,12 @@
-﻿.vs/
+.vs/
 **/bin/
 **/obj/
 *.user
 Pages.zip
+*.pem
+*.db-shm
+*.db-wal
+BellBeast/App_Data/cloudflare_token.json
+BellBeast/App_Data/config_runtime.yml
+BellBeast/App_Data/config.yml
+BellBeast/App_Data/backend-config.local.json

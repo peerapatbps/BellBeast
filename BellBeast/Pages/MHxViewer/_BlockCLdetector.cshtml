@@ -12,7 +12,8 @@
             section.cldetector-block .cld-wrap {
                 height: 100%;
                 min-height: 420px;
-                max-height: 420px;
+                /* max-height removed — hard clamp prevented this card from matching
+                   the height of its paired grid neighbour after minimize/maximize */
                 display: grid;
                 grid-template-columns: 1fr 1fr;
                 gap: 14px;
@@ -303,7 +304,6 @@
             section.cldetector-block .cld-wrap {
                 height: auto;
                 min-height: 0;
-                max-height: none;
                 grid-template-columns: 1fr;
             }
         }

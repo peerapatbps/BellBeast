@@ -1,0 +1,277 @@
+@page
+@model BellBeast.Pages.LedDemoModel
+@{
+    ViewData["Title"] = "LED Demo";
+}
+
+<style>
+    .led-content {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 32px 16px;
+        min-height: calc(100dvh - 92px);
+    }
+
+    .led-card {
+        background: rgba(2, 6, 23, 0.60);
+        border: 1px solid rgba(148, 163, 184, 0.12);
+        border-radius: 20px;
+        padding: 32px 36px;
+        width: 100%;
+        max-width: 520px;
+        display: flex;
+        flex-direction: column;
+        gap: 28px;
+        box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+    }
+
+    /* ── Header ── */
+    .led-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .led-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: #e2e8f0;
+        letter-spacing: -0.01em;
+    }
+
+    .led-device-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .led-device-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: rgba(148, 163, 184, 0.3);
+        flex-shrink: 0;
+        transition: background 0.3s, box-shadow 0.3s;
+    }
+
+    .led-device-dot.online {
+        background: #4ade80;
+        box-shadow: 0 0 6px rgba(74, 222, 128, 0.7);
+        animation: led-pulse 2s ease-in-out infinite;
+    }
+
+    @@keyframes led-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    .led-device-select {
+        background: rgba(2, 6, 23, 0.7);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 8px;
+        color: #cbd5e1;
+        font-size: 13px;
+        padding: 5px 10px;
+        cursor: pointer;
+        outline: none;
+    }
+
+    .led-device-select:focus {
+        border-color: rgba(99, 102, 241, 0.5);
+    }
+
+    /* ── Preview ── */
+    .led-preview-section {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .led-preview-orb {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: #000000;
+        border: 2px solid rgba(148, 163, 184, 0.15);
+        transition: background 0.35s ease, box-shadow 0.35s ease;
+        box-shadow: 0 0 0px transparent;
+    }
+
+    .led-preview-label {
+        font-size: 13px;
+        color: rgba(148, 163, 184, 0.7);
+        font-family: monospace;
+        letter-spacing: 0.04em;
+    }
+
+    /* ── Toast ── */
+    .led-toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%) translateY(80px);
+        background: rgba(15, 23, 42, 0.95);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 10px;
+        padding: 10px 20px;
+        font-size: 13px;
+        color: #cbd5e1;
+        transition: transform 0.25s ease, opacity 0.25s ease;
+        opacity: 0;
+        pointer-events: none;
+        z-index: 999;
+        white-space: nowrap;
+    }
+
+    .led-toast.show {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+    }
+
+    .led-toast.error {
+        border-color: rgba(248, 113, 113, 0.4);
+        color: #f87171;
+    }
+
+    /* ── Palette ── */
+    .led-palette-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: rgba(148, 163, 184, 0.5);
+    }
+
+    .led-palette {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 8px;
+    }
+
+    .led-swatch {
+        width: 100%;
+        aspect-ratio: 1;
+        border-radius: 8px;
+        cursor: pointer;
+        border: 2px solid transparent;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+
+    .led-swatch:hover {
+        transform: scale(1.12);
+        box-shadow: 0 0 10px 3px rgba(255,255,255,0.18);
+    }
+
+    .led-swatch.active {
+        border-color: #fff;
+        box-shadow: 0 0 12px 4px rgba(255,255,255,0.25);
+    }
+
+    /* ── Custom color ── */
+    .led-custom-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .led-custom-label {
+        font-size: 12px;
+        color: rgba(148, 163, 184, 0.6);
+        white-space: nowrap;
+    }
+
+    .led-custom-input {
+        width: 48px;
+        height: 36px;
+        border-radius: 8px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        cursor: pointer;
+        padding: 2px;
+        background: transparent;
+    }
+
+    .led-btn {
+        padding: 7px 18px;
+        border-radius: 8px;
+        border: 1px solid rgba(99, 102, 241, 0.4);
+        background: rgba(99, 102, 241, 0.15);
+        color: #a5b4fc;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s;
+    }
+
+    .led-btn:hover:not(:disabled) {
+        background: rgba(99, 102, 241, 0.28);
+        border-color: rgba(99, 102, 241, 0.6);
+    }
+
+    .led-btn:disabled {
+        opacity: 0.4;
+        cursor: default;
+    }
+
+    .led-btn.off {
+        border-color: rgba(148, 163, 184, 0.2);
+        background: rgba(2, 6, 23, 0.5);
+        color: rgba(148, 163, 184, 0.6);
+    }
+
+    .led-btn.off:hover:not(:disabled) {
+        background: rgba(30, 41, 59, 0.7);
+        border-color: rgba(148, 163, 184, 0.35);
+        color: #94a3b8;
+    }
+
+    .led-divider {
+        border: none;
+        border-top: 1px solid rgba(148, 163, 184, 0.08);
+    }
+</style>
+
+<div class="led-content">
+    <div class="led-card">
+
+        <!-- Header -->
+        <div class="led-header">
+            <span class="led-title">LED Control</span>
+            <div class="led-device-row">
+                <span class="led-device-dot" id="deviceDot"></span>
+                <select class="led-device-select" id="deviceSelect">
+                    <option value="">— no device —</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Preview -->
+        <div class="led-preview-section">
+            <div class="led-preview-orb" id="previewOrb"></div>
+            <span class="led-preview-label" id="previewLabel">OFF · 0, 0, 0</span>
+        </div>
+
+        <!-- Preset palette -->
+        <div>
+            <div class="led-palette-label" style="margin-bottom:10px;">Preset Colors</div>
+            <div class="led-palette" id="palette"></div>
+        </div>
+
+        <hr class="led-divider" />
+
+        <!-- Custom color -->
+        <div class="led-custom-row">
+            <span class="led-custom-label">Custom</span>
+            <input type="color" class="led-custom-input" id="customColor" value="#ffffff" />
+            <button class="led-btn" id="sendCustomBtn">Send</button>
+            <button class="led-btn off" id="offBtn" style="margin-left:auto;">OFF</button>
+        </div>
+
+    </div>
+</div>
+
+<div class="led-toast" id="toast"></div>
+
+<script src="~/js/leddemo.js"></script>

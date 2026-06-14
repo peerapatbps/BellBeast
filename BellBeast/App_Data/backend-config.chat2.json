@@ -1,0 +1,21 @@
+{
+  "OpenClawChat2": {
+    "BaseUrl": "http://127.0.0.1:19789",
+    "ChatPath": "/v1/chat/completions",
+    "ApiKey": "",
+    "TimeoutSeconds": 120,
+    "DefaultProfile": "house2",
+    "AgentId": "bellbeast-chat2",
+    "SessionKeyPrefix": "bellbeast-chat2-user",
+    "RestrictToRagOnly": false,
+    "Profiles": {
+      "house2": {
+        "DisplayName": "House 2",
+        "Mode": "gateway",
+        "AgentId": "bellbeast-chat2",
+        "SessionKeyPrefix": "bellbeast-chat2-user",
+        "RestrictToRagOnly": false
+      }
+    }
+  }
+}

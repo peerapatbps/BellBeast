@@ -4,15 +4,26 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using BellBeast.Services;
 using BellBeast.Wayfarer;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Options;
 using System.Text.RegularExpressions;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddJsonFile(
+    Path.Combine(builder.Environment.ContentRootPath, "App_Data", "backend-config.json"),
+    optional: true,
+    reloadOnChange: true);
+builder.Configuration.AddJsonFile(
+    Path.Combine(builder.Environment.ContentRootPath, "App_Data", "backend-config.chat2.json"),
+    optional: true,
+    reloadOnChange: true);
 
 // ===============================
 // Services
@@ -27,10 +38,15 @@ builder.Services.AddRazorPages(options =>
 
     // ยกเว้นหน้า public เดิม
     options.Conventions.AllowAnonymousToPage("/Login");
+    options.Conventions.AllowAnonymousToPage("/Index");
     options.Conventions.AllowAnonymousToPage("/Privacy");
     options.Conventions.AllowAnonymousToPage("/MH_report");
     options.Conventions.AllowAnonymousToPage("/MHxViewer/MHxView");
     options.Conventions.AllowAnonymousToPage("/CHEM_report");
+    options.Conventions.AllowAnonymousToPage("/Chat");
+    options.Conventions.AllowAnonymousToPage("/Chat2");
+    options.Conventions.AllowAnonymousToPage("/IotRoom");
+    options.Conventions.AllowAnonymousToPage("/LedDemo");
 
     // ✅ Admin: ให้ /Admin/Login เข้าได้โดยไม่ต้อง auth
     options.Conventions.AllowAnonymousToPage("/Admin/Login");
@@ -165,7 +181,22 @@ builder.Services.AddAuthorization(options =>
 });
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<EngineAdminService>();
+builder.Services.AddScoped<SummaryProxyService>();
+builder.Services.AddOptions<OpenClawOptions>()
+    .Bind(builder.Configuration.GetSection("OpenClaw"));
+builder.Services.AddOptions<OpenClawChat2Options>()
+    .Bind(builder.Configuration.GetSection("OpenClawChat2"));
+builder.Services.AddHttpClient<OpenClawChatService>()
+    .AddTypedClient((http, sp) => new OpenClawChatService(
+        http,
+        sp.GetRequiredService<IOptions<OpenClawOptions>>().Value));
+builder.Services.AddHttpClient<OpenClawChat2Service>()
+    .AddTypedClient((http, sp) => new OpenClawChat2Service(
+        http,
+        sp.GetRequiredService<IOptions<OpenClawChat2Options>>().Value));
 builder.Services.AddSingleton<WayfarerMapQueryService>();
+builder.Services.AddSingleton<IotRoomService>();
+builder.Services.AddSingleton<CloudflareTunnelService>();
 builder.Services.AddWayfarerData(builder.Configuration);
 
 var app = builder.Build();
@@ -179,7 +210,11 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseResponseCompression();
+app.UseWhen(
+    static ctx =>
+        !ctx.Request.Path.Equals("/api/ai/chat/send", StringComparison.OrdinalIgnoreCase)
+        && !ctx.Request.Path.Equals("/api/ai/chat2/send", StringComparison.OrdinalIgnoreCase),
+    static branch => branch.UseResponseCompression());
 
 if (app.Environment.IsDevelopment())
 {
@@ -265,13 +300,13 @@ ReadBackendConfig(WebApplication app)
     var dailyReportPath = NormPath(GetStr("dailyReportPath"), "/api/dailyreport");
     var chemReportPath = NormPath(GetStr("chemReportPath"), "/api/chem_report");
     var chemExportPath = NormPath(GetStr("chemExportPath"), "/api/chem_report/export");
-    var dpsSummaryPath = NormPath(GetStr("dpsSummaryPath"), "/api/dps/summary");
-    var tpsSummaryPath = NormPath(GetStr("tpsSummaryPath"), "/api/tps/summary");
-    var rwsSummaryPath = NormPath(GetStr("rwsSummaryPath"), "/api/rps/summary");
-    var chemSummaryPath = NormPath(GetStr("chemSummaryPath"), "/api/chem/summary");
-    var eventSummaryPath = NormPath(GetStr("eventSummaryPath"), "/api/event/summary");
-    var labSummaryPath = NormPath(GetStr("labSummaryPath"), "/api/lab/summary");
-    var cldetectorPath = NormPath(GetStr("cldetectorPath"), "/api/cldetector/summary");
+    var dpsSummaryPath = NormPath(GetStr("dpsSummaryPath"), SummaryProxyService.DefaultDpsPath);
+    var tpsSummaryPath = NormPath(GetStr("tpsSummaryPath"), SummaryProxyService.DefaultTpsPath);
+    var rwsSummaryPath = NormPath(GetStr("rwsSummaryPath"), SummaryProxyService.DefaultRwsPath);
+    var chemSummaryPath = NormPath(GetStr("chemSummaryPath"), SummaryProxyService.DefaultChemPath);
+    var eventSummaryPath = NormPath(GetStr("eventSummaryPath"), SummaryProxyService.DefaultEventPath);
+    var labSummaryPath = NormPath(GetStr("labSummaryPath"), SummaryProxyService.DefaultLabPath);
+    var cldetectorPath = NormPath(GetStr("cldetectorPath"), SummaryProxyService.DefaultClDetectorPath);
     var wayfarerApiPath = NormPath(GetStr("wayfarerApiPath"), "/api/wayfarer");
     return (baseUrl, queryCsvPath, dailyReportPath, chemReportPath, chemExportPath, dpsSummaryPath, tpsSummaryPath, rwsSummaryPath, chemSummaryPath, eventSummaryPath, labSummaryPath, cldetectorPath, wayfarerApiPath);
 }
@@ -314,6 +349,212 @@ app.MapGet("/api/backend-config", () =>
         chemExportPath,
         wayfarerApiPath
     });
+});
+
+app.MapGet("/api/ai/chat/health", [AllowAnonymous] async (OpenClawChatService svc, HttpContext ctx) =>
+{
+    var profileId = ctx.Request.Query["agent"].ToString();
+    var result = await svc.GetHealthAsync(profileId, ctx.RequestAborted);
+    return Results.Ok(result);
+});
+
+app.MapGet("/api/ai/chat/profiles", [AllowAnonymous] (OpenClawChatService svc) =>
+{
+    return Results.Ok(svc.GetProfilesSummary());
+});
+
+app.MapGet("/api/ai/chat2/health", [AllowAnonymous] async (OpenClawChat2Service svc, HttpContext ctx) =>
+{
+    var profileId = ctx.Request.Query["agent"].ToString();
+    var result = await svc.GetHealthAsync(profileId, ctx.RequestAborted);
+    return Results.Ok(result);
+});
+
+app.MapGet("/api/ai/chat2/profiles", [AllowAnonymous] (OpenClawChat2Service svc) =>
+{
+    return Results.Ok(svc.GetProfilesSummary());
+});
+
+app.MapPost("/api/ai/chat/send", [AllowAnonymous] async Task<IResult> (
+    OpenClawChatRequest request,
+    OpenClawChatService svc,
+    HttpContext ctx) =>
+{
+    if (request.Messages is null || request.Messages.Count == 0)
+    {
+        return Results.BadRequest(new
+        {
+            success = false,
+            statusCode = StatusCodes.Status400BadRequest,
+            answer = "At least one message is required.",
+            raw = ""
+        });
+    }
+
+    try
+    {
+        var requestContext = svc.BuildRequestContext(ResolveOpenClawUserKey(ctx), request.AgentProfileId);
+
+        if (request.Stream)
+        {
+            var streamState = new StringBuilder();
+            ctx.Response.StatusCode = StatusCodes.Status200OK;
+            ctx.Response.Headers.CacheControl = "no-cache, no-transform";
+            ctx.Response.Headers["X-Accel-Buffering"] = "no";
+            ctx.Response.Headers["Connection"] = "keep-alive";
+            ctx.Response.ContentType = "text/event-stream";
+            ctx.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
+            await ctx.Response.StartAsync(ctx.RequestAborted);
+            await ctx.Response.WriteAsync(": bellbeast-stream-open\n\n", ctx.RequestAborted);
+            await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+
+            var streamResult = await svc.SendStreamAsync(
+                request,
+                requestContext,
+                async (delta, state) =>
+                {
+                    if (string.IsNullOrEmpty(delta))
+                        return;
+
+                    state.Append(delta);
+                    var payload = JsonSerializer.Serialize(new
+                    {
+                        choices = new[]
+                        {
+                            new
+                            {
+                                delta = new
+                                {
+                                    content = delta
+                                }
+                            }
+                        }
+                    });
+
+                    await ctx.Response.WriteAsync($"data: {payload}\n\n", ctx.RequestAborted);
+                    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+                },
+                streamState,
+                ctx.RequestAborted);
+
+            if (!streamResult.Success)
+            {
+                ctx.Response.StatusCode = streamResult.StatusCode;
+                var safeError = JsonSerializer.Serialize(new
+                {
+                    error = new
+                    {
+                        message = streamResult.Answer
+                    }
+                });
+                await ctx.Response.WriteAsync($"data: {safeError}\n\n", ctx.RequestAborted);
+                await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+                return Results.Empty;
+            }
+
+            await ctx.Response.WriteAsync("data: [DONE]\n\n", ctx.RequestAborted);
+            await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+            return Results.Empty;
+        }
+
+        var result = await svc.SendAsync(request, requestContext, ctx.RequestAborted);
+        return Results.Json(result, statusCode: result.StatusCode);
+    }
+    catch
+    {
+        return Results.Problem("Chat request failed.", statusCode: StatusCodes.Status500InternalServerError);
+    }
+});
+
+app.MapPost("/api/ai/chat2/send", [AllowAnonymous] async Task<IResult> (
+    OpenClawChatRequest request,
+    OpenClawChat2Service svc,
+    HttpContext ctx) =>
+{
+    if (request.Messages is null || request.Messages.Count == 0)
+    {
+        return Results.BadRequest(new
+        {
+            success = false,
+            statusCode = StatusCodes.Status400BadRequest,
+            answer = "At least one message is required.",
+            raw = ""
+        });
+    }
+
+    try
+    {
+        var requestContext = svc.BuildRequestContext(ResolveOpenClawUserKey(ctx), request.AgentProfileId);
+
+        if (request.Stream)
+        {
+            var streamState = new StringBuilder();
+            ctx.Response.StatusCode = StatusCodes.Status200OK;
+            ctx.Response.Headers.CacheControl = "no-cache, no-transform";
+            ctx.Response.Headers["X-Accel-Buffering"] = "no";
+            ctx.Response.Headers["Connection"] = "keep-alive";
+            ctx.Response.ContentType = "text/event-stream";
+            ctx.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
+            await ctx.Response.StartAsync(ctx.RequestAborted);
+            await ctx.Response.WriteAsync(": bellbeast-stream-open\n\n", ctx.RequestAborted);
+            await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+
+            var streamResult = await svc.SendStreamAsync(
+                request,
+                requestContext,
+                async (delta, state) =>
+                {
+                    if (string.IsNullOrEmpty(delta))
+                        return;
+
+                    state.Append(delta);
+                    var payload = JsonSerializer.Serialize(new
+                    {
+                        choices = new[]
+                        {
+                            new
+                            {
+                                delta = new
+                                {
+                                    content = delta
+                                }
+                            }
+                        }
+                    });
+
+                    await ctx.Response.WriteAsync($"data: {payload}\n\n", ctx.RequestAborted);
+                    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+                },
+                streamState,
+                ctx.RequestAborted);
+
+            if (!streamResult.Success)
+            {
+                ctx.Response.StatusCode = streamResult.StatusCode;
+                var safeError = JsonSerializer.Serialize(new
+                {
+                    error = new
+                    {
+                        message = streamResult.Answer
+                    }
+                });
+                await ctx.Response.WriteAsync($"data: {safeError}\n\n", ctx.RequestAborted);
+                await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+                return Results.Empty;
+            }
+
+            await ctx.Response.WriteAsync("data: [DONE]\n\n", ctx.RequestAborted);
+            await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+            return Results.Empty;
+        }
+
+        var result = await svc.SendAsync(request, requestContext, ctx.RequestAborted);
+        return Results.Json(result, statusCode: result.StatusCode);
+    }
+    catch
+    {
+        return Results.Problem("Chat2 request failed.", statusCode: StatusCodes.Status500InternalServerError);
+    }
 });
 
 static IReadOnlyList<string> ReadStatusGroups(IQueryCollection query)
@@ -410,11 +651,11 @@ app.MapMethods("/api/wayfarer/{**path}", new[] { "GET", "POST" }, async (HttpCon
 // ===============================
 app.MapGet("/api/auth/me", (HttpContext ctx) =>
 {
-    if (!(ctx.User?.Identity?.IsAuthenticated ?? false))
-        return Results.Unauthorized();
-
-    var username = ctx.User.Identity?.Name ?? "";
-    var token = ctx.User.FindFirst("AquadatToken")?.Value ?? "";
+    var isAuthenticated = ctx.User?.Identity?.IsAuthenticated ?? false;
+    var username = isAuthenticated ? (ctx.User?.Identity?.Name ?? "") : "bypass";
+    var token = isAuthenticated
+        ? (ctx.User?.FindFirst("AquadatToken")?.Value ?? "")
+        : "bypass";
 
     return Results.Ok(new { username, token });
 });
@@ -632,6 +873,71 @@ app.MapPost("/api/process", async (HttpContext ctx, IHttpClientFactory factory) 
     await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
 });
 
+app.MapGet("/api/ptc/series", async (HttpContext ctx, IHttpClientFactory factory) =>
+{
+    var (baseUrl, _, _, _, _, _, _, _, _, _, _, _, _) = ReadBackendConfig(app);
+    var key = ctx.Request.Query["key"].ToString().Trim();
+    var targetUrl = $"{baseUrl}/api/ptc/series?key={Uri.EscapeDataString(key)}";
+
+    if (ctx.Request.Query.TryGetValue("_ts", out var ts) && !string.IsNullOrWhiteSpace(ts))
+        targetUrl += $"&_ts={Uri.EscapeDataString(ts!)}";
+
+    var client = factory.CreateClient();
+    client.Timeout = TimeSpan.FromSeconds(30);
+
+    using var req = new HttpRequestMessage(HttpMethod.Get, targetUrl);
+    using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
+
+    ctx.Response.StatusCode = (int)resp.StatusCode;
+
+    if (resp.Content.Headers.ContentType != null)
+        ctx.Response.ContentType = resp.Content.Headers.ContentType.ToString();
+
+    if (!resp.IsSuccessStatusCode)
+    {
+        var err = await resp.Content.ReadAsStringAsync(ctx.RequestAborted);
+        await ctx.Response.WriteAsync(err, ctx.RequestAborted);
+        return;
+    }
+
+    await using var stream = await resp.Content.ReadAsStreamAsync(ctx.RequestAborted);
+    await stream.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
+    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+});
+
+app.MapPost("/api/online_lab", async (HttpContext ctx, IHttpClientFactory factory) =>
+{
+    var (baseUrl, _, _, _, _, _, _, _, _, _, _, _, _) = ReadBackendConfig(app);
+    var targetUrl = $"{baseUrl}/api/online_lab";
+
+    using var reader = new StreamReader(ctx.Request.Body);
+    var rawBody = await reader.ReadToEndAsync();
+
+    var client = factory.CreateClient();
+    client.Timeout = TimeSpan.FromSeconds(120);
+
+    using var req = new HttpRequestMessage(HttpMethod.Post, targetUrl);
+    req.Content = new StringContent(rawBody, Encoding.UTF8, "text/plain");
+
+    using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
+
+    ctx.Response.StatusCode = (int)resp.StatusCode;
+
+    if (resp.Content.Headers.ContentType != null)
+        ctx.Response.ContentType = resp.Content.Headers.ContentType.ToString();
+
+    if (!resp.IsSuccessStatusCode)
+    {
+        var err = await resp.Content.ReadAsStringAsync(ctx.RequestAborted);
+        await ctx.Response.WriteAsync(err, ctx.RequestAborted);
+        return;
+    }
+
+    await using var stream = await resp.Content.ReadAsStreamAsync(ctx.RequestAborted);
+    await stream.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
+    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+});
+
 // ===============================
 // API : /api/template/save
 // ===============================
@@ -828,6 +1134,24 @@ app.MapPost("/api/admin/enqueue", async (EngineAdminService svc, HttpContext ctx
     return Results.Ok();
 });
 
+// Proxy: forward GET admin/tasks/status to Uroboros and relay the response.
+// Lets the browser call /api/admin/tasks/status (BellBeast) instead of calling
+// Uroboros directly — avoids cross-origin / firewall issues from the browser.
+app.MapGet("/api/admin/tasks/status", async (EngineAdminService svc) =>
+{
+    try
+    {
+        var result = await svc.GetStatusAsync();
+        return result is null
+            ? Results.Problem("Engine returned null — may be offline")
+            : Results.Ok(result);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(ex.Message);
+    }
+});
+
 app.MapGet("/api/smartmap", async (HttpContext hc) =>
 {
     // รับ keys เป็น optional (ถ้าส่งมาก็ filter ให้)
@@ -893,222 +1217,338 @@ app.MapGet("/api/smartmap", async (HttpContext hc) =>
     return Results.Json(dict);
 });
 
-app.MapGet("/api/dps/summary", async (HttpContext ctx, IHttpClientFactory factory) =>
+app.MapGet("/api/dps/summary", async (HttpContext ctx, SummaryProxyService svc) =>
 {
     var (baseUrl, _, _, _, _, dpsSummaryPath, _, _, _, _, _, _, _) = ReadBackendConfig(app);
-    var targetUrl = $"{baseUrl}{dpsSummaryPath}";
-
-    var client = factory.CreateClient();
-    client.Timeout = TimeSpan.FromSeconds(30);
-
-    using var req = new HttpRequestMessage(HttpMethod.Get, targetUrl);
-    using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
-
-    ctx.Response.StatusCode = (int)resp.StatusCode;
-
-    if (resp.Content.Headers.ContentType != null)
-        ctx.Response.ContentType = resp.Content.Headers.ContentType.ToString();
-
-    if (!resp.IsSuccessStatusCode)
-    {
-        var err = await resp.Content.ReadAsStringAsync(ctx.RequestAborted);
-        await ctx.Response.WriteAsync(err, ctx.RequestAborted);
-        return;
-    }
-
-    await using var stream = await resp.Content.ReadAsStreamAsync(ctx.RequestAborted);
-    await stream.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
-    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+    await ProxySummaryAsync(ctx, await svc.GetDpsSummaryAsync($"{baseUrl}{dpsSummaryPath}", ctx.RequestAborted));
 });
 
-app.MapGet("/api/tps/summary", async (HttpContext ctx, IHttpClientFactory factory) =>
+app.MapGet("/api/tps/summary", async (HttpContext ctx, SummaryProxyService svc) =>
 {
-    var (baseUrl, _, _, _, _, _, tpsSummaryPath, _, _, _, _, _, _) = ReadBackendConfig(app); // <- ปรับ tuple ให้ตรงของคุณ
-    var targetUrl = $"{baseUrl}{tpsSummaryPath}";
-
-    var client = factory.CreateClient();
-    client.Timeout = TimeSpan.FromSeconds(30);
-
-    using var req = new HttpRequestMessage(HttpMethod.Get, targetUrl);
-    using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
-
-    ctx.Response.StatusCode = (int)resp.StatusCode;
-
-    if (resp.Content.Headers.ContentType != null)
-        ctx.Response.ContentType = resp.Content.Headers.ContentType.ToString();
-
-    if (!resp.IsSuccessStatusCode)
-    {
-        var err = await resp.Content.ReadAsStringAsync(ctx.RequestAborted);
-        await ctx.Response.WriteAsync(err, ctx.RequestAborted);
-        return;
-    }
-
-    await using var stream = await resp.Content.ReadAsStreamAsync(ctx.RequestAborted);
-    await stream.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
-    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+    var (baseUrl, _, _, _, _, _, tpsSummaryPath, _, _, _, _, _, _) = ReadBackendConfig(app);
+    await ProxySummaryAsync(ctx, await svc.GetTpsSummaryAsync($"{baseUrl}{tpsSummaryPath}", ctx.RequestAborted));
 });
 
-app.MapGet("/api/rws/summary", async (HttpContext ctx, IHttpClientFactory factory) =>
+app.MapGet("/api/rws/summary", async (HttpContext ctx, SummaryProxyService svc) =>
 {
-    var (baseUrl, _, _, _, _, _, _, rwsSummaryPath, _, _, _, _, _) = ReadBackendConfig(app); // <- ปรับ tuple ให้ตรงของคุณ
-    var targetUrl = $"{baseUrl}{rwsSummaryPath}";
-
-    var client = factory.CreateClient();
-    client.Timeout = TimeSpan.FromSeconds(30);
-
-    using var req = new HttpRequestMessage(HttpMethod.Get, targetUrl);
-    using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
-
-    ctx.Response.StatusCode = (int)resp.StatusCode;
-
-    if (resp.Content.Headers.ContentType != null)
-        ctx.Response.ContentType = resp.Content.Headers.ContentType.ToString();
-
-    if (!resp.IsSuccessStatusCode)
-    {
-        var err = await resp.Content.ReadAsStringAsync(ctx.RequestAborted);
-        await ctx.Response.WriteAsync(err, ctx.RequestAborted);
-        return;
-    }
-
-    await using var stream = await resp.Content.ReadAsStreamAsync(ctx.RequestAborted);
-    await stream.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
-    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+    var (baseUrl, _, _, _, _, _, _, rwsSummaryPath, _, _, _, _, _) = ReadBackendConfig(app);
+    await ProxySummaryAsync(ctx, await svc.GetRwsSummaryAsync($"{baseUrl}{rwsSummaryPath}", ctx.RequestAborted));
 });
 
-app.MapGet("/api/chem/summary", async (HttpContext ctx, IHttpClientFactory factory) =>
+app.MapGet("/api/chem/summary", async (HttpContext ctx, SummaryProxyService svc) =>
 {
     var (baseUrl, _, _, _, _, _, _, _, chemSummaryPath, _, _, _, _) = ReadBackendConfig(app);
-
-    var path = string.IsNullOrWhiteSpace(chemSummaryPath) ? "/api/chem/summary" : chemSummaryPath;
-
-    // กัน double slash
-    var targetUrl = $"{baseUrl}{path}";
-
-    var client = factory.CreateClient();
-    client.Timeout = TimeSpan.FromSeconds(30);
-
-    using var req = new HttpRequestMessage(HttpMethod.Get, targetUrl);
-    using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
-
-    ctx.Response.StatusCode = (int)resp.StatusCode;
-
-    if (resp.Content.Headers.ContentType != null)
-        ctx.Response.ContentType = resp.Content.Headers.ContentType.ToString();
-
-    if (!resp.IsSuccessStatusCode)
-    {
-        var err = await resp.Content.ReadAsStringAsync(ctx.RequestAborted);
-        await ctx.Response.WriteAsync(err, ctx.RequestAborted);
-        return;
-    }
-
-    await using var stream = await resp.Content.ReadAsStreamAsync(ctx.RequestAborted);
-    await stream.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
-    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+    await ProxySummaryAsync(ctx, await svc.GetChemSummaryAsync($"{baseUrl}{chemSummaryPath}", ctx.RequestAborted));
 });
 
-app.MapGet("/api/event/summary", async (HttpContext ctx, IHttpClientFactory factory) =>
+app.MapGet("/api/event/summary", async (HttpContext ctx, SummaryProxyService svc) =>
 {
     var (baseUrl, _, _, _, _, _, _, _, _, eventSummaryPath, _, _, _) = ReadBackendConfig(app);
-
-    var path = string.IsNullOrWhiteSpace(eventSummaryPath)
-        ? "/api/event/summary"
-        : eventSummaryPath;
-
-    var targetUrl = $"{baseUrl}{path}";
-
-    var client = factory.CreateClient();
-    client.Timeout = TimeSpan.FromSeconds(30);
-
-    using var req = new HttpRequestMessage(HttpMethod.Get, targetUrl);
-    using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
-
-    ctx.Response.StatusCode = (int)resp.StatusCode;
-
-    if (resp.Content.Headers.ContentType != null)
-        ctx.Response.ContentType = resp.Content.Headers.ContentType.ToString();
-
-    if (!resp.IsSuccessStatusCode)
-    {
-        var err = await resp.Content.ReadAsStringAsync(ctx.RequestAborted);
-        await ctx.Response.WriteAsync(err, ctx.RequestAborted);
-        return;
-    }
-
-    await using var stream = await resp.Content.ReadAsStreamAsync(ctx.RequestAborted);
-    await stream.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
-    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+    await ProxySummaryAsync(ctx, await svc.GetEventSummaryAsync($"{baseUrl}{eventSummaryPath}", ctx.RequestAborted));
 });
 
-app.MapGet("/api/cldetector/summary", async (HttpContext ctx, IHttpClientFactory factory) =>
+app.MapGet("/api/cldetector/summary", async (HttpContext ctx, SummaryProxyService svc) =>
 {
     var (baseUrl, _, _, _, _, _, _, _, _, _, _, cldetectorPath, _) = ReadBackendConfig(app);
-
-    var path = string.IsNullOrWhiteSpace(cldetectorPath)
-        ? "/api/cldetector/summary"
-        : cldetectorPath;
-
-    var targetUrl = $"{baseUrl}{path}";
-
-    var client = factory.CreateClient();
-    client.Timeout = TimeSpan.FromSeconds(30);
-
-    using var req = new HttpRequestMessage(HttpMethod.Get, targetUrl);
-    using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
-
-    ctx.Response.StatusCode = (int)resp.StatusCode;
-
-    if (resp.Content.Headers.ContentType != null)
-        ctx.Response.ContentType = resp.Content.Headers.ContentType.ToString();
-
-    if (!resp.IsSuccessStatusCode)
-    {
-        var err = await resp.Content.ReadAsStringAsync(ctx.RequestAborted);
-        await ctx.Response.WriteAsync(err, ctx.RequestAborted);
-        return;
-    }
-
-    await using var stream = await resp.Content.ReadAsStreamAsync(ctx.RequestAborted);
-    await stream.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
-    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+    await ProxySummaryAsync(ctx, await svc.GetClDetectorSummaryAsync($"{baseUrl}{cldetectorPath}", ctx.RequestAborted));
 });
 
-app.MapPost("/api/lab/summary", async (HttpContext ctx, IHttpClientFactory factory) =>
+app.MapPost("/api/lab/summary", async (HttpContext ctx, SummaryProxyService svc) =>
 {
     var (baseUrl, _, _, _, _, _, _, _, _, _, labSummaryPath, _, _) = ReadBackendConfig(app);
-    var targetUrl = $"{baseUrl}/api/lab/summary";
-
     using var reader = new StreamReader(ctx.Request.Body);
     var rawBody = await reader.ReadToEndAsync();
+    var body = new StringContent(rawBody, Encoding.UTF8, "application/json");
+    await ProxySummaryAsync(ctx, await svc.PostLabSummaryAsync($"{baseUrl}{labSummaryPath}", body, ctx.RequestAborted));
+});
 
-    var client = factory.CreateClient();
-    client.Timeout = TimeSpan.FromSeconds(120);
-
-    using var req = new HttpRequestMessage(HttpMethod.Post, targetUrl);
-    req.Content = new StringContent(rawBody, Encoding.UTF8, "application/json");
-
-    using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
-
-    ctx.Response.StatusCode = (int)resp.StatusCode;
-
-    if (resp.Content.Headers.ContentType != null)
-        ctx.Response.ContentType = resp.Content.Headers.ContentType.ToString();
-
-    if (!resp.IsSuccessStatusCode)
+app.MapGet("/api/admin/test/run", async (EngineAdminService svc) =>
+{
+    try
     {
-        var err = await resp.Content.ReadAsStringAsync(ctx.RequestAborted);
-        await ctx.Response.WriteAsync(err, ctx.RequestAborted);
-        return;
+        var result = await svc.RunTestsAsync();
+        return Results.Ok(result);
     }
+    catch (Exception ex)
+    {
+        return Results.Problem(ex.Message);
+    }
+});
 
-    await using var stream = await resp.Content.ReadAsStreamAsync(ctx.RequestAborted);
-    await stream.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
-    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+// BellBeast-side self-tests (EngineAdminService + BackendConfig + AdminApi + AdminAuth)
+app.MapGet("/api/admin/test/run-local", (HttpContext httpCtx, IWebHostEnvironment env) =>
+{
+    try
+    {
+        var ctx    = new BellBeast.SelfTest.SelfTestContext(env, httpCtx.RequestServices);
+        var report = BellBeast.SelfTest.SelfTestRunner.RunAll(ctx);
+        return Results.Ok(report);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(ex.Message);
+    }
+});
+
+// ===============================
+// API : Cloudflare Tunnel control
+// ===============================
+
+app.MapGet("/api/iot/tunnel/status", [AllowAnonymous] (CloudflareTunnelService cf) =>
+{
+    var uptimeSec = cf.StartedAt.HasValue
+        ? (int)(DateTime.UtcNow - cf.StartedAt.Value).TotalSeconds
+        : 0;
+
+    return Results.Ok(new
+    {
+        state      = cf.State.ToString().ToLowerInvariant(),  // stopped | starting | running | error
+        publicUrl  = cf.PublicUrl,
+        tunnelName = cf.TunnelName,
+        uptimeSec,
+        error      = cf.ErrorMessage,
+        logs       = cf.GetRecentLogs(40)
+    });
+});
+
+app.MapPost("/api/iot/tunnel/start", [AllowAnonymous] (CloudflareTunnelService cf) =>
+{
+    var started = cf.Start();
+    return Results.Ok(new { ok = started, state = cf.State.ToString().ToLowerInvariant() });
+});
+
+app.MapPost("/api/iot/tunnel/stop", [AllowAnonymous] (CloudflareTunnelService cf) =>
+{
+    cf.Stop();
+    return Results.Ok(new { ok = true, state = "stopped" });
+});
+
+// ===============================
+// API : IoT Room
+// ===============================
+
+// Device → join room (first time or after reconnect)
+app.MapPost("/api/iot/room/join", [AllowAnonymous] (IotRoomService iotRoom, HttpContext ctx) =>
+{
+    IotJoinRequest? body;
+    try { body = ctx.Request.ReadFromJsonAsync<IotJoinRequest>().GetAwaiter().GetResult(); }
+    catch { return Results.BadRequest(new { ok = false, error = "Invalid JSON" }); }
+
+    if (body is null || string.IsNullOrWhiteSpace(body.DeviceName) || string.IsNullOrWhiteSpace(body.DeviceType))
+        return Results.BadRequest(new { ok = false, error = "deviceName and deviceType are required" });
+
+    var (key, isNew) = iotRoom.JoinOrRejoin(body.DeviceName.Trim(), body.DeviceType.Trim());
+    return Results.Ok(new { ok = true, key, isNew });
+});
+
+// Device → heartbeat / poll for pending command
+app.MapPost("/api/iot/room/poll", [AllowAnonymous] (IotRoomService iotRoom, HttpContext ctx) =>
+{
+    IotPollRequest? body;
+    try { body = ctx.Request.ReadFromJsonAsync<IotPollRequest>().GetAwaiter().GetResult(); }
+    catch { return Results.BadRequest(new { status = "error", error = "Invalid JSON" }); }
+
+    if (body is null || string.IsNullOrWhiteSpace(body.Key))
+        return Results.BadRequest(new { status = "error", error = "key is required" });
+
+    var (status, cmd) = iotRoom.Poll(body.Key.Trim());
+    if (status == "reconnect")
+        return Results.Ok(new { status = "reconnect" });
+
+    if (cmd is not null)
+        return Results.Ok(new { status = "ok", command = new { type = cmd.CommandType, value = cmd.Value } });
+
+    return Results.Ok(new { status = "ok", command = (object?)null });
+});
+
+// Browser → get current member list
+app.MapGet("/api/iot/room/members", [AllowAnonymous] (IotRoomService iotRoom) =>
+{
+    var members = iotRoom.GetMembers();
+    return Results.Ok(new { members });
+});
+
+// Browser → get room log
+app.MapGet("/api/iot/room/log", [AllowAnonymous] (IotRoomService iotRoom, HttpContext ctx) =>
+{
+    int last = 50;
+    if (int.TryParse(ctx.Request.Query["last"], out var q) && q > 0 && q <= 200) last = q;
+    var entries = iotRoom.GetLog(last);
+    return Results.Ok(new { entries });
+});
+
+// Host → send command to a device
+app.MapPost("/api/iot/room/command", [AllowAnonymous] (IotRoomService iotRoom, HttpContext ctx) =>
+{
+    IotCommandRequest? body;
+    try { body = ctx.Request.ReadFromJsonAsync<IotCommandRequest>().GetAwaiter().GetResult(); }
+    catch { return Results.BadRequest(new { ok = false, error = "Invalid JSON" }); }
+
+    if (body is null || string.IsNullOrWhiteSpace(body.Raw))
+        return Results.BadRequest(new { ok = false, error = "raw is required" });
+
+    // Parse: {"Device A", "LED", "255,255,255"} — strip outer braces/quotes
+    var parsed = ParseIotCommand(body.Raw);
+    if (parsed is null)
+        return Results.BadRequest(new { ok = false, error = "Cannot parse command. Expected: {\"DeviceName\", \"Type\", \"Value\"}" });
+
+    var (deviceName, commandType, value) = parsed.Value;
+    var ok = iotRoom.SendCommand(deviceName, commandType, value);
+    if (!ok)
+        return Results.Ok(new { ok = false, error = $"Device '{deviceName}' not found or offline" });
+
+    return Results.Ok(new { ok = true, deviceName, commandType, value });
+});
+
+// Device → post telemetry / state
+app.MapPost("/api/iot/room/data", [AllowAnonymous] async (IotRoomService iotRoom, HttpContext ctx) =>
+{
+    IotDataRequest? body;
+    try { body = await ctx.Request.ReadFromJsonAsync<IotDataRequest>(); }
+    catch { return Results.BadRequest(new { ok = false, error = "Invalid JSON" }); }
+
+    if (body is null || string.IsNullOrWhiteSpace(body.Key))
+        return Results.BadRequest(new { ok = false, error = "key is required" });
+
+    if (body.Data is null || body.Data.Count == 0)
+        return Results.BadRequest(new { ok = false, error = "data must be a non-empty object" });
+
+    var (ok, error) = iotRoom.PostData(body.Key.Trim(), body.Data);
+    return ok ? Results.Ok(new { ok = true }) : Results.Ok(new { ok = false, error });
+});
+
+// Device / dashboard → get device state(s)
+app.MapGet("/api/iot/room/data", [AllowAnonymous] (IotRoomService iotRoom, HttpContext ctx) =>
+{
+    var key = ctx.Request.Query["key"].FirstOrDefault();
+    var deviceName = ctx.Request.Query["deviceName"].FirstOrDefault();
+    var devices = iotRoom.GetDeviceData(key, deviceName);
+    return Results.Ok(new { devices });
+});
+
+// Dashboard → one-shot snapshot (members + states + log)
+app.MapGet("/api/iot/room/snapshot", [AllowAnonymous] (IotRoomService iotRoom, HttpContext ctx) =>
+{
+    int last = 50;
+    if (int.TryParse(ctx.Request.Query["last"], out var q) && q > 0 && q <= 200) last = q;
+    return Results.Ok(iotRoom.GetSnapshot(last));
 });
 
 app.Run();
+
+static (string deviceName, string commandType, string value)? ParseIotCommand(string raw)
+{
+    // Accept: {"Device A", "LED", "255,255,255"} or Device A, LED, 255,255,255
+    var s = raw.Trim();
+    if (s.StartsWith('{')) s = s.TrimStart('{').TrimEnd('}');
+
+    // Split by comma but only on top-level (not inside RGB values that already don't have quotes)
+    // Simple approach: extract quoted tokens first, then fall back to split
+    var tokens = new List<string>();
+    var remaining = s;
+    while (remaining.Length > 0)
+    {
+        remaining = remaining.TrimStart();
+        if (remaining.StartsWith('"'))
+        {
+            var end = remaining.IndexOf('"', 1);
+            if (end < 0) break;
+            tokens.Add(remaining.Substring(1, end - 1).Trim());
+            remaining = remaining.Substring(end + 1).TrimStart(',');
+        }
+        else
+        {
+            // unquoted — take until next comma that is followed by a quote or end
+            var comma = remaining.IndexOf(',');
+            if (comma < 0)
+            {
+                tokens.Add(remaining.Trim());
+                break;
+            }
+            tokens.Add(remaining.Substring(0, comma).Trim());
+            remaining = remaining.Substring(comma + 1);
+        }
+    }
+
+    if (tokens.Count < 3) return null;
+    if (string.IsNullOrWhiteSpace(tokens[0]) || string.IsNullOrWhiteSpace(tokens[1])) return null;
+
+    // Value may contain commas (like RGB), join remaining tokens
+    var valueTokens = tokens.Skip(2).ToList();
+    var value = string.Join(",", valueTokens);
+
+    return (tokens[0], tokens[1], value);
+}
+
+// ── Shared streaming helper used by all 7 summary proxy handlers ──────────────
+static async Task ProxySummaryAsync(HttpContext ctx, HttpResponseMessage upstream)
+{
+    ctx.Response.StatusCode = (int)upstream.StatusCode;
+
+    if (upstream.Content.Headers.ContentType != null)
+        ctx.Response.ContentType = upstream.Content.Headers.ContentType.ToString();
+
+    if (!upstream.IsSuccessStatusCode)
+    {
+        var err = await upstream.Content.ReadAsStringAsync(ctx.RequestAborted);
+        await ctx.Response.WriteAsync(err, ctx.RequestAborted);
+        return;
+    }
+
+    await using var stream = await upstream.Content.ReadAsStreamAsync(ctx.RequestAborted);
+    await stream.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
+    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+}
+
+
+static string ResolveOpenClawUserKey(HttpContext ctx)
+{
+    var user = ctx.User;
+
+    static string? ReadClaim(ClaimsPrincipal principal, string claimType)
+    {
+        var value = principal.FindFirst(claimType)?.Value?.Trim();
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    static string? ReadHeader(HttpContext context, string headerName)
+    {
+        var value = context.Request.Headers[headerName].ToString().Trim();
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    static string? NormalizeClientKey(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var builder = new StringBuilder(value.Length);
+        foreach (var ch in value.Trim().ToLowerInvariant())
+        {
+            if (char.IsLetterOrDigit(ch) || ch is '-' or '_')
+            {
+                builder.Append(ch);
+            }
+            else if (builder.Length == 0 || builder[^1] != '-')
+            {
+                builder.Append('-');
+            }
+        }
+
+        var normalized = builder.ToString().Trim('-');
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+
+    var authenticatedKey = ReadClaim(user, ClaimTypes.NameIdentifier)
+        ?? ReadClaim(user, "sub")
+        ?? user.Identity?.Name?.Trim();
+
+    if (!string.IsNullOrWhiteSpace(authenticatedKey))
+        return authenticatedKey;
+
+    return NormalizeClientKey(ReadHeader(ctx, "X-BellBeast-Chat-Client"))
+        ?? "bellbeast-user";
+}
 
 sealed class AdminLoginDto
 {
@@ -1116,6 +1556,31 @@ sealed class AdminLoginDto
     public string? Password { get; set; }
 }
 
+sealed class IotJoinRequest
+{
+    public string? DeviceName { get; set; }
+    public string? DeviceType { get; set; }
+}
+
+sealed class IotPollRequest
+{
+    public string? Key { get; set; }
+}
+
+sealed class IotCommandRequest
+{
+    public string? Raw { get; set; }
+}
+
+sealed class IotDataRequest
+{
+    public string? Key { get; set; }
+    public Dictionary<string, System.Text.Json.JsonElement>? Data { get; set; }
+}
+
 // ====== types ที่คุณมีอยู่แล้วในโปรเจกต์ ======
 // sealed record TemplateSaveRequest(string? name, List<TemplateItem>? items);
 // sealed record TemplateItem(...);
+
+// Required for WebApplicationFactory<Program> in integration tests
+public partial class Program { }

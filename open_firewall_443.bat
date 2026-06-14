@@ -1,6 +1,6 @@
 @echo off
 echo =========================================
-echo  Open Firewall Port 5082 (ASP.NET)
+echo  Open Firewall Port 443 (ASP.NET)
 echo =========================================
 
 REM ตรวจสอบสิทธิ์ Admin
@@ -15,15 +15,15 @@ if %errorlevel% neq 0 (
 
 REM เพิ่ม Inbound Rule
 netsh advfirewall firewall add rule ^
-    name="BellBeast ASP.NET 5082" ^
+    name="BellBeast ASP.NET 443" ^
     dir=in ^
     action=allow ^
     protocol=TCP ^
-    localport=5082 ^
+    localport=443 ^
     profile=private,domain
 
 echo.
 echo Firewall rule added successfully.
-echo Port 5082 is now OPEN.
+echo Port 443 is now OPEN.
 echo.
 pause

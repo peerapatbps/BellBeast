@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using ClosedXML.Excel;
+using Microsoft.Extensions.Logging;
 using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -46,21 +47,23 @@ public static class WayfarerApiExtensions
             return Results.Ok(new WayfarerFilterResponse(statuses, types, departments, latest));
         });
 
-        api.MapGet("/workorders", async (HttpContext http, WayfarerDb db, CancellationToken ct) =>
+        api.MapGet("/workorders", async (HttpContext http, WayfarerDb db, ILoggerFactory loggerFactory, CancellationToken ct) =>
         {
+            var logger = loggerFactory.CreateLogger("BellBeast.Wayfarer.WorkOrdersApi");
             var req = http.Request.Query;
             var page = Clamp(ParseInt(req["page"], 1), 1, int.MaxValue);
             var pageSize = Clamp(ParseInt(req["pageSize"], 25), 1, MaxPageSize);
             var offset = (page - 1) * pageSize;
 
-            var where = BuildWhere(req, out var parameters);
+            var dateFilter = ResolveDateFilter(req, logger);
+            var where = BuildWhere(req, dateFilter, out var parameters);
             var orderBy = BuildOrderBy(req["sort"], req["dir"]);
 
             await using var conn = db.OpenReadOnlyConnection();
 
-            var total = await CountAsync(conn, where, parameters, ct);
-            var summary = await SummaryAsync(conn, where, parameters, ct);
-            var items = await ListAsync(conn, where, parameters, orderBy, pageSize, offset, ct);
+            var total = await CountAsync(conn, where, parameters, logger, ct);
+            var summary = await SummaryAsync(conn, where, parameters, logger, ct);
+            var items = await ListAsync(conn, where, parameters, orderBy, pageSize, offset, logger, ct);
 
             return Results.Ok(new WayfarerListResponse(page, pageSize, total, summary, items));
         });
@@ -175,7 +178,7 @@ public static class WayfarerApiExtensions
                i.fetched_at_utc
         """;
 
-    private static string BuildWhere(IQueryCollection req, out Dictionary<string, object?> parameters)
+    private static string BuildWhere(IQueryCollection req, WayfarerDateFilter dateFilter, out Dictionary<string, object?> parameters)
     {
         var filters = new List<string> { "1 = 1" };
         parameters = new Dictionary<string, object?>();
@@ -200,18 +203,16 @@ public static class WayfarerApiExtensions
             parameters["@q"] = $"%{q}%";
         }
 
-        var from = req["from"].ToString().Trim();
-        if (IsIsoDate(from))
+        if (dateFilter.From is not null)
         {
             filters.Add("date(i.wo_date) >= date(@from)");
-            parameters["@from"] = from;
+            parameters["@from"] = dateFilter.From.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         }
 
-        var to = req["to"].ToString().Trim();
-        if (IsIsoDate(to))
+        if (dateFilter.To is not null)
         {
-            filters.Add("date(i.wo_date) <= date(@to)");
-            parameters["@to"] = to;
+            filters.Add("date(i.wo_date) < date(@toExclusive)");
+            parameters["@toExclusive"] = dateFilter.To.Value.AddDays(1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         }
 
         var status = req["status"].ToString().Trim();
@@ -254,16 +255,17 @@ public static class WayfarerApiExtensions
         return $"ORDER BY {column} {direction}, i.wo_no DESC";
     }
 
-    private static async Task<int> CountAsync(SqliteConnection conn, string where, Dictionary<string, object?> parameters, CancellationToken ct)
+    private static async Task<int> CountAsync(SqliteConnection conn, string where, Dictionary<string, object?> parameters, ILogger logger, CancellationToken ct)
     {
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = $"SELECT COUNT(*) {BaseFrom} {where}";
         AddParameters(cmd, parameters);
+        LogSqlParameters(logger, "count", cmd.Parameters);
         var value = await cmd.ExecuteScalarAsync(ct);
         return Convert.ToInt32(value, CultureInfo.InvariantCulture);
     }
 
-    private static async Task<WayfarerSummary> SummaryAsync(SqliteConnection conn, string where, Dictionary<string, object?> parameters, CancellationToken ct)
+    private static async Task<WayfarerSummary> SummaryAsync(SqliteConnection conn, string where, Dictionary<string, object?> parameters, ILogger logger, CancellationToken ct)
     {
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = $"""
@@ -283,6 +285,7 @@ public static class WayfarerApiExtensions
             FROM summary_src
             """;
         AddParameters(cmd, parameters);
+        LogSqlParameters(logger, "summary", cmd.Parameters);
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return new(0, 0, 0, 0, 0);
@@ -303,6 +306,7 @@ public static class WayfarerApiExtensions
         string orderBy,
         int pageSize,
         int offset,
+        ILogger logger,
         CancellationToken ct)
     {
         await using var cmd = conn.CreateCommand();
@@ -316,6 +320,7 @@ public static class WayfarerApiExtensions
         AddParameters(cmd, parameters);
         cmd.Parameters.AddWithValue("@limit", pageSize);
         cmd.Parameters.AddWithValue("@offset", offset);
+        LogSqlParameters(logger, "list", cmd.Parameters);
 
         var items = new List<WayfarerWorkOrderListItem>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -822,6 +827,64 @@ public static class WayfarerApiExtensions
 
     private static bool IsIsoDate(string value)
         => DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
+
+    private static WayfarerDateFilter ResolveDateFilter(IQueryCollection req, ILogger logger)
+    {
+        var rawFrom = req["from"].ToString().Trim();
+        var rawTo = req["to"].ToString().Trim();
+
+        var parsedFrom = TryParseIsoDate(rawFrom);
+        var parsedTo = TryParseIsoDate(rawTo);
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var defaultFrom = GetDefaultFromDate(today);
+
+        var effectiveFrom = parsedFrom ?? defaultFrom;
+        var effectiveTo = parsedTo ?? today;
+
+        logger.LogInformation(
+            "Wayfarer workorders date filter raw from='{RawFrom}' to='{RawTo}' parsed from={ParsedFrom} to={ParsedTo} effective from={EffectiveFrom} to={EffectiveTo}",
+            rawFrom,
+            rawTo,
+            FormatDateForLog(parsedFrom),
+            FormatDateForLog(parsedTo),
+            FormatDateForLog(effectiveFrom),
+            FormatDateForLog(effectiveTo));
+
+        return new WayfarerDateFilter(rawFrom, rawTo, effectiveFrom, effectiveTo);
+    }
+
+    private static DateOnly? TryParseIsoDate(string value)
+        => DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+            ? parsed
+            : null;
+
+    private static DateOnly GetDefaultFromDate(DateOnly today)
+    {
+        var twoMonthsBefore = today.AddMonths(-2);
+        return new DateOnly(twoMonthsBefore.Year, twoMonthsBefore.Month, 1);
+    }
+
+    private static string FormatDateForLog(DateOnly? value)
+        => value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "(null)";
+
+    private static void LogSqlParameters(ILogger logger, string operation, SqliteParameterCollection parameters)
+    {
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (SqliteParameter parameter in parameters)
+        {
+            values[parameter.ParameterName] = parameter.Value is null or DBNull
+                ? "(null)"
+                : Convert.ToString(parameter.Value, CultureInfo.InvariantCulture) ?? "(null)";
+        }
+
+        logger.LogInformation("Wayfarer workorders SQL params for {Operation}: {@Parameters}", operation, values);
+    }
+
+    private sealed record WayfarerDateFilter(
+        string RawFrom,
+        string RawTo,
+        DateOnly? From,
+        DateOnly? To);
 
     private static void BuildOverviewSheet(XLWorkbook workbook, IReadOnlyList<WayfarerWorkOrderListItem> rows)
     {
