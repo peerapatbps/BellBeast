@@ -469,8 +469,16 @@ btnSaveTemplate?.addEventListener("click", async () => {
         return;
     }
 
-    const data = await res.json().catch(() => null);
-    alert(`Save สำเร็จ\n${data?.path || ""}\n(${items.length} รายการ)`);
+    const blob = await res.blob();
+    const fileName = res.headers.get("Content-Disposition")?.match(/filename\*?=(?:UTF-8''|"?)([^";\r\n]+)/i)?.[1]
+        ?? (name.endsWith(".json") ? name : name + ".json");
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = decodeURIComponent(fileName);
+    a.click();
+    URL.revokeObjectURL(url);
+    alert(`Save สำเร็จ — ดาวน์โหลด ${a.download} (${items.length} รายการ)`);
 });
 
 // Load template

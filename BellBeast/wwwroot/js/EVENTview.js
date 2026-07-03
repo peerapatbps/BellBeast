@@ -143,6 +143,8 @@
         const ret62 = Number(remarkMap.Ret?.station_62 ?? 0);
         const unl15 = Number(remarkMap.Unl?.station_15 ?? 0);
         const unl62 = Number(remarkMap.Unl?.station_62 ?? 0);
+        const tiu15 = Number(remarkMap.Tiu?.station_15 ?? 0);
+        const tiu62 = Number(remarkMap.Tiu?.station_62 ?? 0);
 
         const chlorineIn = rec15 + rec62;
         const chlorineOut = ret15 + ret62;
@@ -157,6 +159,8 @@
 
         out["CHLORINE.IN"] = String(chlorineIn);
         out["CHLORINE.OUT"] = String(chlorineOut);
+        out["CHLORINE.P12.TIU"] = String(tiu15);
+        out["CHLORINE.P34.TIU"] = String(tiu62);
 
         const Dose_Alum_P1 = aqVal(aq, 89) || 24;
         const Dose_Alum_P2 = aqVal(aq, 92) || 24;

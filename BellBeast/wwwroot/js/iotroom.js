@@ -31,7 +31,7 @@
     if (!messagesEl || !inputEl || !sendBtn) return;
 
     const stackEl = messagesEl.querySelector('.iot-message-stack') || createStack();
-    let lastLogCount = 0;
+    let lastLogAt = null;
 
     // tunnel state polled from server
     let tunnelState   = 'stopped'; // stopped | starting | running | error
@@ -150,7 +150,11 @@
             const r = await fetch('/api/iot/room/log?last=50', { headers: { Accept: 'application/json' } });
             if (!r.ok) return;
             const entries = (await r.json()).entries || [];
-            if (entries.length > lastLogCount) { renderLogEntries(entries.slice(lastLogCount)); lastLogCount = entries.length; }
+            const newEntries = lastLogAt ? entries.filter(function (e) { return e.at > lastLogAt; }) : entries;
+            if (newEntries.length > 0) {
+                renderLogEntries(newEntries);
+                lastLogAt = newEntries[newEntries.length - 1].at;
+            }
         } catch { }
     }
 
@@ -184,7 +188,7 @@
     }
 
     function clearLog() {
-        stackEl.innerHTML = ''; lastLogCount = 0;
+        stackEl.innerHTML = ''; lastLogAt = null;
         const empty = document.createElement('div');
         empty.className = 'iot-empty'; empty.textContent = 'Log cleared. Room is ready.';
         stackEl.appendChild(empty);

@@ -152,8 +152,9 @@
                             display: true,
                             color: "rgba(255,255,255,.6)",
                             maxTicksLimit: 5,
+                            precision: 0,
                             callback: function (value) {
-                                return value + " %";
+                                return Math.round(value) + " %";
                             }
                         },
                         grid: {
@@ -215,6 +216,8 @@
                 pct: section.querySelector("#tpsPkPct"),
                 level: section.querySelector("#tpsPkLevel"),
                 gauge: section.querySelector("#tpsPkGauge"),
+                arrowUp: section.querySelector("#tpsPkUp"),
+                arrowDown: section.querySelector("#tpsPkDown"),
             },
             TP: {
                 status: section.querySelector("#tpsTpStatus"),
@@ -224,6 +227,8 @@
                 pct: section.querySelector("#tpsTpPct"),
                 level: section.querySelector("#tpsTpLevel"),
                 gauge: section.querySelector("#tpsTpGauge"),
+                arrowUp: section.querySelector("#tpsTpUp"),
+                arrowDown: section.querySelector("#tpsTpDown"),
             },
             RB: {
                 status: section.querySelector("#tpsRbStatus"),
@@ -233,6 +238,8 @@
                 pct: section.querySelector("#tpsRbPct"),
                 level: section.querySelector("#tpsRbLevel"),
                 gauge: section.querySelector("#tpsRbGauge"),
+                arrowUp: section.querySelector("#tpsRbUp"),
+                arrowDown: section.querySelector("#tpsRbDown"),
             }
         };
 
@@ -271,6 +278,8 @@
                 if (t.pout) t.pout.textContent = "-";
                 if (t.pct) t.pct.textContent = "-";
                 if (t.level) t.level.textContent = "-";
+                if (t.arrowUp) t.arrowUp.style.visibility = "hidden";
+                if (t.arrowDown) t.arrowDown.style.visibility = "hidden";
                 setGauge(t.gauge, 0);
                 setStatus(t.status, false);
             }
@@ -386,7 +395,8 @@
                     const ui = tankMap[name];
 
                     // คุณโชว์เป็น "ΔQ" แต่ payload เป็น Qin -> ใช้ Qin ตรง ๆ
-                    const qinText = fmtNumber(t?.Qin, 0);
+                    const qinVal = (typeof t?.Qin === "number") ? t.Qin : Number(t?.Qin);
+                    const qinText = fmtNumber(qinVal, 0);
                     const pinText = fmtNumber(t?.Pin, 2);
                     const poutText = fmtNumber(t?.Pout, 2);
                     const lvlText = fmtNumber(t?.Level, 2);
@@ -398,6 +408,21 @@
                     if (ui.pout) ui.pout.textContent = (poutText ?? "-");
                     if (ui.level) ui.level.textContent = (lvlText ?? "-");
                     if (ui.pct) {ui.pct.textContent = (pctText !== null && pctText !== undefined)? `${Math.round(Number(pctText))}%`: "-";}
+
+                    // arrow indicators based on ΔQ
+                    if (ui.arrowUp && ui.arrowDown) {
+                        if (Number.isFinite(qinVal) && qinVal > 0) {
+                            ui.arrowUp.style.visibility = "visible";
+                            ui.arrowDown.style.visibility = "hidden";
+                        } else if (Number.isFinite(qinVal) && qinVal < 0) {
+                            ui.arrowUp.style.visibility = "hidden";
+                            ui.arrowDown.style.visibility = "visible";
+                        } else {
+                            ui.arrowUp.style.visibility = "hidden";
+                            ui.arrowDown.style.visibility = "hidden";
+                        }
+                    }
+
                     setGauge(ui.gauge, pctVal);
                     const okTank = (qinText !== null) || (lvlText !== null);
                     setStatus(ui.status, okTank);

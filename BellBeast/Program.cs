@@ -941,7 +941,7 @@ app.MapPost("/api/online_lab", async (HttpContext ctx, IHttpClientFactory factor
 // ===============================
 // API : /api/template/save
 // ===============================
-app.MapPost("/api/template/save", async (TemplateSaveRequest req) =>
+app.MapPost("/api/template/save", (TemplateSaveRequest req) =>
 {
     static string SanitizeFileName(string s)
     {
@@ -964,15 +964,6 @@ app.MapPost("/api/template/save", async (TemplateSaveRequest req) =>
         if (!name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
             name += ".json";
 
-        var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-        var outPath = Path.Combine(desktop, name);
-
-        if (File.Exists(outPath))
-        {
-            var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            outPath = Path.Combine(desktop, Path.GetFileNameWithoutExtension(name) + "_" + stamp + ".json");
-        }
-
         var jsonOptions = new JsonSerializerOptions
         {
             WriteIndented = true,
@@ -980,9 +971,9 @@ app.MapPost("/api/template/save", async (TemplateSaveRequest req) =>
         };
 
         var json = JsonSerializer.Serialize(items, jsonOptions);
-        await File.WriteAllTextAsync(outPath, json, Encoding.UTF8);
+        var bytes = Encoding.UTF8.GetBytes(json);
 
-        return Results.Ok(new { ok = true, path = outPath, count = items.Count });
+        return Results.File(bytes, "application/json", name);
     }
     catch (Exception ex)
     {

@@ -29,6 +29,20 @@
         border-color: rgba(255,91,91,.35);
         box-shadow: 0 0 0 1px rgba(255,91,91,.2), 0 0 12px rgba(255,91,91,.25);
     }
+
+    section.tps-block .gauge .read {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0;
+    }
+
+    section.tps-block .gauge .read .val-arrow {
+        font-size: 1.25em;
+        line-height: 1;
+        color: rgba(255,255,255,.85);
+    }
 </style>
 
 <section class="bb-section tps-block"
@@ -133,7 +147,11 @@
                     <div class="g-top"><div class="p" id="tpsPkPct">-</div></div>
                     <div class="well">
                         <div class="fill"></div>
-                        <div class="read"><div class="val" id="tpsPkLevel">-</div></div>
+                        <div class="read">
+                            <div class="val-arrow" id="tpsPkUp" style="visibility:hidden">⇧</div>
+                            <div class="val" id="tpsPkLevel">-</div>
+                            <div class="val-arrow" id="tpsPkDown" style="visibility:hidden">⇩</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -156,7 +174,11 @@
                     <div class="g-top"><div class="p" id="tpsTpPct">-</div></div>
                     <div class="well">
                         <div class="fill"></div>
-                        <div class="read"><div class="val" id="tpsTpLevel">-</div></div>
+                        <div class="read">
+                            <div class="val-arrow" id="tpsTpUp" style="visibility:hidden">⇧</div>
+                            <div class="val" id="tpsTpLevel">-</div>
+                            <div class="val-arrow" id="tpsTpDown" style="visibility:hidden">⇩</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -179,7 +201,11 @@
                     <div class="g-top"><div class="p" id="tpsRbPct">-</div></div>
                     <div class="well">
                         <div class="fill"></div>
-                        <div class="read"><div class="val" id="tpsRbLevel">-</div></div>
+                        <div class="read">
+                            <div class="val-arrow" id="tpsRbUp" style="visibility:hidden">⇧</div>
+                            <div class="val" id="tpsRbLevel">-</div>
+                            <div class="val-arrow" id="tpsRbDown" style="visibility:hidden">⇩</div>
+                        </div>
                     </div>
                 </div>
             </div>

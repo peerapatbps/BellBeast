@@ -43,28 +43,35 @@ public sealed class IotRoomService
     {
         ExpireStale();
 
-        // ถ้า device ชื่อเดิมยัง online อยู่ → return key เดิม
-        var existing = _devices.Values
-            .FirstOrDefault(d => d.DeviceName.Equals(deviceName, StringComparison.OrdinalIgnoreCase) && d.IsOnline);
+        // ใช้ชื่ออุปกรณ์ (lowercase) เป็น key เพื่อให้ AddOrUpdate เป็น atomic
+        // ป้องกัน race condition กรณี ESP32 reset แล้ว rejoin พร้อมกันสอง request
+        var nameKey = deviceName.Trim().ToLowerInvariant();
+        bool isNew = false;
 
-        if (existing is not null)
-        {
-            existing.LastSeen = DateTimeOffset.UtcNow;
-            return (existing.Key, false);
-        }
+        var device = _devices.AddOrUpdate(
+            nameKey,
+            _ =>
+            {
+                isNew = true;
+                return new IotDevice
+                {
+                    Key = "iot-" + Guid.NewGuid().ToString("N")[..16],
+                    DeviceName = deviceName.Trim(),
+                    DeviceType = deviceType.Trim(),
+                    LastSeen = DateTimeOffset.UtcNow
+                };
+            },
+            (_, existing) =>
+            {
+                existing.LastSeen = DateTimeOffset.UtcNow;
+                return existing;
+            }
+        );
 
-        var key = "iot-" + Guid.NewGuid().ToString("N")[..16];
-        var device = new IotDevice
-        {
-            Key = key,
-            DeviceName = deviceName,
-            DeviceType = deviceType,
-            LastSeen = DateTimeOffset.UtcNow
-        };
-        _devices[key] = device;
+        if (isNew)
+            AddLog("join", $"{device.DeviceName} ({device.DeviceType}) joined the room");
 
-        AddLog("join", $"{deviceName} ({deviceType}) joined the room");
-        return (key, true);
+        return (device.Key, isNew);
     }
 
     // Returns (status, command?) — status: "ok" | "reconnect"
@@ -72,7 +79,9 @@ public sealed class IotRoomService
     {
         ExpireStale();
 
-        if (!_devices.TryGetValue(key, out var device))
+        // _devices keyed by nameKey; find device by its GUID key
+        var device = _devices.Values.FirstOrDefault(d => d.Key == key);
+        if (device is null)
             return ("reconnect", null);
 
         device.LastSeen = DateTimeOffset.UtcNow;
@@ -122,7 +131,8 @@ public sealed class IotRoomService
     // Device posts its own telemetry; replaces state entirely
     public (bool ok, string? error) PostData(string key, Dictionary<string, JsonElement> data)
     {
-        if (!_devices.TryGetValue(key, out var device))
+        var device = _devices.Values.FirstOrDefault(d => d.Key == key);
+        if (device is null)
             return (false, "Device key not found or expired — please rejoin");
 
         device.State = data;
@@ -200,7 +210,7 @@ public sealed class IotRoomService
             {
                 if (_devices.TryRemove(kv.Key, out var removed))
                 {
-                    _pendingCommands.TryRemove(kv.Key, out _);
+                    _pendingCommands.TryRemove(removed.Key, out _);
                     AddLog("expire", $"{removed.DeviceName} ({removed.DeviceType}) timed out — hand check lost");
                 }
             }
