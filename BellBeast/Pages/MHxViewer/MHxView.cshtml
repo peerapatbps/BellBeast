@@ -1751,7 +1751,7 @@
         flex-direction: column;
         contain: layout;           /* isolate layout: slot cannot be affected by
                                       siblings or ancestor reflow cycles */
-        container-type: inline-size; /* allow inner partials to use @container queries */
+        container-type: inline-size; /* enable container queries for injected partials (rules in site.css) */
     }
 
         .bb-slot > .bb-section {
