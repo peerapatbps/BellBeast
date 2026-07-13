@@ -1285,3 +1285,95 @@ section.tps-block .tank-kpi .read .val { font-size: clamp(11px, 2.1cqi, 16px); }
         min-height: 220px;
     }
 }
+
+/* ===== DPS Card ===== */
+section.dps-block .val-center       { font-size: clamp(20px, 5.5cqi, 42px); }
+section.dps-block .kpi .val         { font-size: clamp(16px, 4.5cqi, 34px); }
+section.dps-block .kpi.small .val   { font-size: clamp(14px, 3.4cqi, 26px); }
+section.dps-block .ov-title         { font-size: clamp(10px, 1.6cqi, 12px); }
+
+@container (max-width: 755px) {
+    section.dps-block .kpi-grid { grid-template-columns: 1fr 1fr; }
+    section.dps-block .row4     { grid-template-columns: 1fr 1fr; }
+}
+@container (max-width: 500px) {
+    section.dps-block .zone      { grid-template-columns: 1fr; }
+    section.dps-block .pump-col  { display: grid; grid-template-columns: 1fr 1fr; }
+    section.dps-block .kpi-grid  { grid-template-columns: 1fr 1fr; }
+    section.dps-block .row4      { grid-template-columns: 1fr 1fr; }
+}
+
+/* ===== RPS Card ===== */
+section.rws-block .val-center     { font-size: clamp(18px, 4.5cqi, 36px); }
+section.rws-block .kpi .val       { font-size: clamp(14px, 3.8cqi, 30px); }
+section.rws-block .kpi.small .val { font-size: clamp(12px, 3cqi, 24px); }
+section.rws-block .ov-title       { font-size: clamp(10px, 1.5cqi, 12px); }
+
+@container (max-width: 700px) {
+    section.rws-block .rps-grid {
+        grid-template-columns: 80px minmax(0,1fr) minmax(0,1fr);
+    }
+    section.rws-block .rps-grid .r1c4 { grid-column: 2; grid-row: 3; }
+    section.rws-block .rps-grid .r1c5 { grid-column: 3; grid-row: 3; }
+    section.rws-block .rps-grid .r2c4 { grid-column: 2; grid-row: 4; }
+    section.rws-block .rps-grid .r2c5 { grid-column: 3; grid-row: 4; }
+}
+@container (max-width: 460px) {
+    section.rws-block .rps-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+    section.rws-block .rps-grid .r1      { grid-column: 1 / -1; grid-row: auto; }
+    section.rws-block .rps-grid .r2      { grid-column: 1 / -1; grid-row: auto; }
+    section.rws-block .rps-grid .r1c2,
+    section.rws-block .rps-grid .r1c3,
+    section.rws-block .rps-grid .r1c4,
+    section.rws-block .rps-grid .r1c5,
+    section.rws-block .rps-grid .r2c2,
+    section.rws-block .rps-grid .r2c3,
+    section.rws-block .rps-grid .r2c4,
+    section.rws-block .rps-grid .r2c5   { grid-column: auto; grid-row: auto; }
+}
+
+/* ===== LAB Card ===== */
+@container (max-width: 700px) {
+    section.lab-block .lab-top-grid { grid-template-columns: 1fr 1fr; }
+    section.lab-block .lab-top-grid > .lab-top-card:last-child { grid-column: 1 / -1; }
+    section.lab-block .cards-row    { grid-template-columns: 1fr 1fr; }
+}
+@container (max-width: 460px) {
+    section.lab-block .lab-top-grid  { grid-template-columns: 1fr; }
+    section.lab-block .cards-row     { grid-template-columns: 1fr 1fr; }
+    section.lab-block .status-grid   { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+
+/* ===== CL Detector Card ===== */
+@container (max-width: 600px) {
+    section.cldetector-block .cld-wrap {
+        grid-template-columns: 1fr;
+        height: auto;
+        min-height: 0;
+    }
+}
+
+/* ===== PTC Card ===== */
+@container (max-width: 500px) {
+    .ptc-one {
+        grid-template-columns: 1fr;
+        grid-template-rows: 44px 1fr 44px 1fr;
+    }
+}
+
+/* ===== FWS/CWS Card (matrix layout) ===== */
+@container (max-width: 700px) {
+    .matrix {
+        grid-template-columns: 1fr 1fr;
+    }
+    .matrix .leftbox {
+        grid-column: 1 / -1;
+    }
+}
+@container (max-width: 460px) {
+    .matrix {
+        grid-template-columns: 1fr;
+    }
+}
