@@ -1326,7 +1326,7 @@
     }
 
 
-    /* responsive — viewport breakpoints (desktop/no-container fallback) */
+    /* responsive — viewport breakpoints */
     @@media (max-width: 1100px) {
         .chem-grid2 {
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1334,19 +1334,6 @@
     }
 
     @@media (max-width: 900px) {
-        .chem-grid2 {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    /* container queries — ทำงานเมื่อ .bb-slot มี container-type: inline-size */
-    @@container (max-width: 700px) {
-        .chem-grid2 {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-    }
-
-    @@container (max-width: 460px) {
         .chem-grid2 {
             grid-template-columns: 1fr;
         }

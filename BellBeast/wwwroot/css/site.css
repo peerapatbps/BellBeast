@@ -1197,3 +1197,39 @@ input[type="date"].date-input {
     cursor: not-allowed !important;
     pointer-events: none !important;
 }
+
+/* ===== MHxView Dashboard — Container Queries =====
+   .bb-slot มี container-type: inline-size (ใน MHxView.cshtml)
+   rules เหล่านี้ต้องอยู่ใน .css เพราะ Razor parse @container ผิดพลาด
+   ===================================================== */
+
+/* CHEM grid: 3-col → 2-col → 1-col ตามขนาด slot */
+@container (max-width: 700px) {
+    .chem-grid2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@container (max-width: 460px) {
+    .chem-grid2 {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* EVENT grid: stack เมื่อ slot แคบกว่า 600px */
+@container (max-width: 600px) {
+    section.event-block .event-grid {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    section.event-block .storage-grid {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    section.event-block .storage-gauge-card.dual {
+        height: 220px;
+        min-height: 220px;
+    }
+}

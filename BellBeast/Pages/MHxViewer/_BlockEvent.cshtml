@@ -25,22 +25,7 @@
         }
     }
 
-    @@container (max-width: 600px) {
-        section.event-block .event-grid {
-            grid-template-columns: 1fr;
-            height: auto;
-        }
-
-        section.event-block .storage-grid {
-            grid-template-columns: 1fr;
-            height: auto;
-        }
-
-        section.event-block .storage-gauge-card.dual {
-            height: 220px;
-            min-height: 220px;
-        }
-    }
+    /* @container rules moved to site.css (Razor @@container causes parse error) */
 
     /* ===== LEFT PANEL ===== */
     section.event-block .event-panel {
