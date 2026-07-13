@@ -6,7 +6,7 @@
     const DEFAULT_ALERT_LIMIT = 1;
 
     const CAP = {
-        ALUM: 625.0,
+        ALUM: 750.0,
         PACL_P1: 25.0,
         PACL_P2: 25.0,
         PACL_P3: 25.0,

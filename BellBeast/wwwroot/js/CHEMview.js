@@ -8,7 +8,7 @@
     const DEFAULT_POLL_SEC = 15;
     const TIMEOUT_MS = 8000;
 
-    const CAP_ALUM_M3 = 625;
+    const CAP_ALUM_M3 = 750;
     const CAP_PACL_A_M3 = 25;
     const CAP_PACL_B1_M3 = 25;
     const CAP_PACL_B2_M3 = 24;

@@ -8,6 +8,8 @@
     <!-- ✅ ใช้ site.css ของเรา -->
     <link rel="stylesheet" href="/css/site.css" />
     @await RenderSectionAsync("Styles", required: false)
+    <style>
+    </style>
 </head>
 <body>
     <div class="app-shell">
@@ -37,6 +39,5 @@
     </div>
 
     @await RenderSectionAsync("Scripts", required: false)
-
 </body>
 </html>

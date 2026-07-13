@@ -1190,3 +1190,10 @@ input[type="date"].date-input {
         opacity: .45;
         cursor: not-allowed;
     }
+
+/* ===== Bypass: disabled action buttons ===== */
+[data-bb-action]:disabled {
+    opacity: .35 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+}

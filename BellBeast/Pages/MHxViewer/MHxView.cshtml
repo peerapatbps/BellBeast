@@ -109,7 +109,121 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            cursor: pointer;
+            transition: background .15s;
         }
+
+        .bb-topbar .hamb:hover {
+            background: rgba(255,255,255,.26);
+        }
+
+    /* ===== Side Drawer ===== */
+    .bb-drawer-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.45);
+        z-index: 900;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .25s ease;
+    }
+
+    .bb-drawer-overlay.open {
+        opacity: 1;
+        pointer-events: all;
+    }
+
+    .bb-drawer {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 240px;
+        background: linear-gradient(160deg, rgba(20,36,28,.97), rgba(12,24,20,.97));
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border-right: 1px solid rgba(100,180,80,.18);
+        box-shadow: 4px 0 32px rgba(0,0,0,.45);
+        z-index: 901;
+        transform: translateX(-100%);
+        transition: transform .28s cubic-bezier(.4,0,.2,1);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .bb-drawer.open {
+        transform: translateX(0);
+    }
+
+    .bb-drawer-head {
+        height: 48px;
+        display: flex;
+        align-items: center;
+        padding: 0 14px;
+        border-bottom: 1px solid rgba(255,255,255,.08);
+        font-weight: 700;
+        font-size: 15px;
+        gap: 8px;
+    }
+
+    .bb-drawer-head .drawer-close {
+        margin-left: auto;
+        width: 26px;
+        height: 26px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        cursor: pointer;
+        color: rgba(255,255,255,.55);
+        font-size: 15px;
+        transition: background .15s, color .15s;
+    }
+
+    .bb-drawer-head .drawer-close:hover {
+        background: rgba(255,255,255,.12);
+        color: rgba(255,255,255,.9);
+    }
+
+    .bb-drawer-menu {
+        flex: 1;
+        padding: 10px 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .bb-drawer-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        cursor: pointer;
+        color: rgba(255,255,255,.72);
+        font-size: 14px;
+        font-weight: 500;
+        text-decoration: none;
+        transition: background .15s, color .15s;
+    }
+
+    .bb-drawer-item:hover {
+        background: rgba(255,255,255,.09);
+        color: rgba(255,255,255,.95);
+        text-decoration: none;
+    }
+
+    .bb-drawer-item.active {
+        background: rgba(90,211,109,.15);
+        color: #5ad36d;
+        border: 1px solid rgba(90,211,109,.20);
+    }
+
+    .bb-drawer-item .di-icon {
+        font-size: 18px;
+        width: 24px;
+        text-align: center;
+    }
 
         .bb-topbar .title {
             margin-left: 10px;
@@ -1999,8 +2113,25 @@
 </style>
 
 
+<!-- Side Drawer -->
+<div class="bb-drawer-overlay" id="drawerOverlay"></div>
+<div class="bb-drawer" id="sideDrawer" role="dialog" aria-label="Navigation menu">
+    <div class="bb-drawer-head">
+        <span>☰</span> เมนู
+        <div class="drawer-close" id="drawerClose" title="ปิด">✕</div>
+    </div>
+    <nav class="bb-drawer-menu">
+        <a class="bb-drawer-item active" href="/MHxViewer/MHxView">
+            <span class="di-icon">🏠</span> Dashboard
+        </a>
+        <a class="bb-drawer-item" href="/labventure/login">
+            <span class="di-icon">🧪</span> LabVenture
+        </a>
+    </nav>
+</div>
+
 <div class="bb-topbar">
-    <div class="hamb">≡</div>
+    <div class="hamb" id="drawerToggle" role="button" tabindex="0" aria-label="Open menu">≡</div>
     <div class="title">Main</div>
     <div class="right">
         <div class="bb-ico" title="Bell"><span>🔔</span></div>
@@ -2109,6 +2240,23 @@
 
 
 <script>
+    // ===== Side Drawer =====
+    (function () {
+        const toggle  = document.getElementById("drawerToggle");
+        const drawer  = document.getElementById("sideDrawer");
+        const overlay = document.getElementById("drawerOverlay");
+        const close   = document.getElementById("drawerClose");
+
+        function openDrawer()  { drawer.classList.add("open"); overlay.classList.add("open"); }
+        function closeDrawer() { drawer.classList.remove("open"); overlay.classList.remove("open"); }
+
+        toggle.addEventListener("click", openDrawer);
+        toggle.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") openDrawer(); });
+        close.addEventListener("click", closeDrawer);
+        overlay.addEventListener("click", closeDrawer);
+        document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+    })();
+
     document.addEventListener("DOMContentLoaded", function () {
         const FEEDBACK_FORM_RESPONSE_URL = "https://docs.google.com/forms/d/e/1FAIpQLSehDe6NXz1pBqv6T-Fzti1af_Nu_EjZz286NQ6IVYBxpbOXUw/formResponse";
         const FEEDBACK_ENTRY = {

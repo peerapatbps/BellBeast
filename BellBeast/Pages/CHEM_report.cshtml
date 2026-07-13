@@ -257,8 +257,8 @@
                 </div>
 
                 <div class="bb-actions">
-                    <button type="button" class="bb-btn" id="btnLoad">Load</button>
-                    <button type="button" class="bb-btn secondary" id="btnExport">Export CSV</button>
+                    <button type="button" class="bb-btn" id="btnLoad" data-bb-action>Load</button>
+                    <button type="button" class="bb-btn secondary" id="btnExport" data-bb-action>Export CSV</button>
                 </div>
 
                 <div class="bb-status" id="status">Ready.</div>
@@ -474,6 +474,35 @@
             setStatus("Export done: " + filename);
         } catch (e) {
             setStatus("Exception: " + (e?.message || e));
+        }
+    });
+
+    // ===== Bypass role enforcement =====
+    (function applyBypassState(role) {
+        const isObserver = role === 'observer';
+        // Observer: disable all action buttons
+        document.querySelectorAll('[data-bb-action]').forEach(btn => {
+            btn.disabled = isObserver;
+        });
+        if (isObserver) {
+            setStatus('[Bypass: Observer] ปุ่มทั้งหมดถูก disable');
+        } else if (role) {
+            setStatus('[Bypass: ' + role + '] เชื่อมต่อ Aquadat ถูกปิด');
+        }
+    })(window.__bypassRole || '');
+
+    document.addEventListener('bb:bypass-changed', function(e) {
+        const role = e.detail.role;
+        const isObserver = role === 'observer';
+        document.querySelectorAll('[data-bb-action]').forEach(btn => {
+            btn.disabled = isObserver;
+        });
+        if (isObserver) {
+            setStatus('[Bypass: Observer] ปุ่มทั้งหมดถูก disable');
+        } else if (role) {
+            setStatus('[Bypass: ' + role + '] เชื่อมต่อ Aquadat ถูกปิด');
+        } else {
+            setStatus('Ready.');
         }
     });
 </script>

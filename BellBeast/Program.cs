@@ -38,7 +38,6 @@ builder.Services.AddRazorPages(options =>
 
     // ยกเว้นหน้า public เดิม
     options.Conventions.AllowAnonymousToPage("/Login");
-    options.Conventions.AllowAnonymousToPage("/Index");
     options.Conventions.AllowAnonymousToPage("/Privacy");
     options.Conventions.AllowAnonymousToPage("/MH_report");
     options.Conventions.AllowAnonymousToPage("/MHxViewer/MHxView");
@@ -647,6 +646,105 @@ app.MapMethods("/api/wayfarer/{**path}", new[] { "GET", "POST" }, async (HttpCon
 });
 
 // ===============================
+// Proxy: /labventure/* → http://localhost:3001/labventure/*
+// ===============================
+app.MapGet("/labventure", ctx => { ctx.Response.Redirect("/labventure/"); return Task.CompletedTask; }).AllowAnonymous();
+
+app.MapMethods("/labventure/{**path}", new[] { "GET", "POST", "PUT", "DELETE", "PATCH" },
+    async (HttpContext ctx, IHttpClientFactory factory, string? path) =>
+{
+    // API calls (/labventure/api/...) → forward to LabVenture as /api/...
+    // SPA/static (/labventure/assets/..., /labventure/login, etc.) → forward as /labventure/...
+    var trimmed = path?.TrimStart('/') ?? "";
+    var targetPath = string.IsNullOrWhiteSpace(trimmed)
+        ? "/labventure/"
+        : trimmed.StartsWith("api/", StringComparison.OrdinalIgnoreCase) || trimmed.Equals("api", StringComparison.OrdinalIgnoreCase)
+            ? $"/{trimmed}"
+            : $"/labventure/{trimmed}";
+    var targetUrl = $"http://localhost:3001{targetPath}{ctx.Request.QueryString}";
+
+    var client = factory.CreateClient();
+    client.Timeout = TimeSpan.FromSeconds(300);
+
+    using var req = new HttpRequestMessage(new HttpMethod(ctx.Request.Method), targetUrl);
+
+    // Forward request headers (Cookie, Authorization, Accept, etc.)
+    var skipReqHeaders = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        { "Host", "Content-Length", "Transfer-Encoding", "Content-Type" };
+    foreach (var h in ctx.Request.Headers)
+    {
+        if (!skipReqHeaders.Contains(h.Key))
+            req.Headers.TryAddWithoutValidation(h.Key, h.Value.ToArray());
+    }
+
+    if (ctx.Request.ContentLength > 0 || ctx.Request.Headers.ContainsKey("Transfer-Encoding"))
+    {
+        req.Content = new StreamContent(ctx.Request.Body);
+        if (!string.IsNullOrWhiteSpace(ctx.Request.ContentType))
+            req.Content.Headers.TryAddWithoutValidation("Content-Type", ctx.Request.ContentType);
+    }
+
+    try
+    {
+        using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
+        ctx.Response.StatusCode = (int)resp.StatusCode;
+
+        // Forward response headers (Set-Cookie, Content-Type, etc.)
+        var skipRespHeaders = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { "Transfer-Encoding", "Content-Length" };
+        foreach (var h in resp.Headers)
+        {
+            if (!skipRespHeaders.Contains(h.Key))
+                foreach (var v in h.Value)
+                    ctx.Response.Headers.Append(h.Key, v);
+        }
+        foreach (var h in resp.Content.Headers)
+        {
+            if (!skipRespHeaders.Contains(h.Key))
+                foreach (var v in h.Value)
+                    ctx.Response.Headers.Append(h.Key, v);
+        }
+
+        await using var stream = await resp.Content.ReadAsStreamAsync(ctx.RequestAborted);
+        await stream.CopyToAsync(ctx.Response.Body, ctx.RequestAborted);
+        await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+    }
+    catch (HttpRequestException)
+    {
+        ctx.Response.StatusCode = 502;
+        ctx.Response.ContentType = "text/plain";
+        await ctx.Response.WriteAsync("LabVenture is not running (502 Bad Gateway)");
+    }
+}).AllowAnonymous();
+
+// ===============================
+// API : /api/bypass/set  /api/bypass/clear
+// ===============================
+app.MapPost("/api/bypass/set", (HttpContext ctx) =>
+{
+    var role = ctx.Request.Query["role"].ToString().Trim().ToLowerInvariant();
+    var allowed = new[] { "scientist", "operator", "executive-3a", "executive-3b", "observer", "superadmin" };
+    if (!allowed.Contains(role))
+        return Results.BadRequest(new { error = "Invalid role" });
+
+    ctx.Response.Cookies.Append("bb_bypass_role", role, new CookieOptions
+    {
+        HttpOnly = false,
+        SameSite = SameSiteMode.Lax,
+        Secure = false,
+        Path = "/",
+        MaxAge = TimeSpan.FromHours(8)
+    });
+    return Results.Ok(new { ok = true, role });
+}).AllowAnonymous();
+
+app.MapPost("/api/bypass/clear", (HttpContext ctx) =>
+{
+    ctx.Response.Cookies.Delete("bb_bypass_role");
+    return Results.Ok(new { ok = true });
+}).AllowAnonymous();
+
+// ===============================
 // API : /api/auth/me (user mode เดิม)
 // ===============================
 app.MapGet("/api/auth/me", (HttpContext ctx) =>
@@ -656,8 +754,9 @@ app.MapGet("/api/auth/me", (HttpContext ctx) =>
     var token = isAuthenticated
         ? (ctx.User?.FindFirst("AquadatToken")?.Value ?? "")
         : "bypass";
+    ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var bypassRole);
 
-    return Results.Ok(new { username, token });
+    return Results.Ok(new { username, token, bypassRole = bypassRole ?? "" });
 });
 
 // ===============================
@@ -839,6 +938,12 @@ app.MapGet("/api/aqtable", async (HttpContext http) =>
 // ===============================
 app.MapPost("/api/process", async (HttpContext ctx, IHttpClientFactory factory) =>
 {
+    if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
+    {
+        ctx.Response.ContentType = "application/json";
+        await ctx.Response.WriteAsync("{\"bypass\":true,\"headers\":[],\"rows\":[]}", ctx.RequestAborted);
+        return;
+    }
     var (baseUrl, queryCsvPath, _, _, _, _, _, _, _, _, _, _, _) = ReadBackendConfig(app);
     var targetUrl = $"{baseUrl}{queryCsvPath}";
 
@@ -875,6 +980,12 @@ app.MapPost("/api/process", async (HttpContext ctx, IHttpClientFactory factory) 
 
 app.MapGet("/api/ptc/series", async (HttpContext ctx, IHttpClientFactory factory) =>
 {
+    if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
+    {
+        ctx.Response.ContentType = "application/json";
+        await ctx.Response.WriteAsync("{\"bypass\":true,\"series\":[]}", ctx.RequestAborted);
+        return;
+    }
     var (baseUrl, _, _, _, _, _, _, _, _, _, _, _, _) = ReadBackendConfig(app);
     var key = ctx.Request.Query["key"].ToString().Trim();
     var targetUrl = $"{baseUrl}/api/ptc/series?key={Uri.EscapeDataString(key)}";
@@ -907,6 +1018,12 @@ app.MapGet("/api/ptc/series", async (HttpContext ctx, IHttpClientFactory factory
 
 app.MapPost("/api/online_lab", async (HttpContext ctx, IHttpClientFactory factory) =>
 {
+    if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
+    {
+        ctx.Response.ContentType = "application/json";
+        await ctx.Response.WriteAsync("{\"bypass\":true,\"rows\":[]}", ctx.RequestAborted);
+        return;
+    }
     var (baseUrl, _, _, _, _, _, _, _, _, _, _, _, _) = ReadBackendConfig(app);
     var targetUrl = $"{baseUrl}/api/online_lab";
 
@@ -986,6 +1103,12 @@ app.MapPost("/api/template/save", (TemplateSaveRequest req) =>
 // ===============================
 app.MapPost("/api/dailyreport", async (HttpContext ctx, IHttpClientFactory factory) =>
 {
+    if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
+    {
+        ctx.Response.ContentType = "application/json";
+        await ctx.Response.WriteAsync("{\"bypass\":true,\"rows\":[]}", ctx.RequestAborted);
+        return;
+    }
     var (baseUrl, _, dailyReportPath, _, _, _, _, _, _, _, _, _, _) = ReadBackendConfig(app);
     var targetUrl = $"{baseUrl}{dailyReportPath}";
 
@@ -1025,6 +1148,12 @@ app.MapPost("/api/dailyreport", async (HttpContext ctx, IHttpClientFactory facto
 // ===============================
 app.MapPost("/api/chem_report", async (HttpContext ctx, IHttpClientFactory factory) =>
 {
+    if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
+    {
+        ctx.Response.ContentType = "application/json";
+        await ctx.Response.WriteAsync("{\"bypass\":true,\"total\":0,\"rows\":[]}", ctx.RequestAborted);
+        return;
+    }
     var (baseUrl, _, _, chemReportPath, _, _, _, _, _, _, _, _, _) = ReadBackendConfig(app);
     var targetUrl = $"{baseUrl}{chemReportPath}";
 
@@ -1061,6 +1190,13 @@ app.MapPost("/api/chem_report", async (HttpContext ctx, IHttpClientFactory facto
 // ===============================
 app.MapPost("/api/chem_report/export", async (HttpContext ctx, IHttpClientFactory factory) =>
 {
+    if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
+    {
+        ctx.Response.StatusCode = 403;
+        ctx.Response.ContentType = "application/json";
+        await ctx.Response.WriteAsync("{\"bypass\":true,\"error\":\"Export disabled in bypass mode\"}", ctx.RequestAborted);
+        return;
+    }
     var (baseUrl, _, _, _, chemExportPath, _, _, _, _, _, _, _, _) = ReadBackendConfig(app);
     var targetUrl = $"{baseUrl}{chemExportPath}";
 
@@ -1228,12 +1364,24 @@ app.MapGet("/api/rws/summary", async (HttpContext ctx, SummaryProxyService svc) 
 
 app.MapGet("/api/chem/summary", async (HttpContext ctx, SummaryProxyService svc) =>
 {
+    if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
+    {
+        ctx.Response.ContentType = "application/json";
+        await ctx.Response.WriteAsync("{\"bypass\":true,\"items\":[]}", ctx.RequestAborted);
+        return;
+    }
     var (baseUrl, _, _, _, _, _, _, _, chemSummaryPath, _, _, _, _) = ReadBackendConfig(app);
     await ProxySummaryAsync(ctx, await svc.GetChemSummaryAsync($"{baseUrl}{chemSummaryPath}", ctx.RequestAborted));
 });
 
 app.MapGet("/api/event/summary", async (HttpContext ctx, SummaryProxyService svc) =>
 {
+    if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
+    {
+        ctx.Response.ContentType = "application/json";
+        await ctx.Response.WriteAsync("{\"bypass\":true,\"items\":[]}", ctx.RequestAborted);
+        return;
+    }
     var (baseUrl, _, _, _, _, _, _, _, _, eventSummaryPath, _, _, _) = ReadBackendConfig(app);
     await ProxySummaryAsync(ctx, await svc.GetEventSummaryAsync($"{baseUrl}{eventSummaryPath}", ctx.RequestAborted));
 });
@@ -1423,6 +1571,80 @@ app.MapGet("/api/iot/room/snapshot", [AllowAnonymous] (IotRoomService iotRoom, H
     int last = 50;
     if (int.TryParse(ctx.Request.Query["last"], out var q) && q > 0 && q <= 200) last = q;
     return Results.Ok(iotRoom.GetSnapshot(last));
+});
+
+// ===============================
+// Stage endpoint — returns current stage from aquadat-connector device
+// ===============================
+app.MapGet("/api/stage", [AllowAnonymous] (IotRoomService iotRoom) =>
+{
+    var devices = iotRoom.GetDeviceData(deviceName: "aquadat-connector");
+    var device = devices.FirstOrDefault();
+    if (device is null)
+        return Results.Ok(new { stage = 1, aquadat_reachable = (bool?)null, pending_count = 0, source = "default" });
+
+    // device is an anonymous object serialized; parse via JsonElement
+    var json = System.Text.Json.JsonSerializer.Serialize(device);
+    using var doc = System.Text.Json.JsonDocument.Parse(json);
+    var root = doc.RootElement;
+
+    int stage = 1;
+    bool? reachable = null;
+    int pending = 0;
+
+    if (root.TryGetProperty("state", out var state))
+    {
+        if (state.TryGetProperty("stage", out var sv) && sv.TryGetInt32(out var si)) stage = si;
+        if (state.TryGetProperty("aquadat_reachable", out var rv) && rv.ValueKind == System.Text.Json.JsonValueKind.True) reachable = true;
+        else if (state.TryGetProperty("aquadat_reachable", out var rv2) && rv2.ValueKind == System.Text.Json.JsonValueKind.False) reachable = false;
+        if (state.TryGetProperty("pending_count", out var pv) && pv.TryGetInt32(out var pi)) pending = pi;
+    }
+
+    return Results.Ok(new { stage, aquadat_reachable = reachable, pending_count = pending, source = "iot-room" });
+});
+
+// ===============================
+// PROXY: /api/operator/record (stage 0 — LabVenture → Uroboros write)
+// ===============================
+app.MapPost("/api/operator/record", [AllowAnonymous] async (HttpContext ctx, IHttpClientFactory factory) =>
+{
+    var (baseUrl, _, _, _, _, _, _, _, _, _, _, _, _) = ReadBackendConfig(app);
+    var targetUrl = $"{baseUrl}/api/operator/record";
+
+    using var reader = new StreamReader(ctx.Request.Body);
+    var rawBody = await reader.ReadToEndAsync();
+
+    var client = factory.CreateClient();
+    client.Timeout = TimeSpan.FromSeconds(30);
+
+    using var req = new HttpRequestMessage(HttpMethod.Post, targetUrl);
+    req.Content = new StringContent(rawBody, Encoding.UTF8, "application/json");
+
+    using var resp = await client.SendAsync(req, ctx.RequestAborted);
+    ctx.Response.StatusCode = (int)resp.StatusCode;
+    ctx.Response.ContentType = "application/json";
+    var body = await resp.Content.ReadAsStringAsync(ctx.RequestAborted);
+    await ctx.Response.WriteAsync(body, ctx.RequestAborted);
+});
+
+// ===============================
+// PROXY: /api/operator/data (stage 0 — LabVenture reads from Uroboros)
+// ===============================
+app.MapGet("/api/operator/data", [AllowAnonymous] async (HttpContext ctx, IHttpClientFactory factory) =>
+{
+    var (baseUrl, _, _, _, _, _, _, _, _, _, _, _, _) = ReadBackendConfig(app);
+    var qs = ctx.Request.QueryString.Value ?? "";
+    var targetUrl = $"{baseUrl}/api/operator/data{qs}";
+
+    var client = factory.CreateClient();
+    client.Timeout = TimeSpan.FromSeconds(30);
+
+    using var req = new HttpRequestMessage(HttpMethod.Get, targetUrl);
+    using var resp = await client.SendAsync(req, ctx.RequestAborted);
+    ctx.Response.StatusCode = (int)resp.StatusCode;
+    ctx.Response.ContentType = "application/json";
+    var body = await resp.Content.ReadAsStringAsync(ctx.RequestAborted);
+    await ctx.Response.WriteAsync(body, ctx.RequestAborted);
 });
 
 app.Run();
