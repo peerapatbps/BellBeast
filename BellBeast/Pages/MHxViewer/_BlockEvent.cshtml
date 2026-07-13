@@ -21,6 +21,24 @@
     @@media (max-width: 1100px) {
         section.event-block .event-grid {
             grid-template-columns: 1fr;
+            height: auto;
+        }
+    }
+
+    @@container (max-width: 600px) {
+        section.event-block .event-grid {
+            grid-template-columns: 1fr;
+            height: auto;
+        }
+
+        section.event-block .storage-grid {
+            grid-template-columns: 1fr;
+            height: auto;
+        }
+
+        section.event-block .storage-gauge-card.dual {
+            height: 220px;
+            min-height: 220px;
         }
     }
 
@@ -344,6 +362,11 @@
         section.event-block .storage-gauge-card.dual {
             height: 220px;
             min-height: 220px;
+        }
+
+        /* ปลด height lock ของ event-grid ด้วย */
+        section.event-block .event-grid {
+            height: auto;
         }
     }
 
