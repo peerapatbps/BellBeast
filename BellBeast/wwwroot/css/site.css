@@ -1198,6 +1198,58 @@ input[type="date"].date-input {
     pointer-events: none !important;
 }
 
+/* ===== TPS Card — Responsive (scoped higher specificity overrides MHxView inline style) =====
+
+   section.tps-block .x = specificity (0,2,1) > MHxView .x = (0,1,0)
+   ดังนั้น rules เหล่านี้ชนะ cascade แม้ site.css โหลดก่อน
+
+   Font sizes ใช้ clamp(min, cqi, max):
+     1cqi = 1% ของ container width (.bb-slot มี container-type: inline-size)
+     ที่ slot 755px → 1cqi ≈ 7.55px
+     ที่ slot 400px → 1cqi = 4px
+   ===================================================== */
+
+/* ---- Font sizes: scale กับ container ---- */
+section.tps-block .val-center          { font-size: clamp(20px, 5.5cqi, 42px); }
+section.tps-block .val-center.small    { font-size: clamp(16px, 4cqi,   30px); }
+section.tps-block .kpi .val            { font-size: clamp(16px, 4.5cqi, 34px); }
+section.tps-block .kpi.small .val      { font-size: clamp(14px, 3.4cqi, 26px); }
+section.tps-block .ov-title            { font-size: clamp(10px, 1.6cqi, 12px); }
+section.tps-block .ov-sub              { font-size: clamp(9px,  1.5cqi, 11px); }
+section.tps-block .ov-value            { font-size: clamp(14px, 2.2cqi, 18px); }
+section.tps-block .tank-kpi .kv .v    { font-size: clamp(12px, 2.4cqi, 18px); }
+section.tps-block .tank-kpi .kv:first-child .v { font-size: clamp(14px, 2.6cqi, 20px); }
+section.tps-block .tank-kpi .read .val { font-size: clamp(11px, 2.1cqi, 16px); }
+
+/* ---- Layout: container queries ---- */
+
+/* slot 500–755px: kpi-grid & row4 เหลือ 2 col, zone stack */
+@container (max-width: 755px) {
+    section.tps-block .kpi-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+    section.tps-block .row4 {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* slot แคบกว่า 500px: zone stack, kpi-grid 1 col */
+@container (max-width: 500px) {
+    section.tps-block .zone {
+        grid-template-columns: 1fr;
+    }
+    section.tps-block .pump-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+    section.tps-block .kpi-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+    section.tps-block .row4 {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
 /* ===== MHxView Dashboard — Container Queries =====
    .bb-slot มี container-type: inline-size (ใน MHxView.cshtml)
    rules เหล่านี้ต้องอยู่ใน .css เพราะ Razor parse @container ผิดพลาด
