@@ -175,6 +175,7 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<EngineAdminService>();
 builder.Services.AddSingleton<EnginePinGuard>();
+builder.Services.AddSingleton<ConfigEditorService>();
 builder.Services.AddScoped<SummaryProxyService>();
 builder.Services.AddSingleton<WayfarerMapQueryService>();
 builder.Services.AddSingleton<IotRoomService>();
@@ -1107,6 +1108,66 @@ app.MapPost("/api/engine/sequence/cancel", async (HttpContext ctx, EngineAdminSe
 
     return await RelayEngineAsync(() => svc.CancelSequenceAsync());
 });
+
+// ── Config editor (MHxView ⚙️ → Config tab) ───────────────────────────────────
+// Edits the 5 deploy config files of BellBeast / Uroboros / Wayfarer in the Fullscale root.
+// File contents include secrets, so everything except the metadata list needs the EngineControl PIN.
+static async Task<IResult> ConfigCallAsync(HttpContext ctx, EnginePinGuard guard, Func<JsonElement, object> call)
+{
+    JsonElement body;
+    try
+    {
+        body = await ctx.Request.ReadFromJsonAsync<JsonElement>();
+    }
+    catch { body = default; } // empty / malformed body -> treated as wrong PIN
+
+    var check = guard.Check(ctx.Connection.RemoteIpAddress?.ToString(), ConfigArg(body, "pin"));
+    if (check != EnginePinGuard.Result.Ok) return EnginePinFailure(check);
+
+    try
+    {
+        return Results.Json(call(body));
+    }
+    catch (ConfigEditorException ex)
+    {
+        return Results.Json(new { ok = false, error = ex.Code, detail = ex.Detail, line = ex.Line }, statusCode: ex.Status);
+    }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+    {
+        return Results.Json(new { ok = false, error = "io_error", detail = ex.Message }, statusCode: 500);
+    }
+}
+
+static string? ConfigArg(JsonElement body, string name) =>
+    body.ValueKind == JsonValueKind.Object && body.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String
+        ? v.GetString() : null;
+
+app.MapGet("/api/config/files", (ConfigEditorService svc) => Results.Json(svc.List()));
+
+app.MapPost("/api/config/read", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
+    ConfigCallAsync(ctx, guard, b =>
+    {
+        var (text, sha) = svc.Read(ConfigArg(b, "id"));
+        return new { ok = true, text, sha };
+    }));
+
+app.MapPost("/api/config/save", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
+    ConfigCallAsync(ctx, guard, b =>
+        new { ok = true, sha = svc.Save(ConfigArg(b, "id"), ConfigArg(b, "text"), ConfigArg(b, "baseSha")) }));
+
+app.MapPost("/api/config/links", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
+    ConfigCallAsync(ctx, guard, _ => svc.Links()));
+
+app.MapPost("/api/config/links/apply", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
+    ConfigCallAsync(ctx, guard, b =>
+        new { ok = true, sha = svc.ApplyLink(ConfigArg(b, "id"), ConfigArg(b, "key"), ConfigArg(b, "value"), ConfigArg(b, "baseSha")) }));
+
+app.MapPost("/api/config/backups", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
+    ConfigCallAsync(ctx, guard, b => svc.Backups(ConfigArg(b, "id"))));
+
+app.MapPost("/api/config/restore", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
+    ConfigCallAsync(ctx, guard, b =>
+        new { ok = true, sha = svc.Restore(ConfigArg(b, "id"), ConfigArg(b, "name"), ConfigArg(b, "baseSha")) }));
 
 app.MapGet("/api/smartmap", async (HttpContext hc) =>
 {

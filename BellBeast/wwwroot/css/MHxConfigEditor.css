@@ -1,0 +1,210 @@
+/* MHxView ⚙️ Settings → Config tab (MHxConfigEditor.js). Colours follow the Engine panel in MHxView.cshtml. */
+
+.bb-config {
+    padding: 14px;
+    overflow: auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    container-type: inline-size;
+}
+
+.bb-config [hidden] { display: none !important; }
+
+.bb-cfg-lock {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.bb-cfg-main {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.bb-cfg-root {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 700;
+    word-break: break-all;
+}
+
+.bb-cfg-sec {
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.09);
+    border-radius: 14px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.bb-cfg-sec-h {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-weight: 900;
+    font-size: 13px;
+}
+
+/* ── links ── */
+
+.bb-cfg-checks:empty { display: none; }
+
+.bb-cfg-check, .bb-cfg-link {
+    display: grid;
+    grid-template-columns: 20px 1fr auto;
+    gap: 4px 8px;
+    align-items: start;
+    padding: 7px 9px;
+    border-radius: 10px;
+    background: rgba(255,255,255,.04);
+    font-size: 12px;
+}
+
+.bb-cfg-links {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 260px;
+    overflow: auto;
+}
+
+.bb-cfg-link .i, .bb-cfg-check .i { font-size: 13px; line-height: 18px; }
+.bb-cfg-link .k { font-weight: 900; }
+.bb-cfg-link .k small { color: var(--muted); font-weight: 700; margin-left: 4px; }
+.bb-cfg-link .v, .bb-cfg-link .r, .bb-cfg-link .s {
+    grid-column: 2 / 4;
+    font-family: Consolas, "Cascadia Mono", monospace;
+    font-size: 11px;
+    word-break: break-all;
+}
+.bb-cfg-link .r { color: var(--muted); }
+.bb-cfg-link .n { grid-column: 2 / 4; color: #ffe3a3; font-size: 11px; font-weight: 700; }
+.bb-cfg-link .s { color: #bdefff; }
+.bb-cfg-link .bb-btn { height: 26px; padding: 0 10px; font-size: 11px; }
+.bb-cfg-link.missing, .bb-cfg-link.mismatch, .bb-cfg-check.bad { background: rgba(255,204,77,.10); }
+.bb-cfg-link.info { opacity: .75; }
+.bb-cfg-check .d { grid-column: 2 / 4; color: var(--muted); font-size: 11px; word-break: break-all; }
+
+/* ── editor ── */
+
+.bb-cfg-editor {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 12px;
+}
+
+.bb-cfg-files {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.bb-cfg-files .g {
+    margin-top: 6px;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.bb-cfg-files .g:first-child { margin-top: 0; }
+
+.bb-cfg-file {
+    text-align: left;
+    padding: 6px 9px;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: rgba(255,255,255,.85);
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.bb-cfg-file:hover { background: rgba(255,255,255,.06); }
+.bb-cfg-file.is-active { background: rgba(51,209,255,.14); border-color: rgba(51,209,255,.30); }
+.bb-cfg-file.is-dirty::after { content: " ●"; color: #ffcc4d; }
+.bb-cfg-file:disabled { opacity: .4; cursor: not-allowed; }
+
+.bb-cfg-edit {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.bb-cfg-file-h {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 800;
+}
+.bb-cfg-file-h .p { word-break: break-all; }
+
+.bb-cfg-badge {
+    flex: none;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 10px;
+    letter-spacing: .3px;
+    border: 1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.08);
+}
+.bb-cfg-badge.live { color: #c7ffd2; border-color: rgba(90,211,109,.35); background: rgba(90,211,109,.12); }
+.bb-cfg-badge.restart { color: #ffe3a3; border-color: rgba(255,204,77,.35); background: rgba(255,204,77,.12); }
+
+.bb-cfg-warn {
+    font-size: 11px;
+    font-weight: 700;
+    color: #ffe3a3;
+    background: rgba(255,204,77,.08);
+    border: 1px solid rgba(255,204,77,.22);
+    border-radius: 10px;
+    padding: 6px 9px;
+}
+
+.bb-cfg-text {
+    width: 100%;
+    min-height: 280px;
+    resize: vertical;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,.11);
+    background: rgba(0,0,0,.35);
+    color: rgba(255,255,255,.92);
+    padding: 10px 11px;
+    font: 12px/1.5 Consolas, "Cascadia Mono", monospace;
+    tab-size: 2;
+    outline: none;
+}
+.bb-cfg-text:focus { border-color: rgba(51,209,255,.40); box-shadow: 0 0 0 2px rgba(51,209,255,.10); }
+
+.bb-cfg-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.bb-cfg-actions .sp { flex: 1; }
+.bb-cfg-backup { width: auto; max-width: 240px; height: 32px; padding: 0 8px; font-size: 12px; }
+.bb-cfg-backup option { background: #0e141c; }
+
+/* narrow (iPhone / small iPad split): file list becomes a wrapping chip row above the editor */
+@container (max-width: 620px) {
+    .bb-cfg-editor { grid-template-columns: 1fr; }
+    .bb-cfg-files { flex-direction: row; flex-wrap: wrap; }
+    .bb-cfg-files .g { display: none; }
+    .bb-cfg-file::before { content: attr(data-project) " · "; color: var(--muted); }
+    .bb-cfg-file { flex: 1 1 auto; text-align: center; border-color: rgba(255,255,255,.10); }
+    .bb-cfg-text { min-height: 220px; }
+    .bb-cfg-actions .sp { display: none; }
+    .bb-cfg-backup { flex: 1 1 100%; max-width: none; }
+}

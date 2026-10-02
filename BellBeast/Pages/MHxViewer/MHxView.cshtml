@@ -2357,6 +2357,7 @@
         <div class="bb-tabs" role="tablist">
             <button class="bb-tab is-active" type="button" role="tab" data-tab="layout" aria-selected="true">Layout</button>
             <button class="bb-tab" type="button" role="tab" data-tab="engine" aria-selected="false">Engine <i class="bb-eng-dot" id="engineTabDot"></i></button>
+            <button class="bb-tab" type="button" role="tab" data-tab="config" aria-selected="false">Config</button>
         </div>
 
         <!-- Tab: Layout (swap slots) -->
@@ -2394,6 +2395,58 @@
             <ol class="bb-eng-steps" id="engSteps"></ol>
 
             <div class="bb-feedback-status" id="engStatus" role="status" aria-live="polite"></div>
+        </div>
+
+        <!-- Tab: Config (deploy config files of BellBeast / Uroboros / Wayfarer — MHxConfigEditor.js) -->
+        <div class="bb-config" id="configPanel" data-panel="config" hidden>
+            <div class="bb-cfg-lock" id="cfgLock">
+                <div class="bb-eng-hint">
+                    แก้ config ของ BellBeast / Uroboros / Wayfarer ใน Fullscale root โดยตรง —
+                    ทุกครั้งที่ save จะ backup ไฟล์เดิมไว้ที่ <b>_backup\config</b> ก่อน
+                </div>
+                <div class="bb-eng-ctrl">
+                    <input class="bb-feedback-input bb-eng-pin" id="cfgPin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN" maxlength="32" />
+                    <button class="bb-btn primary" id="cfgUnlock" type="button">🔓 Unlock</button>
+                </div>
+            </div>
+
+            <div class="bb-cfg-main" id="cfgMain" hidden>
+                <div class="bb-cfg-root" id="cfgRoot"></div>
+
+                <section class="bb-cfg-sec">
+                    <div class="bb-cfg-sec-h">
+                        <span>🔗 Cross-project paths</span>
+                        <button class="bb-btn" id="cfgLinksRefresh" type="button">↻ Re-scan</button>
+                    </div>
+                    <div class="bb-cfg-checks" id="cfgChecks"></div>
+                    <div class="bb-cfg-links" id="cfgLinks"></div>
+                </section>
+
+                <section class="bb-cfg-sec bb-cfg-editor">
+                    <div class="bb-cfg-files" id="cfgFiles" role="tablist" aria-label="Config files"></div>
+                    <div class="bb-cfg-edit">
+                        <div class="bb-cfg-file-h">
+                            <span class="p" id="cfgPath"></span>
+                            <span class="bb-cfg-badge" id="cfgRestart"></span>
+                        </div>
+                        <div class="bb-cfg-warn" id="cfgWarn" hidden>
+                            ⚠️ โปรแกรมเขียนไฟล์นี้เองตอน runtime (token / timestamp / password) —
+                            ถ้าไฟล์เปลี่ยนหลังจากเปิดอ่าน Save จะไม่ยอมเขียนทับ ให้กด Reload ก่อน
+                        </div>
+                        <textarea class="bb-cfg-text" id="cfgText" spellcheck="false" autocomplete="off" wrap="off"></textarea>
+                        <div class="bb-cfg-actions">
+                            <select class="bb-feedback-input bb-cfg-backup" id="cfgBackups" aria-label="Backups"></select>
+                            <button class="bb-btn" id="cfgRestore" type="button">⟲ Restore</button>
+                            <span class="sp"></span>
+                            <button class="bb-btn" id="cfgReload" type="button">Reload</button>
+                            <button class="bb-btn" id="cfgValidate" type="button">Validate</button>
+                            <button class="bb-btn primary" id="cfgSave" type="button">Save</button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div class="bb-feedback-status" id="cfgStatus" role="status" aria-live="polite"></div>
         </div>
     </div>
 
@@ -2932,6 +2985,8 @@
             });
             panels.forEach(p => { p.hidden = p.dataset.panel !== name; });
             if (name === "engine") refresh(true);
+            if (name === "config") window.MHxConfigEditor?.onShow();
+            else window.MHxConfigEditor?.onHide();
         }
 
         function setStatus(msg, kind) {
@@ -3081,6 +3136,8 @@
 <script src="~/lib/chartjs/chart.umd.min.js"></script>
 <script src="~/lib/chartjs-adapter-date-fns/chartjs-adapter-date-fns.js"></script>
 
+<link rel="stylesheet" href="~/css/MHxConfigEditor.css" asp-append-version="true" />
+<script src="~/js/MHxConfigEditor.js" asp-append-version="true"></script>
 <script src="~/js/BBTrend.js"></script>
 <script src="~/js/DPSview.js"></script>
 <script src="~/js/RWSview.js"></script>
