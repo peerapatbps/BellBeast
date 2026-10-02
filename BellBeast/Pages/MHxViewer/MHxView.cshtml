@@ -1997,6 +1997,172 @@
             border-color: rgba(255,91,91,.36);
         }
 
+        .bb-btn:disabled {
+            opacity: .45;
+            cursor: not-allowed;
+        }
+
+    /* ===== Settings tabs + Engine panel ===== */
+    .bb-tabs {
+        display: flex;
+        gap: 6px;
+        padding: 10px 12px 0;
+        border-bottom: 1px solid rgba(255,255,255,.09);
+    }
+
+    .bb-tab {
+        position: relative;
+        padding: 8px 14px;
+        border: 1px solid transparent;
+        border-bottom: none;
+        border-radius: 10px 10px 0 0;
+        background: transparent;
+        color: var(--muted);
+        font-weight: 900;
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+        .bb-tab:hover { color: rgba(255,255,255,.90); }
+
+        .bb-tab.is-active {
+            color: rgba(255,255,255,.95);
+            background: rgba(255,255,255,.06);
+            border-color: rgba(255,255,255,.10);
+        }
+
+    #btnSettings { position: relative; }
+
+    .bb-eng-dot {
+        display: none;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #ffcc4d;
+        box-shadow: 0 0 8px rgba(255,204,77,.8);
+    }
+
+        .bb-eng-dot.is-on { display: inline-block; }
+
+    #btnSettings .bb-eng-dot {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+    }
+
+    .bb-tab .bb-eng-dot { margin-left: 4px; vertical-align: middle; }
+
+    .bb-engine {
+        padding: 14px;
+        overflow: auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    [data-panel][hidden] { display: none !important; }
+
+    .bb-eng-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+        font-weight: 900;
+    }
+
+    .bb-eng-pill {
+        display: inline-block;
+        margin-left: 4px;
+        padding: 2px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        letter-spacing: .4px;
+        border: 1px solid rgba(255,255,255,.14);
+        background: rgba(255,255,255,.08);
+    }
+
+        .bb-eng-pill.paused { color: #ffe3a3; border-color: rgba(255,204,77,.35); background: rgba(255,204,77,.12); }
+        .bb-eng-pill.running { color: #c7ffd2; border-color: rgba(90,211,109,.35); background: rgba(90,211,109,.12); }
+        .bb-eng-pill.seq { color: #bdefff; border-color: rgba(51,209,255,.35); background: rgba(51,209,255,.14); }
+        .bb-eng-pill.offline { color: #ffb4b4; border-color: rgba(255,91,91,.35); background: rgba(255,91,91,.12); }
+
+    .bb-eng-last, .bb-eng-hint {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 600;
+    }
+
+    .bb-eng-ctrl {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .bb-eng-ctrl .bb-eng-pin {
+        width: 140px;
+        height: 32px;
+        padding: 0 11px;
+    }
+
+    .bb-eng-progress {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 12px;
+        font-weight: 900;
+    }
+
+        .bb-eng-progress .bar {
+            flex: 1;
+            height: 8px;
+            border-radius: 999px;
+            background: rgba(255,255,255,.08);
+            overflow: hidden;
+        }
+
+            .bb-eng-progress .bar i {
+                display: block;
+                height: 100%;
+                width: 0;
+                background: rgba(51,209,255,.75);
+                transition: width .3s ease;
+            }
+
+    .bb-eng-steps {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 4px 14px;
+        font-size: 12px;
+    }
+
+    @@media (max-width: 860px) {
+        .bb-eng-steps { grid-template-columns: 1fr; }
+    }
+
+        .bb-eng-steps li {
+            display: grid;
+            grid-template-columns: 18px 1fr auto;
+            gap: 6px;
+            align-items: center;
+            padding: 5px 8px;
+            border-radius: 8px;
+            background: rgba(255,255,255,.04);
+        }
+
+            .bb-eng-steps li .n { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .bb-eng-steps li .d { color: var(--muted); font-variant-numeric: tabular-nums; }
+            .bb-eng-steps li.ok .i { color: #5ad36d; }
+            .bb-eng-steps li.fail .i, .bb-eng-steps li.timeout .i { color: #ff5b5b; }
+            .bb-eng-steps li.running { background: rgba(51,209,255,.12); }
+            .bb-eng-steps li.running .i { color: #33d1ff; }
+            .bb-eng-steps li.skipped, .bb-eng-steps li.canceled { opacity: .5; }
+
 
     /* ===== User Feedback Modal ===== */
     .bb-ico {
@@ -2193,24 +2359,58 @@
     <div class="right">
         <div class="bb-ico" title="Bell"><span>🔔</span></div>
         <div class="bb-ico" id="btnFeedback" title="Rate us / Bug report" role="button" tabindex="0" aria-label="Rate us or report a bug"><span>🙂</span></div>
-        <div class="bb-ico" id="btnSettings" title="Settings"><span>⚙️</span></div>
+        <div class="bb-ico" id="btnSettings" title="Settings"><span>⚙️</span><i class="bb-eng-dot" id="engineDot" title="Engine paused"></i></div>
     </div>
 </div>
 
 <!-- Modal -->
 <div class="bb-modal-backdrop" id="slotModal" aria-hidden="true">
-    <div class="bb-modal" role="dialog" aria-modal="true" aria-label="Layout Settings">
+    <div class="bb-modal" role="dialog" aria-modal="true" aria-label="Settings">
         <div class="bb-modal-h">
-            <div class="t">Layout Settings — Swap Slots</div>
+            <div class="t">Settings</div>
             <div class="x" id="slotModalClose">✕</div>
         </div>
 
-        <div class="bb-modal-b" id="slotEditor"></div>
+        <div class="bb-tabs" role="tablist">
+            <button class="bb-tab is-active" type="button" role="tab" data-tab="layout" aria-selected="true">Layout</button>
+            <button class="bb-tab" type="button" role="tab" data-tab="engine" aria-selected="false">Engine <i class="bb-eng-dot" id="engineTabDot"></i></button>
+        </div>
 
-        <div class="bb-modal-f">
+        <!-- Tab: Layout (swap slots) -->
+        <div class="bb-modal-b" id="slotEditor" data-panel="layout"></div>
+
+        <div class="bb-modal-f" data-panel="layout">
             <button class="bb-btn danger" id="slotReset" type="button">Reset</button>
             <button class="bb-btn" id="slotCancel" type="button">Cancel</button>
             <button class="bb-btn primary" id="slotSave" type="button">Save</button>
+        </div>
+
+        <!-- Tab: Engine (sequential start of all enabled loops) -->
+        <div class="bb-engine" id="enginePanel" data-panel="engine" hidden>
+            <div class="bb-eng-head">
+                <div>Engine: <span class="bb-eng-pill" id="engPill">…</span></div>
+                <div class="bb-eng-last" id="engLast"></div>
+            </div>
+
+            <div class="bb-eng-hint">
+                เริ่ม loop ทั้งหมดที่ <b>enabled</b> ทีละ 1 task (รอจบก่อนเริ่มตัวถัดไป) แล้ว engine จะ resume อัตโนมัติ —
+                ใช้หลังเครื่อง deploy restart
+            </div>
+
+            <div class="bb-eng-ctrl">
+                <input class="bb-feedback-input bb-eng-pin" id="engPin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN" maxlength="32" />
+                <button class="bb-btn primary" id="engStart" type="button">▶ Start all loops</button>
+                <button class="bb-btn danger" id="engCancel" type="button" hidden>■ Stop</button>
+            </div>
+
+            <div class="bb-eng-progress" id="engProgressWrap" hidden>
+                <div class="bar"><i id="engBar"></i></div>
+                <span id="engCount">0 / 0</span>
+            </div>
+
+            <ol class="bb-eng-steps" id="engSteps"></ol>
+
+            <div class="bb-feedback-status" id="engStatus" role="status" aria-live="polite"></div>
         </div>
     </div>
 
@@ -2714,6 +2914,184 @@
             }, 50);
         });
 
+    });
+</script>
+
+<script>
+    // ============================
+    // ⚙️ Settings → Engine tab: "Start all loops" (sequential, enabled only)
+    // BellBeast proxies to Uroboros StartupSequencer:
+    //   POST /api/engine/sequence/start {pin}   GET /api/engine/sequence/status   POST /api/engine/sequence/cancel {pin}
+    // ============================
+    document.addEventListener("DOMContentLoaded", () => {
+        const modal = document.getElementById("slotModal");
+        const btnOpen = document.getElementById("btnSettings");
+        if (!modal || !btnOpen) return;
+
+        const $ = (id) => document.getElementById(id);
+        const tabs = modal.querySelectorAll(".bb-tab");
+        const panels = modal.querySelectorAll("[data-panel]");
+        const pill = $("engPill"), last = $("engLast"), pin = $("engPin");
+        const btnStart = $("engStart"), btnStop = $("engCancel");
+        const progWrap = $("engProgressWrap"), bar = $("engBar"), count = $("engCount");
+        const list = $("engSteps"), statusEl = $("engStatus");
+        const dots = [$("engineDot"), $("engineTabDot")];
+
+        const ICON = { pending: "○", running: "▶", ok: "✔", fail: "✖", timeout: "⏱", skipped: "–", canceled: "■" };
+        let pollTimer = null;
+        let lastState = null;
+
+        function setTab(name) {
+            tabs.forEach(t => {
+                const on = t.dataset.tab === name;
+                t.classList.toggle("is-active", on);
+                t.setAttribute("aria-selected", on ? "true" : "false");
+            });
+            panels.forEach(p => { p.hidden = p.dataset.panel !== name; });
+            if (name === "engine") refresh(true);
+        }
+
+        function setStatus(msg, kind) {
+            statusEl.textContent = msg || "";
+            statusEl.className = "bb-feedback-status" + (msg ? " is-open" : "") + (kind ? " " + kind : "");
+        }
+
+        const fmtMs = (ms) => ms == null ? "" : (ms < 1000 ? ms + " ms" : (ms / 1000).toFixed(1) + " s");
+        const fmtTime = (iso) => iso ? new Date(iso).toLocaleString("th-TH", { hour12: false }) : "";
+
+        function render(st) {
+            const running = st.state === "running";
+
+            // pill + paused dot
+            pill.className = "bb-eng-pill " + (running ? "seq" : st.paused ? "paused" : "running");
+            pill.textContent = running ? "SEQUENCING" : st.paused ? "PAUSED" : "RUNNING";
+            dots.forEach(d => d && d.classList.toggle("is-on", !!st.paused && !running));
+
+            last.textContent = st.runId
+                ? `Last start: ${fmtTime(st.startedAtUtc)} (${st.source || "-"}) → ${st.state}`
+                : "ยังไม่เคยสั่ง start ตั้งแต่ engine boot";
+
+            btnStart.disabled = running;
+            btnStop.hidden = !running;
+
+            const steps = st.steps || [];
+            const runnable = steps.filter(s => s.status !== "skipped");
+            const done = runnable.filter(s => !["pending", "running"].includes(s.status)).length;
+            progWrap.hidden = steps.length === 0;
+            count.textContent = `${done} / ${runnable.length}`;
+            bar.style.width = runnable.length ? (100 * done / runnable.length) + "%" : "0";
+
+            list.innerHTML = "";
+            for (const s of steps) {
+                const li = document.createElement("li");
+                li.className = s.status;
+                const i = document.createElement("span"); i.className = "i"; i.textContent = ICON[s.status] || "?";
+                const n = document.createElement("span"); n.className = "n"; n.textContent = s.name; n.title = s.error || s.name;
+                const d = document.createElement("span"); d.className = "d";
+                d.textContent = s.status === "skipped" ? "disabled"
+                    : s.status === "running" ? "running…"
+                    : s.status === "pending" ? ""
+                    : (s.status === "ok" ? "" : s.status + " ") + fmtMs(s.durationMs);
+                li.append(i, n, d);
+                list.appendChild(li);
+            }
+
+            if (running) setStatus("กำลังรันทีละ task… ปิดหน้านี้ได้ engine ทำต่อเอง", null);
+            else if (lastState === "running") {
+                setStatus(st.state === "completed" ? "เสร็จแล้ว ✔ engine resume เรียบร้อย"
+                    : st.state === "canceled" ? "หยุดแล้ว — engine ยัง PAUSED"
+                    : "เสร็จแล้ว แต่มีบาง task fail/timeout (ดูรายการด้านบน) — engine resume แล้ว", st.state === "completed" ? "ok" : "warn");
+            }
+            lastState = st.state;
+        }
+
+        async function refresh(startPolling) {
+            try {
+                const r = await fetch("/api/engine/sequence/status", { cache: "no-store" });
+                const st = await r.json();
+                if (!r.ok || st.ok === false) throw new Error(st.error || ("HTTP " + r.status));
+                render(st);
+                if (st.state === "running" || startPolling) schedulePoll(st.state === "running");
+            } catch (e) {
+                pill.className = "bb-eng-pill offline";
+                pill.textContent = "OFFLINE";
+                setStatus("ติดต่อ engine (Uroboros :8888) ไม่ได้: " + e.message, "warn");
+            }
+        }
+
+        function schedulePoll(active) {
+            clearTimeout(pollTimer);
+            if (!active) return;
+            pollTimer = setTimeout(() => {
+                // stop polling once the modal is closed or user left the Engine tab
+                if (!modal.classList.contains("is-open") || $("enginePanel").hidden) return;
+                refresh(false);
+            }, 1000);
+        }
+
+        async function post(url) {
+            const r = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ pin: pin.value })
+            });
+            let body = {};
+            try { body = await r.json(); } catch { }
+            return { status: r.status, body };
+        }
+
+        function pinError(res) {
+            const e = res.body && res.body.error;
+            if (res.status === 401) return "PIN ไม่ถูกต้อง — hint: PIN เป็นตัวเลข 4 หลัก";
+            if (res.status === 429) return "ใส่ PIN ผิดหลายครั้ง — รอ 5 นาทีแล้วลองใหม่";
+            if (e === "pin_not_configured") return "ยังไม่ได้ตั้ง PIN ใน appsettings (EngineControl:PinPbkdf2)";
+            if (e === "engine_offline") return "ติดต่อ engine ไม่ได้";
+            return null;
+        }
+
+        btnStart.addEventListener("click", async () => {
+            if (!pin.value) { setStatus("กรุณาใส่ PIN", "warn"); pin.focus(); return; }
+            btnStart.disabled = true;
+            try {
+                const res = await post("/api/engine/sequence/start");
+                const err = pinError(res);
+                if (err) { setStatus(err, "warn"); btnStart.disabled = false; return; }
+                if (res.status === 409) setStatus("มี sequence กำลังรันอยู่แล้ว — แสดงสถานะของรอบนั้น", "warn");
+                pin.value = "";
+                lastState = "running";
+                await refresh(true);
+            } catch (e) {
+                setStatus("ส่งคำสั่งไม่สำเร็จ: " + e.message, "warn");
+                btnStart.disabled = false;
+            }
+        });
+
+        btnStop.addEventListener("click", async () => {
+            if (!pin.value) { setStatus("ใส่ PIN เพื่อหยุด sequence", "warn"); pin.focus(); return; }
+            const res = await post("/api/engine/sequence/cancel");
+            const err = pinError(res);
+            if (err) { setStatus(err, "warn"); return; }
+            pin.value = "";
+            await refresh(true);
+        });
+
+        pin.addEventListener("keydown", (e) => { if (e.key === "Enter") (btnStop.hidden ? btnStart : btnStop).click(); });
+        tabs.forEach(t => t.addEventListener("click", () => setTab(t.dataset.tab)));
+
+        // every open starts on Layout (existing behaviour); Engine tab refreshes on demand
+        btnOpen.addEventListener("click", () => { setStatus(""); setTab("layout"); });
+
+        // paused dot on ⚙️ — check on load and every 60s (cheap GET)
+        async function checkDot() {
+            try {
+                const r = await fetch("/api/engine/sequence/status", { cache: "no-store" });
+                const st = await r.json();
+                const show = r.ok && st.paused && st.state !== "running";
+                dots.forEach(d => d && d.classList.toggle("is-on", !!show));
+            } catch { }
+        }
+        checkDot();
+        setInterval(checkDot, 60000);
     });
 </script>
 

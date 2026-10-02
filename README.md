@@ -1,6 +1,6 @@
 # BellBeast
 
-BellBeast is an ASP.NET Core Razor Pages application for plant-operations workflows at Mahasawat. It acts as the operator-facing web layer for dashboards, report entry points, admin controls, AI-assisted chat, and lightweight IoT coordination while proxying selected requests to backend services.
+BellBeast is an ASP.NET Core Razor Pages application for plant-operations workflows at Mahasawat. It acts as the operator-facing web layer for dashboards, report entry points, admin controls, and lightweight IoT coordination while proxying selected requests to backend services.
 
 ## Highlights
 
@@ -8,7 +8,6 @@ BellBeast is an ASP.NET Core Razor Pages application for plant-operations workfl
 - AQ lookup/query workflows backed by a local SQLite table
 - Report pages for MH and chemistry workflows
 - Admin-only controls for selected backend engine actions
-- Chat endpoints wired to OpenClaw-backed assistants and local RAG-style knowledge retrieval
 - IoT room endpoints for device presence, commands, state snapshots, and tunnel status
 - Wayfarer map summary and work-order proxy endpoints
 
@@ -33,7 +32,7 @@ BellBeast is an ASP.NET Core Razor Pages application for plant-operations workfl
 Inside `BellBeast/` the main areas are:
 
 - `Program.cs` - application startup, auth, routing, and minimal API endpoints
-- `Pages/` - Razor Pages for dashboard, reports, login, admin, chat, and IoT views
+- `Pages/` - Razor Pages for dashboard, reports, login, admin, and IoT views
 - `Pages/MHxViewer/` - slot-rendered dashboard blocks
 - `Services/` - backend proxy and feature services
 - `wwwroot/` - static frontend assets
@@ -45,8 +44,8 @@ BellBeast sits between browser clients and backend services:
 
 1. Users open the Razor Pages UI.
 2. Frontend modules call BellBeast-owned `/api/*` endpoints.
-3. BellBeast either reads local data from `App_Data` or proxies requests to configured upstream services such as Uroboros, Wayfarer, or OpenClaw-related components.
-4. Responses are rendered into dashboard cards, reports, chat panels, and device-monitoring views.
+3. BellBeast either reads local data from `App_Data` or proxies requests to configured upstream services such as Uroboros or Wayfarer.
+4. Responses are rendered into dashboard cards, reports, and device-monitoring views.
 
 This keeps browser clients on a single origin and centralizes auth, routing, and backend configuration.
 
@@ -57,7 +56,6 @@ This keeps browser clients on a single origin and centralizes auth, routing, and
 - `/MH_report` - MH report page
 - `/CHEM_report` - chemistry report page
 - `/Admin/*` - protected admin area
-- `/Chat` and `/Chat2` - AI-assisted chat surfaces
 - `/IotRoom` - browser UI for connected devices and room state
 - `/LedDemo` and `/WebPM` - supporting feature/demo pages
 
@@ -68,7 +66,6 @@ The application reads settings from:
 - `BellBeast/appsettings.json`
 - `BellBeast/appsettings.Development.json`
 - `BellBeast/App_Data/backend-config.json`
-- `BellBeast/App_Data/backend-config.chat2.json`
 
 Important notes:
 

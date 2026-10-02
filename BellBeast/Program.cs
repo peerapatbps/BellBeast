@@ -20,10 +20,6 @@ builder.Configuration.AddJsonFile(
     Path.Combine(builder.Environment.ContentRootPath, "App_Data", "backend-config.json"),
     optional: true,
     reloadOnChange: true);
-builder.Configuration.AddJsonFile(
-    Path.Combine(builder.Environment.ContentRootPath, "App_Data", "backend-config.chat2.json"),
-    optional: true,
-    reloadOnChange: true);
 
 // ===============================
 // Services
@@ -42,8 +38,6 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AllowAnonymousToPage("/MH_report");
     options.Conventions.AllowAnonymousToPage("/MHxViewer/MHxView");
     options.Conventions.AllowAnonymousToPage("/CHEM_report");
-    options.Conventions.AllowAnonymousToPage("/Chat");
-    options.Conventions.AllowAnonymousToPage("/Chat2");
     options.Conventions.AllowAnonymousToPage("/IotRoom");
     options.Conventions.AllowAnonymousToPage("/LedDemo");
 
@@ -180,19 +174,8 @@ builder.Services.AddAuthorization(options =>
 });
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<EngineAdminService>();
+builder.Services.AddSingleton<EnginePinGuard>();
 builder.Services.AddScoped<SummaryProxyService>();
-builder.Services.AddOptions<OpenClawOptions>()
-    .Bind(builder.Configuration.GetSection("OpenClaw"));
-builder.Services.AddOptions<OpenClawChat2Options>()
-    .Bind(builder.Configuration.GetSection("OpenClawChat2"));
-builder.Services.AddHttpClient<OpenClawChatService>()
-    .AddTypedClient((http, sp) => new OpenClawChatService(
-        http,
-        sp.GetRequiredService<IOptions<OpenClawOptions>>().Value));
-builder.Services.AddHttpClient<OpenClawChat2Service>()
-    .AddTypedClient((http, sp) => new OpenClawChat2Service(
-        http,
-        sp.GetRequiredService<IOptions<OpenClawChat2Options>>().Value));
 builder.Services.AddSingleton<WayfarerMapQueryService>();
 builder.Services.AddSingleton<IotRoomService>();
 builder.Services.AddSingleton<CloudflareTunnelService>();
@@ -209,11 +192,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseWhen(
-    static ctx =>
-        !ctx.Request.Path.Equals("/api/ai/chat/send", StringComparison.OrdinalIgnoreCase)
-        && !ctx.Request.Path.Equals("/api/ai/chat2/send", StringComparison.OrdinalIgnoreCase),
-    static branch => branch.UseResponseCompression());
+app.UseResponseCompression();
 
 if (app.Environment.IsDevelopment())
 {
@@ -348,212 +327,6 @@ app.MapGet("/api/backend-config", () =>
         chemExportPath,
         wayfarerApiPath
     });
-});
-
-app.MapGet("/api/ai/chat/health", [AllowAnonymous] async (OpenClawChatService svc, HttpContext ctx) =>
-{
-    var profileId = ctx.Request.Query["agent"].ToString();
-    var result = await svc.GetHealthAsync(profileId, ctx.RequestAborted);
-    return Results.Ok(result);
-});
-
-app.MapGet("/api/ai/chat/profiles", [AllowAnonymous] (OpenClawChatService svc) =>
-{
-    return Results.Ok(svc.GetProfilesSummary());
-});
-
-app.MapGet("/api/ai/chat2/health", [AllowAnonymous] async (OpenClawChat2Service svc, HttpContext ctx) =>
-{
-    var profileId = ctx.Request.Query["agent"].ToString();
-    var result = await svc.GetHealthAsync(profileId, ctx.RequestAborted);
-    return Results.Ok(result);
-});
-
-app.MapGet("/api/ai/chat2/profiles", [AllowAnonymous] (OpenClawChat2Service svc) =>
-{
-    return Results.Ok(svc.GetProfilesSummary());
-});
-
-app.MapPost("/api/ai/chat/send", [AllowAnonymous] async Task<IResult> (
-    OpenClawChatRequest request,
-    OpenClawChatService svc,
-    HttpContext ctx) =>
-{
-    if (request.Messages is null || request.Messages.Count == 0)
-    {
-        return Results.BadRequest(new
-        {
-            success = false,
-            statusCode = StatusCodes.Status400BadRequest,
-            answer = "At least one message is required.",
-            raw = ""
-        });
-    }
-
-    try
-    {
-        var requestContext = svc.BuildRequestContext(ResolveOpenClawUserKey(ctx), request.AgentProfileId);
-
-        if (request.Stream)
-        {
-            var streamState = new StringBuilder();
-            ctx.Response.StatusCode = StatusCodes.Status200OK;
-            ctx.Response.Headers.CacheControl = "no-cache, no-transform";
-            ctx.Response.Headers["X-Accel-Buffering"] = "no";
-            ctx.Response.Headers["Connection"] = "keep-alive";
-            ctx.Response.ContentType = "text/event-stream";
-            ctx.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
-            await ctx.Response.StartAsync(ctx.RequestAborted);
-            await ctx.Response.WriteAsync(": bellbeast-stream-open\n\n", ctx.RequestAborted);
-            await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
-
-            var streamResult = await svc.SendStreamAsync(
-                request,
-                requestContext,
-                async (delta, state) =>
-                {
-                    if (string.IsNullOrEmpty(delta))
-                        return;
-
-                    state.Append(delta);
-                    var payload = JsonSerializer.Serialize(new
-                    {
-                        choices = new[]
-                        {
-                            new
-                            {
-                                delta = new
-                                {
-                                    content = delta
-                                }
-                            }
-                        }
-                    });
-
-                    await ctx.Response.WriteAsync($"data: {payload}\n\n", ctx.RequestAborted);
-                    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
-                },
-                streamState,
-                ctx.RequestAborted);
-
-            if (!streamResult.Success)
-            {
-                ctx.Response.StatusCode = streamResult.StatusCode;
-                var safeError = JsonSerializer.Serialize(new
-                {
-                    error = new
-                    {
-                        message = streamResult.Answer
-                    }
-                });
-                await ctx.Response.WriteAsync($"data: {safeError}\n\n", ctx.RequestAborted);
-                await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
-                return Results.Empty;
-            }
-
-            await ctx.Response.WriteAsync("data: [DONE]\n\n", ctx.RequestAborted);
-            await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
-            return Results.Empty;
-        }
-
-        var result = await svc.SendAsync(request, requestContext, ctx.RequestAborted);
-        return Results.Json(result, statusCode: result.StatusCode);
-    }
-    catch
-    {
-        return Results.Problem("Chat request failed.", statusCode: StatusCodes.Status500InternalServerError);
-    }
-});
-
-app.MapPost("/api/ai/chat2/send", [AllowAnonymous] async Task<IResult> (
-    OpenClawChatRequest request,
-    OpenClawChat2Service svc,
-    HttpContext ctx) =>
-{
-    if (request.Messages is null || request.Messages.Count == 0)
-    {
-        return Results.BadRequest(new
-        {
-            success = false,
-            statusCode = StatusCodes.Status400BadRequest,
-            answer = "At least one message is required.",
-            raw = ""
-        });
-    }
-
-    try
-    {
-        var requestContext = svc.BuildRequestContext(ResolveOpenClawUserKey(ctx), request.AgentProfileId);
-
-        if (request.Stream)
-        {
-            var streamState = new StringBuilder();
-            ctx.Response.StatusCode = StatusCodes.Status200OK;
-            ctx.Response.Headers.CacheControl = "no-cache, no-transform";
-            ctx.Response.Headers["X-Accel-Buffering"] = "no";
-            ctx.Response.Headers["Connection"] = "keep-alive";
-            ctx.Response.ContentType = "text/event-stream";
-            ctx.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
-            await ctx.Response.StartAsync(ctx.RequestAborted);
-            await ctx.Response.WriteAsync(": bellbeast-stream-open\n\n", ctx.RequestAborted);
-            await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
-
-            var streamResult = await svc.SendStreamAsync(
-                request,
-                requestContext,
-                async (delta, state) =>
-                {
-                    if (string.IsNullOrEmpty(delta))
-                        return;
-
-                    state.Append(delta);
-                    var payload = JsonSerializer.Serialize(new
-                    {
-                        choices = new[]
-                        {
-                            new
-                            {
-                                delta = new
-                                {
-                                    content = delta
-                                }
-                            }
-                        }
-                    });
-
-                    await ctx.Response.WriteAsync($"data: {payload}\n\n", ctx.RequestAborted);
-                    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
-                },
-                streamState,
-                ctx.RequestAborted);
-
-            if (!streamResult.Success)
-            {
-                ctx.Response.StatusCode = streamResult.StatusCode;
-                var safeError = JsonSerializer.Serialize(new
-                {
-                    error = new
-                    {
-                        message = streamResult.Answer
-                    }
-                });
-                await ctx.Response.WriteAsync($"data: {safeError}\n\n", ctx.RequestAborted);
-                await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
-                return Results.Empty;
-            }
-
-            await ctx.Response.WriteAsync("data: [DONE]\n\n", ctx.RequestAborted);
-            await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
-            return Results.Empty;
-        }
-
-        var result = await svc.SendAsync(request, requestContext, ctx.RequestAborted);
-        return Results.Json(result, statusCode: result.StatusCode);
-    }
-    catch
-    {
-        return Results.Problem("Chat2 request failed.", statusCode: StatusCodes.Status500InternalServerError);
-    }
 });
 
 static IReadOnlyList<string> ReadStatusGroups(IQueryCollection query)
@@ -1279,6 +1052,62 @@ app.MapGet("/api/admin/tasks/status", async (EngineAdminService svc) =>
     }
 });
 
+// ── Engine sequential start (MHxView ⚙️ → Engine tab) ─────────────────────────
+// MHxView is anonymous, so start/cancel require the EngineControl PIN (rate-limited per IP).
+// Status is read-only and open. Uroboros runs every enabled task one at a time, then resumes.
+static IResult EnginePinFailure(EnginePinGuard.Result r) => r switch
+{
+    EnginePinGuard.Result.NotConfigured => Results.Json(new { ok = false, error = "pin_not_configured" }, statusCode: 503),
+    EnginePinGuard.Result.Locked => Results.Json(new { ok = false, error = "too_many_attempts", retryAfterSec = (int)EnginePinGuard.Window.TotalSeconds }, statusCode: 429),
+    _ => Results.Json(new { ok = false, error = "bad_pin" }, statusCode: 401)
+};
+
+static async Task<string?> ReadEnginePinAsync(HttpContext ctx)
+{
+    try
+    {
+        var dto = await ctx.Request.ReadFromJsonAsync<Dictionary<string, string>>();
+        return dto is not null && dto.TryGetValue("pin", out var pin) ? pin : null;
+    }
+    catch { return null; } // empty / malformed body -> treated as wrong PIN
+}
+
+static async Task<IResult> RelayEngineAsync(Func<Task<(int Status, string Body)>> call)
+{
+    try
+    {
+        var (status, body) = await call();
+        return Results.Content(body, "application/json", Encoding.UTF8, status);
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { ok = false, error = "engine_offline", detail = ex.Message }, statusCode: 502);
+    }
+}
+
+app.MapPost("/api/engine/sequence/start", async (HttpContext ctx, EngineAdminService svc, EnginePinGuard guard) =>
+{
+    var pin = await ReadEnginePinAsync(ctx);
+
+    var check = guard.Check(ctx.Connection.RemoteIpAddress?.ToString(), pin);
+    if (check != EnginePinGuard.Result.Ok) return EnginePinFailure(check);
+
+    return await RelayEngineAsync(() => svc.StartSequenceAsync("mhxview"));
+});
+
+app.MapGet("/api/engine/sequence/status", (EngineAdminService svc) =>
+    RelayEngineAsync(() => svc.GetSequenceStatusAsync()));
+
+app.MapPost("/api/engine/sequence/cancel", async (HttpContext ctx, EngineAdminService svc, EnginePinGuard guard) =>
+{
+    var pin = await ReadEnginePinAsync(ctx);
+
+    var check = guard.Check(ctx.Connection.RemoteIpAddress?.ToString(), pin);
+    if (check != EnginePinGuard.Result.Ok) return EnginePinFailure(check);
+
+    return await RelayEngineAsync(() => svc.CancelSequenceAsync());
+});
+
 app.MapGet("/api/smartmap", async (HttpContext hc) =>
 {
     // รับ keys เป็น optional (ถ้าส่งมาก็ filter ให้)
@@ -1713,55 +1542,6 @@ static async Task ProxySummaryAsync(HttpContext ctx, HttpResponseMessage upstrea
     await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
 }
 
-
-static string ResolveOpenClawUserKey(HttpContext ctx)
-{
-    var user = ctx.User;
-
-    static string? ReadClaim(ClaimsPrincipal principal, string claimType)
-    {
-        var value = principal.FindFirst(claimType)?.Value?.Trim();
-        return string.IsNullOrWhiteSpace(value) ? null : value;
-    }
-
-    static string? ReadHeader(HttpContext context, string headerName)
-    {
-        var value = context.Request.Headers[headerName].ToString().Trim();
-        return string.IsNullOrWhiteSpace(value) ? null : value;
-    }
-
-    static string? NormalizeClientKey(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return null;
-
-        var builder = new StringBuilder(value.Length);
-        foreach (var ch in value.Trim().ToLowerInvariant())
-        {
-            if (char.IsLetterOrDigit(ch) || ch is '-' or '_')
-            {
-                builder.Append(ch);
-            }
-            else if (builder.Length == 0 || builder[^1] != '-')
-            {
-                builder.Append('-');
-            }
-        }
-
-        var normalized = builder.ToString().Trim('-');
-        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
-    }
-
-    var authenticatedKey = ReadClaim(user, ClaimTypes.NameIdentifier)
-        ?? ReadClaim(user, "sub")
-        ?? user.Identity?.Name?.Trim();
-
-    if (!string.IsNullOrWhiteSpace(authenticatedKey))
-        return authenticatedKey;
-
-    return NormalizeClientKey(ReadHeader(ctx, "X-BellBeast-Chat-Client"))
-        ?? "bellbeast-user";
-}
 
 sealed class AdminLoginDto
 {
