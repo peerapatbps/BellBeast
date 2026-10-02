@@ -1,7 +1,12 @@
 <section class="bb-section cldetector-block">
     <style>
+        /* The floor plan scales as one picture: .cld-map keeps a fixed aspect
+           ratio and every size inside it is N * --u, where --u = map width / 414
+           (414px = map width at 1920x1080, the original design size).
+           cqi inside .cld-map resolves against .cld-map (container-type below). */
         section.cldetector-block {
             min-height: 100%;
+            --u: calc(100cqi / 414);
         }
 
             section.cldetector-block .bb-section-b {
@@ -10,10 +15,6 @@
             }
 
             section.cldetector-block .cld-wrap {
-                height: 100%;
-                min-height: 420px;
-                /* max-height removed — hard clamp prevented this card from matching
-                   the height of its paired grid neighbour after minimize/maximize */
                 display: grid;
                 grid-template-columns: 1fr 1fr;
                 gap: 14px;
@@ -52,9 +53,9 @@
 
             section.cldetector-block .cld-map {
                 position: relative;
-                flex: 1;
-                min-height: 0;
-                height: 100%;
+                flex: none;
+                aspect-ratio: 414 / 290;
+                container-type: inline-size;
                 border-radius: 24px;
                 border: 1px solid rgba(255,255,255,.08);
                 overflow: hidden;
@@ -73,7 +74,7 @@
 
             section.cldetector-block .room {
                 position: absolute;
-                border-radius: 24px;
+                border-radius: calc(24 * var(--u));
                 border: 1px solid rgba(255,255,255,.18);
                 background: linear-gradient(180deg, rgba(255,255,255,.24), rgba(255,255,255,.08)), linear-gradient(135deg, rgba(184,220,255,.18), rgba(191,255,231,.10));
                 box-shadow: inset 0 1px 0 rgba(255,255,255,.22), 0 10px 24px rgba(0,0,0,.18);
@@ -92,7 +93,7 @@
                     top: 24%;
                     width: 20%;
                     height: 50%;
-                    padding-top: 22px;
+                    padding-top: calc(22 * var(--u));
                     box-sizing: border-box;
                 }
 
@@ -113,13 +114,13 @@
 
             section.cldetector-block .room.storage .room-title {
                 top: 42%;
-                font-size: 18px;
+                font-size: calc(18 * var(--u));
             }
 
             section.cldetector-block .room.dosing .room-title {
-                top: 9px;
-                width: calc(100% - 10px);
-                font-size: 14px;
+                top: calc(9 * var(--u));
+                width: calc(100% - 10 * var(--u));
+                font-size: calc(14 * var(--u));
             }
 
             section.cldetector-block .door {
@@ -130,43 +131,43 @@
             }
 
             section.cldetector-block .storage-door-left {
-                left: -8px;
+                left: calc(-8 * var(--u));
                 top: 30%;
-                width: 8px;
-                height: 58px;
-                border-radius: 8px 0 0 8px;
+                width: calc(8 * var(--u));
+                height: calc(58 * var(--u));
+                border-radius: calc(8 * var(--u)) 0 0 calc(8 * var(--u));
             }
 
             section.cldetector-block .storage-door-top {
                 left: 78%;
                 transform: translateX(-50%);
-                top: -8px;
-                width: 52px;
-                height: 8px;
-                border-radius: 8px 8px 0 0;
+                top: calc(-8 * var(--u));
+                width: calc(52 * var(--u));
+                height: calc(8 * var(--u));
+                border-radius: calc(8 * var(--u)) calc(8 * var(--u)) 0 0;
             }
 
             section.cldetector-block .dosing-door-top {
                 left: 50%;
                 transform: translateX(-50%);
-                top: -8px;
-                width: 38px;
-                height: 8px;
-                border-radius: 8px 8px 0 0;
+                top: calc(-8 * var(--u));
+                width: calc(38 * var(--u));
+                height: calc(8 * var(--u));
+                border-radius: calc(8 * var(--u)) calc(8 * var(--u)) 0 0;
             }
 
             section.cldetector-block .det {
                 position: absolute;
                 display: flex;
                 align-items: center;
-                gap: 8px;
+                gap: calc(8 * var(--u));
                 z-index: 4;
             }
 
             section.cldetector-block .pill {
-                min-width: 38px;
-                height: 28px;
-                padding: 0 10px;
+                min-width: calc(38 * var(--u));
+                height: calc(28 * var(--u));
+                padding: 0 calc(10 * var(--u));
                 border-radius: 999px;
                 display: inline-flex;
                 align-items: center;
@@ -174,7 +175,7 @@
                 background: linear-gradient(180deg, rgba(28,36,52,.96), rgba(14,20,33,.98));
                 border: 1px solid rgba(255,255,255,.08);
                 color: #f4f8ff;
-                font-size: 12px;
+                font-size: calc(12 * var(--u));
                 font-weight: 900;
                 line-height: 1;
                 box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 8px 18px rgba(0,0,0,.22);
@@ -182,17 +183,17 @@
             }
 
             section.cldetector-block .dot {
-                width: 34px;
-                height: 34px;
+                width: calc(34 * var(--u));
+                height: calc(34 * var(--u));
                 border-radius: 999px;
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
                 color: #fff;
-                font-size: 14px;
+                font-size: calc(14 * var(--u));
                 font-weight: 900;
                 line-height: 1;
-                border: 2px solid rgba(255,255,255,.9);
+                border: max(1px, calc(2 * var(--u))) solid rgba(255,255,255,.9);
                 box-shadow: 0 0 0 4px rgba(255,255,255,.08), 0 10px 18px rgba(0,0,0,.20);
                 flex: 0 0 auto;
             }
@@ -233,14 +234,14 @@
             section.cldetector-block .det.det-stack {
                 flex-direction: column;
                 align-items: center;
-                gap: 6px;
+                gap: calc(6 * var(--u));
             }
 
                 section.cldetector-block .det.det-stack .pill {
-                    min-width: 42px;
-                    height: 24px;
-                    padding: 0 8px;
-                    font-size: 11px;
+                    min-width: calc(42 * var(--u));
+                    height: calc(24 * var(--u));
+                    padding: 0 calc(8 * var(--u));
+                    font-size: calc(11 * var(--u));
                 }
 
             section.cldetector-block .d1 {
@@ -300,13 +301,7 @@
                 color: rgba(255,255,255,.82);
             }
 
-        @@media (max-width: 1100px) {
-            section.cldetector-block .cld-wrap {
-                height: auto;
-                min-height: 0;
-                grid-template-columns: 1fr;
-            }
-        }
+        /* responsive: container queries in site.css (Razor cannot parse CSS at-container rules) */
     </style>
 
     <div class="bb-section-h">

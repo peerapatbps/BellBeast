@@ -964,9 +964,10 @@
     .tank-kpi .hdr {
         grid-column: 1 / 3;
         display: flex;
+        flex-wrap: wrap;           /* "Max" drops below the name on narrow cards */
         justify-content: space-between;
         align-items: baseline;
-        gap: 10px;
+        gap: 2px 10px;
         margin: 0;
     }
 
@@ -975,11 +976,10 @@
             font-weight: 900;
             opacity: .92;
             white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
         }
 
         .tank-kpi .hdr .max {
+            margin-left: auto;
             font-size: 11px;
             opacity: .70;
             white-space: nowrap;
@@ -1326,18 +1326,7 @@
     }
 
 
-    /* responsive — viewport breakpoints */
-    @@media (max-width: 1100px) {
-        .chem-grid2 {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-    }
-
-    @@media (max-width: 900px) {
-        .chem-grid2 {
-            grid-template-columns: 1fr;
-        }
-    }
+    /* responsive: column count follows slot width (container queries in site.css) */
 
     /* =========================================================
                CHEM CARD (Unified) 70:30 + Equipment Slots
@@ -1357,12 +1346,14 @@
         padding: 8px;
         box-sizing: border-box;
         overflow: hidden;
-        /* ✅ 70:30 */
-        display: grid;
-        grid-template-columns: minmax(0,75fr) minmax(120px,25fr);
-        grid-template-rows: auto 1fr;
+        /* ~75:25 body:gauges; gauges wrap below the body only when the
+           body's text (max-content) + gauges no longer fit side by side */
+        display: flex;
+        flex-wrap: wrap;
+        align-content: flex-start;
         gap: 8px;
         min-height: 180px;
+        container-type: inline-size;
     }
 
         /* theme variants */
@@ -1383,30 +1374,32 @@
 
         /* header */
         .chem-card .hdr {
-            grid-column: 1 / -1;
+            flex: 1 0 100%;
             display: flex;
+            flex-wrap: wrap;           /* chips drop to a 2nd line instead of covering the title */
             align-items: center;
             justify-content: space-between;
-            gap: 10px;
+            gap: 6px 10px;
             padding-bottom: 0px;
         }
 
     .chem-title {
+        flex-shrink: 0;
         font-weight: 900;
         letter-spacing: .2px;
         font-size: 13px;
         opacity: .95;
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
     }
 
     .chem-right {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
-        gap: 15px;
+        gap: 6px 15px;
         justify-content: flex-end;
         min-width: 0;
+        margin-left: auto;
         margin-right: 10px;
     }
 
@@ -1471,8 +1464,7 @@
 
     /* left column */
     .chem-body {
-        grid-column: 1;
-        grid-row: 2;
+        flex: 3 1 auto;
         min-width: 0;
         display: flex;
         flex-direction: column;
@@ -1483,18 +1475,18 @@
     .chem-lines {
         display: grid;
         gap: 0px;
-        font-size: 15px;
+        font-size: clamp(12px, 5.2cqi, 15px); /* cqi = % of .chem-card width */
         color: rgba(255,255,255,.86);
     }
 
     .chem-line {
         display: flex;
-        gap: 12px;
+        gap: 8px;
         align-items: baseline;
     }
 
         .chem-line .k {
-            width: 65px;
+            min-width: 4.4em;
             font-weight: 900;
             opacity: .92;
             white-space: nowrap;
@@ -1511,12 +1503,15 @@
                ========================= */
     .chem-lines.chem-lines--cl {
         gap: 2px;
+        font-size: clamp(11px, 3.6cqi, 15px);
     }
 
         .chem-lines.chem-lines--cl .chem-line {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            column-gap: 8px;
+            /* never narrower than the text: no overlap, and the body's
+               max-content stays honest so the card wraps the gauges instead */
+            grid-template-columns: repeat(3, minmax(max-content, 1fr));
+            column-gap: 6px;
             align-items: center;
             line-height: 1.0;
             padding: 1px 0;
@@ -1670,15 +1665,13 @@
 
     /* right column (gauges) */
     .chem-gauges {
-        grid-column: 2;
-        grid-row: 2;
+        flex: 1 0 96px;
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 8px;
         align-items: stretch;
         min-width: 0;
-        margin-right: 10px;
-        margin-left: 10px;
+        margin-right: 4px;
     }
 
     /* tank */
@@ -1732,62 +1725,52 @@
             color: rgba(255,255,255,.88);
         }
 
-    /* กันการ์ดดันคอลัมน์แตก (ของเดิมคุณ) */
+    /* =========================================================
+       SLOT GRID
+       - Columns follow the grid's own width (not the viewport):
+         2 columns while each card can be >= --slot-min-w, else 1 column.
+       - Row height = max(--card-h, tallest card in the row) so content is
+         never clipped when a narrow card wraps; both cards in a row stay
+         equal height via grid stretch.
+       - Chart.js canvases must not feed their size back into the row:
+         every chart box has a fixed px height or an absolutely-positioned
+         canvas (see .mini-card .chart, LAB .chart-box, PTC .ptc-chart).
+       ========================================================= */
     .bb-slots {
+        --slot-min-w: 560px;
         display: grid;
-        grid-template-columns: repeat(2, minmax(0,1fr));
-        grid-auto-rows: var(--card-h); /* belt-and-suspenders track size */
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, max(var(--slot-min-w), calc((100% - 10px) / 2))), 1fr));
+        grid-auto-rows: minmax(var(--card-h), auto);
         gap: 10px;
-        align-items: start;        /* IMPORTANT: do NOT let grid stretch override slot height */
+        align-items: stretch;
     }
 
     .bb-slot {
         min-width: 0;
-        height:     var(--card-h); /* triple-lock: height cannot deviate regardless of */
-        min-height: var(--card-h); /* content size, grid behaviour, or Chromium cache    */
-        max-height: var(--card-h);
-        overflow: hidden;          /* clip anything that escapes */
+        min-height: var(--card-h);
         display: flex;
         flex-direction: column;
-        contain: layout;           /* isolate layout: slot cannot be affected by
-                                      siblings or ancestor reflow cycles */
         container-type: inline-size; /* enable container queries for injected partials (rules in site.css) */
     }
 
         .bb-slot > .bb-section {
             min-width: 0;
-            flex: 1 1 0;           /* fill slot; basis 0 prevents content fighting height */
-            min-height: 0;         /* allow flexbox to size from 0 upward */
+            flex: 1 1 auto;        /* fill slot; grow with content when it wraps */
+            min-height: 0;
             overflow: hidden;
         }
 
     @@media (max-width: 1100px) {
         .bb-slots {
-            grid-template-columns: 1fr;
-            grid-auto-rows: unset;
+            grid-auto-rows: auto;
         }
 
-        /* ปลด height lock เมื่อ 1-column — card สูงตามเนื้อหา */
+        /* 1-column / tablet: card สูงตามเนื้อหา */
         .bb-slot {
-            height: auto;
             min-height: 380px;     /* minimum ให้ chart render ได้ */
-            max-height: none;
-            overflow: visible;
-            contain: none;         /* ปลด layout containment เพื่อให้ height: auto ทำงาน */
-        }
-
-        .bb-slot > .bb-section {
-            flex: none;
-            min-height: 0;
-            overflow: visible;
-        }
-
-        .bb-section {
-            height: auto;
         }
 
         .bb-section-b {
-            height: auto;
             overflow: auto;        /* scroll ได้ภายใน card แทนการ clip */
         }
     }
@@ -3148,7 +3131,8 @@
       window.MHxCharts.initWithin(document);
     });
 
-    // Equal-height guard removed: .bb-slot now has an explicit height: 450px
-    // so card height is never derived from grid track sizing or align-items,
-    // and cannot be staled by Chromium's intrinsic-size cache after minimize/maximize.
+    // Equal-height guard removed: rows use grid-auto-rows minmax(--card-h, auto)
+    // + align-items: stretch, so cards in a row stay equal height in pure CSS.
+    // Chart boxes are fixed-height or have out-of-flow canvases, so Chart.js
+    // resizes can't grow the row.
 </script>

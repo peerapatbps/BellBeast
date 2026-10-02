@@ -67,13 +67,15 @@ var latestR = $"ptcLatestR_{uid}";
         min-height: 200px;
         display: grid;
         grid-template-columns: 1fr 1fr;
-        grid-template-rows: 44px 1fr;
+        grid-template-rows: minmax(44px, auto) 1fr; /* header may wrap to 2 lines */
         gap: 10px;
         min-width: 10px;
     }
 
     .ptc-top {
         display: flex;
+        flex-wrap: wrap;           /* "Latest ..." drops below the dropdown instead of being cut */
+        row-gap: 4px;
         align-items: center;
         justify-content: space-between;
         gap: 10px;
@@ -123,11 +125,10 @@ var latestR = $"ptcLatestR_{uid}";
         }
 
     .ptc-top .right {
+        margin-left: auto;
         font-size: 12px;
         font-weight: 900;
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
         opacity: .92;
     }
 
@@ -148,6 +149,8 @@ var latestR = $"ptcLatestR_{uid}";
     }
 
         .ptc-chart canvas {
+            position: absolute;    /* out of flow: canvas size never feeds back into card height */
+            inset: 0;
             width: 100% !important;
             height: 100% !important;
             display: block !important;
@@ -173,22 +176,7 @@ var latestR = $"ptcLatestR_{uid}";
         grid-row: 2;
     }
 
-    @@media (max-width:1100px) {
-        .ptc-one {
-            grid-template-columns: 1fr;
-            grid-template-rows: 44px 1fr 44px 1fr;
-        }
-
-        .ptc-b-top {
-            grid-column: 1;
-            grid-row: 3;
-        }
-
-        .ptc-b-chart {
-            grid-column: 1;
-            grid-row: 4;
-        }
-    }
+    /* responsive: container queries in site.css (Razor cannot parse CSS at-container rules) */
 </style>
 
 <section class="bb-section ptc-block">

@@ -410,31 +410,7 @@
     }
 
 
-    /* ===== responsive ===== */
-    @@media (max-width: 1280px) {
-        section.lab-block .lab-top-grid {
-            grid-template-columns: 1fr 1fr;
-        }
-
-            section.lab-block .lab-top-grid > .lab-top-card:last-child {
-                grid-column: 1 / -1;
-            }
-
-        section.lab-block .cards-row {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-    }
-
-    @@media (max-width: 820px) {
-        section.lab-block .lab-top-grid,
-        section.lab-block .cards-row {
-            grid-template-columns: 1fr;
-        }
-
-        section.lab-block .status-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-    }
+    /* ===== responsive: container queries in site.css (Razor cannot parse CSS at-container rules) ===== */
 </style>
 
 <section class="bb-section lab-block"
