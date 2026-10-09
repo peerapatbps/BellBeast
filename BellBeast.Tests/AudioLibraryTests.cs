@@ -301,6 +301,37 @@ public sealed class AudioEndpointTests : IClassFixture<BellBeastAdminFactory>, I
     }
 
     [Fact]
+    public async Task Tts_Key_Can_Come_From_Another_Projects_Config_File()
+    {
+        var yaml = Path.Combine(Path.GetTempPath(), "bb_keyfile_" + Guid.NewGuid().ToString("N") + ".yaml");
+        File.WriteAllText(yaml, "llm:\n  provider: \"openrouter\"\n  api_key: \"sk-or-v1-fake0123abcd\"\n");
+        string? seenKey = null;
+        _admin.EngineHandler.RequestHandler = req =>
+        {
+            seenKey = req.Headers.Authorization?.Parameter;
+            var b64 = Convert.ToBase64String(new byte[48]);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent($"data: {{\"choices\":[{{\"delta\":{{\"audio\":{{\"data\":\"{b64}\"}}}}}}]}}\n\ndata: [DONE]\n\n", Encoding.UTF8, "text/event-stream")
+            };
+        };
+        try
+        {
+            var c = _admin.WithWebHostBuilder(b => b.UseSetting("Audio:OpenRouterApiKeyFile", yaml)).CreateClient();
+            Assert.True((await c.GetFromJsonAsync<JsonElement>("/api/audio/clips")).GetProperty("tts_configured").GetBoolean());
+
+            var resp = await c.PostAsJsonAsync("/api/audio/tts", new { id = "s_keyfile_test", text = "ทดสอบ" });
+            Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+            Assert.Equal("sk-or-v1-fake0123abcd", seenKey);
+        }
+        finally
+        {
+            _admin.EngineHandler.RequestHandler = null;
+            File.Delete(yaml);
+        }
+    }
+
+    [Fact]
     public async Task Ids_In_The_Live_Alarm_Playlist_Show_Up_As_Missing()
     {
         var c = _anon.CreateClient();

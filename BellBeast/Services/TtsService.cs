@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace BellBeast.Services;
 
@@ -11,6 +12,7 @@ namespace BellBeast.Services;
 ///
 /// Config (appsettings / env, never logged):
 ///   Audio:OpenRouterApiKey  (or env OPENROUTER_API_KEY)
+///   Audio:OpenRouterApiKeyFile  fallback: path of a file that contains the key
 ///   Audio:TtsModel          default "openai/gpt-audio-mini"
 ///   Audio:TtsVoice          default "alloy"
 /// </summary>
@@ -27,7 +29,42 @@ public sealed class TtsService
         _http = http;
     }
 
-    private string ApiKey => (_cfg["Audio:OpenRouterApiKey"] ?? Environment.GetEnvironmentVariable("OPENROUTER_API_KEY") ?? "").Trim();
+    private string ApiKey
+    {
+        get
+        {
+            var direct = (_cfg["Audio:OpenRouterApiKey"] ?? Environment.GetEnvironmentVariable("OPENROUTER_API_KEY") ?? "").Trim();
+            return direct.Length > 0 ? direct : KeyFromFile((_cfg["Audio:OpenRouterApiKeyFile"] ?? "").Trim());
+        }
+    }
+
+    private static readonly Regex KeyRx = new(@"sk-or-v1-[A-Za-z0-9]+", RegexOptions.Compiled);
+    private (string path, DateTime mtime, string key) _fileKey = ("", default, "");
+
+    /// <summary>
+    /// Reads the key from another project's config (e.g. iot\xiaozhi-server\config.yaml) so it lives in one place:
+    /// first "sk-or-v1-…" token in the file, or the whole file when it holds just the key. Re-read when the file changes.
+    /// </summary>
+    private string KeyFromFile(string path)
+    {
+        if (path.Length == 0) return "";
+        try
+        {
+            var mtime = File.GetLastWriteTimeUtc(path);
+            var cached = _fileKey;
+            if (cached.path == path && cached.mtime == mtime) return cached.key;
+
+            var text = File.ReadAllText(path);
+            var m = KeyRx.Match(text);
+            var key = m.Success ? m.Value : (text.Trim() is { Length: > 0 } t && !t.Any(char.IsWhiteSpace) ? t : "");
+            _fileKey = (path, mtime, key);
+            return key;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return "";
+        }
+    }
     public string Model => (_cfg["Audio:TtsModel"] ?? "").Trim() is { Length: > 0 } m ? m : "openai/gpt-audio-mini";
     public string Voice => (_cfg["Audio:TtsVoice"] ?? "").Trim() is { Length: > 0 } v ? v : "alloy";
     public bool Configured => ApiKey.Length > 0;

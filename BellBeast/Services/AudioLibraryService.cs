@@ -296,7 +296,7 @@ public sealed class AudioLibraryService
         File.Move(tmp, path, overwrite: true);
     }
 
-    // ── default vocabulary (Uroboros alarm_rules.json, 2026-10-06) ──────────
+    // ── default vocabulary (Uroboros alarm_rules.json fallback_text, 2026-10-09) ──
     // Point-name ids are still provisional on the Uroboros side; rename there and here together.
 
     private static readonly VocabItem[] DefaultVocabulary = BuildDefaults();
@@ -317,15 +317,15 @@ public sealed class AudioLibraryService
         v.Add(new("s_bar", "บาร์", "unit"));
         v.Add(new("s_ppm", "พีพีเอ็ม", "unit"));
 
-        v.Add(new("s_rwp1_flowp1", "สถานีน้ำดิบ 1 ปั๊มชุด P1", "point"));
-        v.Add(new("s_rwp1_flowp2", "สถานีน้ำดิบ 1 ปั๊มชุด P2", "point"));
-        v.Add(new("s_rwp2_flowp3", "สถานีน้ำดิบ 2 ปั๊มชุด P3", "point"));
-        v.Add(new("s_rwp2_flowp4", "สถานีน้ำดิบ 2 ปั๊มชุด P4", "point"));
-        v.Add(new("s_dps_flowa", "สถานีจ่ายน้ำ สาย A", "point"));
-        v.Add(new("s_dps_flowb", "สถานีจ่ายน้ำ สาย B", "point"));
-        v.Add(new("s_tps_flow", "สถานีผลิต อัตราไหลรวม", "point"));
-        v.Add(new("s_dps_airp1_low", "แอร์คอมเพรสเซอร์ AirP1", "point"));
-        v.Add(new("s_dps_airp2_low", "แอร์คอมเพรสเซอร์ AirP2", "point"));
+        v.Add(new("s_rwp1_flowp1", "สถานีน้ำดิบ 1 ระบบผลิตเฟส 1", "point"));
+        v.Add(new("s_rwp1_flowp2", "สถานีน้ำดิบ 1 ระบบผลิตเฟส 2", "point"));
+        v.Add(new("s_rwp2_flowp3", "สถานีน้ำดิบ 2 ระบบผลิตเฟส 3", "point"));
+        v.Add(new("s_rwp2_flowp4", "สถานีน้ำดิบ 2 ระบบผลิตเฟส 4", "point"));
+        v.Add(new("s_dps_flowa", "สถานีจ่ายน้ำ ไลน์ A", "point"));
+        v.Add(new("s_dps_flowb", "สถานีจ่ายน้ำ ไลน์ B", "point"));
+        v.Add(new("s_tps_flow", "สถานีสูบส่งน้ำ", "point"));
+        v.Add(new("s_dps_airp1_low", "แอร์คอมเพรสเซอร์ เฟส 1", "point"));
+        v.Add(new("s_dps_airp2_low", "แอร์คอมเพรสเซอร์ เฟส 2", "point"));
         v.Add(new("s_dps_svwater_flow_low", "น้ำใช้ในโรงงาน", "point"));
         foreach (var chem in new[] { 1, 2 })
             foreach (var p in new[] { "s1", "s2", "s3", "s4", "d1", "d2" })
