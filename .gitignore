@@ -10,3 +10,7 @@ BellBeast/App_Data/cloudflare_token.json
 BellBeast/App_Data/config_runtime.yml
 BellBeast/App_Data/config.yml
 BellBeast/App_Data/backend-config.local.json
+
+# audio clip library (generated / recorded data, deploy by copying the folder)
+BellBeast/App_Data/audio/
+tts_sample/
