@@ -306,6 +306,15 @@ public sealed class AudioLibraryService
         var v = new List<VocabItem>();
         string[] digits = { "ศูนย์", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า" };
         for (var i = 0; i < 10; i++) v.Add(new($"n_{i}", digits[i], "number"));
+        // place values: Uroboros reads integers the Thai way (8650 = แปด พัน หก ร้อย ห้า สิบ)
+        v.Add(new("n_et", "เอ็ด", "number"));
+        v.Add(new("n_yi", "ยี่", "number"));
+        v.Add(new("p_sip", "สิบ", "number"));
+        v.Add(new("p_roi", "ร้อย", "number"));
+        v.Add(new("p_phan", "พัน", "number"));
+        v.Add(new("p_muen", "หมื่น", "number"));
+        v.Add(new("p_saen", "แสน", "number"));
+        v.Add(new("p_lan", "ล้าน", "number"));
         v.Add(new("dot", "จุด", "number"));
         v.Add(new("neg", "ลบ", "number"));
 
