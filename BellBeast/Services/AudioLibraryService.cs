@@ -329,7 +329,10 @@ public sealed class AudioLibraryService
         v.Add(new("s_dps_svwater_flow_low", "น้ำใช้ในโรงงาน", "point"));
         foreach (var chem in new[] { 1, 2 })
             foreach (var p in new[] { "s1", "s2", "s3", "s4", "d1", "d2" })
-                v.Add(new($"s_chem{chem}_cl_{p}_high", $"เครื่องตรวจจับคลอรีน เคม {chem} จุด {p.ToUpperInvariant()}", "point"));
+            {
+                var place = p[0] == 's' ? "โรงเก็บท่อคลอรีน" : "ห้องจ่ายคลอรีน"; // s = cylinder store, d = dosing room
+                v.Add(new($"s_chem{chem}_cl_{p}_high", $"เซนเซอร์คลอรีน {place} {chem} จุดที่ {p[1]}", "point"));
+            }
         return v.ToArray();
     }
 }
