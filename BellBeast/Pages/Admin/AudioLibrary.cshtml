@@ -1,0 +1,128 @@
+@page
+@model BellBeast.Pages.Admin.AudioLibraryModel
+@{
+    ViewData["Title"] = "Audio Library";
+}
+
+@section Styles {
+<style>
+    .al-wrap { width: min(1280px, 96%); margin: 0 auto; padding: 18px 0 28px; color: #e8eefc; }
+    .al-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 14px; }
+    .al-title { margin: 0; font-size: clamp(22px, 2.2vw, 30px); font-weight: 800; }
+    .al-sub { font-size: 12px; color: rgba(148,163,184,.75); letter-spacing: .04em; }
+    .al-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+    .al-chip { padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 700;
+               border: 1px solid rgba(148,163,184,.25); background: rgba(15,23,42,.7); white-space: nowrap; }
+    .al-chip.ok { border-color: #22c55e; color: #86efac; }
+    .al-chip.warn { border-color: #f59e0b; color: #fcd34d; }
+    .al-chip.bad { border-color: #ef4444; color: #fca5a5; }
+
+    .al-card { border: 1px solid rgba(148,163,184,.16); border-radius: 16px; margin-bottom: 14px; overflow: hidden;
+               background: linear-gradient(180deg, rgba(15,23,42,.82), rgba(15,23,42,.56)); box-shadow: 0 14px 36px rgba(0,0,0,.2); }
+    .al-card h2 { margin: 0; padding: 12px 16px; font-size: 14px; font-weight: 700; letter-spacing: .04em;
+                  color: rgba(226,232,240,.9); border-bottom: 1px solid rgba(148,163,184,.12); display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .al-card h2 .sp { flex: 1; }
+    .al-body { padding: 12px 16px; font-size: 13px; }
+
+    .al-in { background: rgba(2,6,23,.6); color: #e2e8f0; border: 1px solid rgba(148,163,184,.25); border-radius: 8px; padding: 4px 8px; font-size: 12px; }
+    .al-in.text { width: 100%; min-width: 160px; }
+    .al-btn { background: rgba(56,189,248,.12); color: #7dd3fc; border: 1px solid rgba(56,189,248,.4); border-radius: 8px;
+              padding: 4px 10px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+    .al-btn:hover { background: rgba(56,189,248,.22); }
+    .al-btn:disabled { opacity: .45; cursor: default; }
+    .al-btn.del { color: #fca5a5; border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.08); }
+    .al-file { display: none; }
+
+    .al-missing { display: flex; flex-wrap: wrap; gap: 6px; }
+    .al-missing code { background: rgba(239,68,68,.12); color: #fca5a5; border-radius: 6px; padding: 2px 8px; font-size: 12px; }
+    .al-none { color: #86efac; }
+
+    .al-table-wrap { overflow-x: auto; }
+    table.al { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.al th { text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 700; letter-spacing: .06em;
+                  color: rgba(148,163,184,.8); text-transform: uppercase; border-bottom: 1px solid rgba(148,163,184,.14); white-space: nowrap; }
+    table.al td { padding: 6px 10px; border-bottom: 1px solid rgba(148,163,184,.07); vertical-align: middle; }
+    table.al td.id { font-family: ui-monospace, Consolas, monospace; font-size: 12px; white-space: nowrap; }
+    table.al td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; color: rgba(203,213,225,.9); }
+    table.al td.act { white-space: nowrap; }
+    table.al td.act > * { margin-right: 4px; }
+    table.al tr.missing td.id { color: #fca5a5; }
+    .al-grp { font-size: 11px; color: rgba(148,163,184,.85); }
+    .al-src { font-size: 11px; padding: 1px 6px; border-radius: 6px; background: rgba(148,163,184,.14); }
+    .al-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: #ef4444; }
+    .al-dot.on { background: #22c55e; }
+
+    .al-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .al-row .grow { flex: 1; min-width: 220px; }
+    .al-msg { padding: 8px 16px; font-size: 12px; display: none; }
+    .al-msg.err { color: #fca5a5; display: block; }
+    .al-msg.ok { color: #86efac; display: block; }
+    .al-note { font-size: 12px; color: rgba(148,163,184,.85); line-height: 1.6; }
+</style>
+}
+
+<div class="al-wrap">
+    <div class="al-head">
+        <div>
+            <h1 class="al-title">Audio Library</h1>
+            <div class="al-sub">คลังเสียงของ annunciator · PCM16 24 kHz mono (ฟอร์แมตของ codec บน device) · device โหลดจาก /api/audio/clip/{id}</div>
+        </div>
+        <div class="al-chips">
+            <span class="al-chip" id="chipClips">clips: –</span>
+            <span class="al-chip" id="chipMissing">missing: –</span>
+            <span class="al-chip" id="chipTts">TTS: –</span>
+        </div>
+    </div>
+
+    <div class="al-msg" id="msg"></div>
+
+    <div class="al-card">
+        <h2>ยังขาด (vocabulary + ที่ engine ส่งใน playlist ตอนนี้)</h2>
+        <div class="al-body"><div class="al-missing" id="missing">–</div></div>
+    </div>
+
+    <div class="al-card">
+        <h2>Clips <span class="sp"></span>
+            <select class="al-in" id="fGroup">
+                <option value="">ทุกกลุ่ม</option>
+                <option value="missing">เฉพาะที่ขาด</option>
+                <option value="number">number</option>
+                <option value="word">word</option>
+                <option value="unit">unit</option>
+                <option value="point">point</option>
+                <option value="custom">custom</option>
+                <option value="other">อื่น ๆ (ไม่อยู่ใน vocabulary)</option>
+            </select>
+        </h2>
+        <div class="al-table-wrap">
+            <table class="al">
+                <thead>
+                    <tr><th></th><th>id</th><th>ข้อความ (ใช้สร้าง TTS)</th><th>ver</th><th>ยาว</th><th>ที่มา</th><th></th></tr>
+                </thead>
+                <tbody id="rows"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="al-card">
+        <h2>เพิ่ม clip ใหม่</h2>
+        <div class="al-body">
+            <div class="al-row">
+                <input class="al-in" id="newId" placeholder="clip id เช่น s_pump_trip" maxlength="64" />
+                <input class="al-in grow" id="newText" placeholder="ข้อความภาษาไทย (ใช้กับ TTS / คำอธิบาย)" maxlength="500" />
+                <button class="al-btn" id="newTts" type="button">สร้างด้วย TTS</button>
+                <button class="al-btn" id="newUpload" type="button">อัปโหลดไฟล์…</button>
+                <input class="al-file" id="newFile" type="file" accept=".wav,.pcm,audio/wav" />
+            </div>
+            <p class="al-note" style="margin:10px 0 0">
+                อัปโหลดได้: WAV PCM 16-bit (mono/stereo, sample rate อะไรก็ได้ — ระบบแปลงเป็น 24 kHz mono ให้) หรือ .pcm ดิบ 24 kHz mono ·
+                ไฟล์ mp3/m4a ให้แปลงก่อน: <code>ffmpeg -i in.mp3 -ac 1 -ar 24000 -sample_fmt s16 out.wav</code> ·
+                ยาวไม่เกิน 30 วินาที · อัดเสียงคนจริงทับ clip TTS เดิมได้ (version จะขึ้นเอง device โหลดใหม่ตาม sha256)
+            </p>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="~/js/audiolibrary.js" asp-append-version="true"></script>
+}
