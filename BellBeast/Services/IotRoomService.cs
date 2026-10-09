@@ -169,6 +169,14 @@ public sealed class IotRoomService
             .ToList();
     }
 
+    // Typed access to one device's last posted state (used by the alarm feed; avoids serialising anonymous objects)
+    public (Dictionary<string, JsonElement>? state, DateTimeOffset? updatedAt, bool online) GetDeviceState(string deviceName)
+    {
+        ExpireStale();
+        var d = _devices.Values.FirstOrDefault(x => x.DeviceName.Equals(deviceName, StringComparison.OrdinalIgnoreCase));
+        return d is null ? (null, null, false) : (new Dictionary<string, JsonElement>(d.State), d.StateUpdatedAt, d.IsOnline);
+    }
+
     // Full snapshot for dashboard: members + pending command flags + log
     public object GetSnapshot(int logLast = 50)
     {

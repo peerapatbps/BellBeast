@@ -50,6 +50,10 @@ public sealed class SummaryProxyService
     public Task<HttpResponseMessage> GetClDetectorSummaryAsync(string targetUrl, CancellationToken ct = default)
         => GetCoreAsync(targetUrl, ct);
 
+    /// <summary>Generic GET forward (alarm monitor / history endpoints on Uroboros).</summary>
+    public Task<HttpResponseMessage> GetAsync(string targetUrl, CancellationToken ct = default)
+        => GetCoreAsync(targetUrl, ct);
+
     /// <summary>LAB uses POST so the caller can forward the request body.</summary>
     public Task<HttpResponseMessage> PostLabSummaryAsync(
         string targetUrl, HttpContent? body, CancellationToken ct = default)

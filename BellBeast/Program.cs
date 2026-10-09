@@ -39,6 +39,7 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AllowAnonymousToPage("/MHxViewer/MHxView");
     options.Conventions.AllowAnonymousToPage("/CHEM_report");
     options.Conventions.AllowAnonymousToPage("/IotRoom");
+    options.Conventions.AllowAnonymousToPage("/AlarmMonitor");
     options.Conventions.AllowAnonymousToPage("/LedDemo");
 
     // ✅ Admin: ให้ /Admin/Login เข้าได้โดยไม่ต้อง auth
@@ -1602,6 +1603,28 @@ app.MapGet("/api/iot/room/snapshot", [AllowAnonymous] (IotRoomService iotRoom, H
 });
 
 // ===============================
+// Alarm feed (Uroboros alarm engine → devices) + monitor proxies
+// ===============================
+
+// Device / dashboard → current alarm state, optionally for given zone(s): /api/alarm/active?zone=RWS,DPS
+// Level-based: Uroboros posts the FULL state every ~30 s into the room; this just filters it.
+// ack is the device's own job — nothing is sent back to Uroboros.
+app.MapGet("/api/alarm/active", [AllowAnonymous] (IotRoomService iotRoom, HttpContext ctx) =>
+{
+    var zones = AlarmFeedService.ParseZones(ctx.Request.Query["zone"].FirstOrDefault());
+    var (state, updatedAt, online) = iotRoom.GetDeviceState(AlarmFeedService.EngineDeviceName);
+    ctx.Response.Headers.CacheControl = "no-store";
+    return Results.Json(AlarmFeedService.Build(state, updatedAt, online, DateTimeOffset.UtcNow, zones));
+});
+
+// Monitor page → z-score table / chart data, forwarded to Uroboros (same-origin for the browser)
+app.MapGet("/api/alarm/monitor", [AllowAnonymous] async (HttpContext ctx, SummaryProxyService svc) =>
+    await ProxyUroborosGetAsync(app, ctx, svc, "/api/alarm/monitor"));
+
+app.MapGet("/api/metrics/history", [AllowAnonymous] async (HttpContext ctx, SummaryProxyService svc) =>
+    await ProxyUroborosGetAsync(app, ctx, svc, "/api/metrics/history"));
+
+// ===============================
 // Stage endpoint — returns current stage from aquadat-connector device
 // ===============================
 app.MapGet("/api/stage", [AllowAnonymous] (IotRoomService iotRoom) =>
@@ -1722,6 +1745,27 @@ static (string deviceName, string commandType, string value)? ParseIotCommand(st
 }
 
 // ── Shared streaming helper used by all 7 summary proxy handlers ──────────────
+// GET forward to Uroboros keeping the query string; a down engine becomes a clear 502 JSON instead of a 500 page
+static async Task ProxyUroborosGetAsync(WebApplication app, HttpContext ctx, SummaryProxyService svc, string path)
+{
+    try
+    {
+        var (baseUrl, _, _, _, _, _, _, _, _, _, _, _, _) = ReadBackendConfig(app);
+        var qs = ctx.Request.QueryString.Value ?? "";
+        using var upstream = await svc.GetAsync($"{baseUrl}{path}{qs}", ctx.RequestAborted);
+        ctx.Response.Headers.CacheControl = "no-store";
+        await ProxySummaryAsync(ctx, upstream);
+    }
+    catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ctx.RequestAborted.IsCancellationRequested)
+    {
+        ctx.Response.StatusCode = StatusCodes.Status502BadGateway;
+        ctx.Response.ContentType = "application/json";
+        await ctx.Response.WriteAsync(
+            JsonSerializer.Serialize(new { ok = false, error = "Uroboros engine unreachable", detail = ex.InnerException?.Message ?? ex.Message }),
+            ctx.RequestAborted);
+    }
+}
+
 static async Task ProxySummaryAsync(HttpContext ctx, HttpResponseMessage upstream)
 {
     ctx.Response.StatusCode = (int)upstream.StatusCode;
