@@ -420,7 +420,7 @@ app.MapMethods("/api/wayfarer/{**path}", new[] { "GET", "POST" }, async (HttpCon
 });
 
 // ===============================
-// Proxy: /labventure/* → http://localhost:3001/labventure/*
+// Proxy: /labventure/* → http://localhost:8889/labventure/*
 // ===============================
 app.MapGet("/labventure", ctx => { ctx.Response.Redirect("/labventure/"); return Task.CompletedTask; }).AllowAnonymous();
 
@@ -435,7 +435,7 @@ app.MapMethods("/labventure/{**path}", new[] { "GET", "POST", "PUT", "DELETE", "
         : trimmed.StartsWith("api/", StringComparison.OrdinalIgnoreCase) || trimmed.Equals("api", StringComparison.OrdinalIgnoreCase)
             ? $"/{trimmed}"
             : $"/labventure/{trimmed}";
-    var targetUrl = $"http://localhost:3001{targetPath}{ctx.Request.QueryString}";
+    var targetUrl = $"http://localhost:8889{targetPath}{ctx.Request.QueryString}";
 
     var client = factory.CreateClient();
     client.Timeout = TimeSpan.FromSeconds(300);
@@ -1196,11 +1196,11 @@ app.MapGet("/api/smartmap", async (HttpContext hc) =>
     var txt = await http.GetStringAsync(url);
 
     // smartmap ตอบเป็น text/html ที่มี payload ลักษณะ:
-    // [{'P019_P':'3.74', ...}]
-    // เราจะ extract คู่ 'KEY':'VALUE' ออกมาเป็น Dictionary<string,string>
+    // [{'P019_P':'3.74', ...}]  (เดิม)  หรือ  [{"P019_P":"3.74", ...}]  (ปัจจุบัน: JSON ปกติ)
+    // เราจะ extract คู่ 'KEY':'VALUE' / "KEY":"VALUE" ออกมาเป็น Dictionary<string,string>
     var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-    foreach (Match m in Regex.Matches(txt, "'([^']+)'\\s*:\\s*'([^']*)'"))
+    foreach (Match m in Regex.Matches(txt, @"['""]([^'""]+)['""]\s*:\s*['""]([^'""]*)['""]"))
     {
         var k = m.Groups[1].Value;
         var v = m.Groups[2].Value;
@@ -1233,6 +1233,144 @@ app.MapGet("/api/smartmap", async (HttpContext hc) =>
     hc.Response.Headers.CacheControl = "no-store";
     return Results.Json(dict);
 });
+
+// PTC + DPS: smartmap newgraph/qry.php (1-min series ต่อ RTU) -> ส่งกลับเฉพาะจุดล่าสุดต่อ key
+// ก้อน series เต็มวันถูก parse และทิ้งฝั่ง server ทันที browser ได้แค่ { "UZ5411": { t, y } }
+var smartmapHttp = new HttpClient(new HttpClientHandler { UseProxy = false })
+{
+    Timeout = TimeSpan.FromSeconds(10)
+};
+
+app.MapGet("/api/smartmap/latest", async (HttpContext hc) =>
+{
+    var keysRaw = (hc.Request.Query["keys"].ToString() ?? "").Trim().ToUpperInvariant();
+    if (string.IsNullOrWhiteSpace(keysRaw)) return Results.BadRequest("keys required");
+
+    foreach (var ch in keysRaw)
+    {
+        var ok = (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == ',' || ch == '_';
+        if (!ok) return Results.BadRequest("bad keys");
+    }
+
+    var keys = keysRaw
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Distinct()
+        .Take(10)
+        .ToArray();
+
+    // วันที่จริงของข้อมูล = วันนี้ (Asia/Bangkok, UTC+7 ไม่มี DST)
+    var bkk = TimeSpan.FromHours(7);
+    var today = DateTimeOffset.UtcNow.ToOffset(bkk).Date;
+    // InvariantCulture: เครื่อง th-TH จะได้ปี พ.ศ. (2569) ถ้าไม่ระบุ -> smartmap คืน series ว่าง
+    var d1 = today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+
+    var tasks = keys.Select(async Task<(string key, object? point)> (string key) =>
+    {
+        try
+        {
+            var form = new Dictionary<string, string> { ["rtu"] = key, ["rtu_f"] = "p", ["d1"] = d1 };
+            var url = "http://172.16.193.162/smartmap/newgraph/qry.php?" +
+                      string.Join("&", form.Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value)}"));
+
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
+            req.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+            using var resp = await smartmapHttp.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, hc.RequestAborted);
+            if (!resp.IsSuccessStatusCode)
+            {
+                app.Logger.LogWarning("smartmap latest {Key}: HTTP {Status}", key, (int)resp.StatusCode);
+                return (key, (object?)null);
+            }
+
+            await using var stream = await resp.Content.ReadAsStreamAsync(hc.RequestAborted);
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: hc.RequestAborted);
+
+            if (!doc.RootElement.TryGetProperty("jason_data", out var rows) || rows.ValueKind != JsonValueKind.Array)
+            {
+                app.Logger.LogWarning("smartmap latest {Key}: no jason_data array", key);
+                return (key, (object?)null);
+            }
+
+            // x: เวลาถูก แต่วันที่ผิด -> เก็บเฉพาะ time-of-day แล้วต่อกับวันนี้ เลือกจุดที่เวลาล่าสุด
+            TimeSpan? bestTod = null;
+            double bestY = 0;
+            foreach (var row in rows.EnumerateArray())
+            {
+                if (row.ValueKind != JsonValueKind.Object) continue;
+                if (!row.TryGetProperty("x", out var xe) || !row.TryGetProperty("y", out var ye)) continue;
+
+                var tod = SmartmapTimeOfDay(xe, bkk);
+                var y = SmartmapNumber(ye);
+                if (tod is null || y is null) continue;
+
+                if (bestTod is null || tod.Value >= bestTod.Value)
+                {
+                    bestTod = tod;
+                    bestY = y.Value;
+                }
+            }
+
+            if (bestTod is null)
+            {
+                app.Logger.LogWarning("smartmap latest {Key}: no valid x/y rows ({Count})", key, rows.GetArrayLength());
+                return (key, (object?)null);
+            }
+
+            var t = new DateTimeOffset(today + bestTod.Value, bkk).ToUnixTimeMilliseconds();
+            return (key, (object?)new { t, y = bestY });
+        }
+        catch (Exception ex) when (!hc.RequestAborted.IsCancellationRequested)
+        {
+            app.Logger.LogWarning(ex, "smartmap latest fetch failed for {Key}", key);
+            return (key, (object?)null);
+        }
+    });
+
+    var results = await Task.WhenAll(tasks);
+
+    var outMap = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+    foreach (var (key, point) in results)
+        if (point is not null) outMap[key] = point;
+
+    hc.Response.Headers.CacheControl = "no-store";
+    return Results.Json(outMap);
+});
+
+static TimeSpan? SmartmapTimeOfDay(JsonElement xe, TimeSpan offset)
+{
+    // epoch (ms หรือ s) -> แปลงเป็นเวลาไทยแล้วเอาแค่ time-of-day
+    static TimeSpan FromEpoch(double v, TimeSpan off)
+    {
+        var ms = v > 1e11 ? (long)v : (long)(v * 1000);
+        return DateTimeOffset.FromUnixTimeMilliseconds(ms).ToOffset(off).TimeOfDay;
+    }
+
+    if (xe.ValueKind == JsonValueKind.Number && xe.TryGetDouble(out var num))
+        return FromEpoch(num, offset);
+
+    if (xe.ValueKind != JsonValueKind.String) return null;
+
+    var s = (xe.GetString() ?? "").Trim();
+    if (s.Length == 0) return null;
+
+    if (double.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var n) && n > 1e8)
+        return FromEpoch(n, offset);
+
+    if (DateTime.TryParse(s, System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.AllowWhiteSpaces, out var dt))
+        return dt.TimeOfDay;
+
+    return null;
+}
+
+static double? SmartmapNumber(JsonElement e)
+{
+    if (e.ValueKind == JsonValueKind.Number && e.TryGetDouble(out var d)) return d;
+    if (e.ValueKind == JsonValueKind.String &&
+        double.TryParse(e.GetString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var s))
+        return s;
+    return null;
+}
 
 app.MapGet("/api/dps/summary", async (HttpContext ctx, SummaryProxyService svc) =>
 {

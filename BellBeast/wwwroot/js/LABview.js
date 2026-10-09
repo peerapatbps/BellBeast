@@ -222,6 +222,9 @@
 
             const pill = document.createElement("div");
             pill.className = "status-pill";
+            pill.title = item?.active
+                ? `${item.ts_local ?? ""}  ${item.value_text ?? item.value_real ?? ""}`.trim()
+                : "no data";
 
             const dot = document.createElement("span");
             dot.className = `status-dot ${cls}`;

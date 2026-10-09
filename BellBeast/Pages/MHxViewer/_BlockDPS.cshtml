@@ -23,6 +23,51 @@
         margin-bottom: -5px;
     }
 
+    /* จุดสถานะ ระหว่าง "Trend" กับ dropdown (การ์ดกราฟเล็ก ใช้จุดแทนคำ, คำเต็มอยู่ใน title/aria-label)
+       margin-left:auto ทั้งจุดและ select -> ช่องว่างแบ่งครึ่ง จุดอยู่กึ่งกลาง */
+    .mini-card .mini-head .dps-status {
+        flex: 0 0 auto;
+        width: 8px;
+        height: 8px;
+        margin: 0 4px 0 auto;
+        border-radius: 50%;
+        cursor: help;
+    }
+
+        .mini-card .mini-head .dps-status[hidden] {
+            display: none;
+        }
+
+        .mini-card .mini-head .dps-status.is-in {
+            background: #2ecc71;
+            box-shadow: 0 0 0 2px rgba(46,204,113,.20);
+        }
+
+        .mini-card .mini-head .dps-status.is-out {
+            background: #ff4d4d;
+            box-shadow: 0 0 0 2px rgba(255,77,77,.25);
+            animation: dps-status-pulse 1.2s ease-in-out infinite;
+        }
+
+    @@keyframes dps-status-pulse {
+        0%, 100% { box-shadow: 0 0 0 2px rgba(255,77,77,.25); }
+        50%      { box-shadow: 0 0 0 5px rgba(255,77,77,.05); }
+    }
+
+    @@media (prefers-reduced-motion: reduce) {
+        .mini-card .mini-head .dps-status.is-out { animation: none; }
+    }
+
+    .mini-card .mini-head .bb-dd {
+        margin-left: auto;
+    }
+
+    /* .lab ได้ flex:1 จาก CSS กลาง -> กินช่องว่างหมด badge เลยไม่อยู่กลาง */
+    .mini-card .mini-head .lab {
+        flex: 0 1 auto;
+        margin-right: 4px;
+    }
+
     /* ===== FIX: ปุ่ม Settings ต้องกดได้แน่ (กันโดนชั้นอื่นทับ) ===== */
     section.dps-block .bb-section-h,
     section.dps-block .bb-section-h .right-icons {
@@ -120,6 +165,7 @@
                 <div class="mini-card">
                     <div class="mini-head">
                         <div class="lab">Trend</div>
+                        <span class="dps-status" id="dpsStatus1" role="status" hidden></span>
                         <select id="dpsTrendSel1" class="bb-dd" aria-label="Select series">
                             <option value="P046">P046</option>
                             <option value="P050">P050</option>
@@ -146,6 +192,7 @@
                         <canvas id="dpsTrend1"
                                 class="bb-trend-chart-ptc"
                                 data-select="dpsTrendSel1"
+                                data-status="dpsStatus1"
                                 data-backend-port="443"
                                 data-default="UZ5411P"
                                 data-y-top="0.15"
@@ -158,6 +205,7 @@
                 <div class="mini-card">
                     <div class="mini-head">
                         <div class="lab">Trend</div>
+                        <span class="dps-status" id="dpsStatus2" role="status" hidden></span>
                         <select id="dpsTrendSel2" class="bb-dd" aria-label="Select series">
                             <option value="P046">P046</option>
                             <option value="P050">P050</option>
@@ -184,6 +232,7 @@
                         <canvas id="dpsTrend2"
                                 class="bb-trend-chart-ptc"
                                 data-select="dpsTrendSel2"
+                                data-status="dpsStatus2"
                                 data-backend-port="443"
                                 data-default="UZ5411P"
                                 data-y-top="0.15"

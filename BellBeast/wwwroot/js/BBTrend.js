@@ -259,17 +259,72 @@ window.BBTrend = (function () {
         canvas._bbBusyKey = null;
         canvas._bbFailed = true;
         canvas._bbHourly = null;
+        canvas._bbRaw = null;
+        canvas._bbEpoch = null;
+        canvas._bbDay = null;
+        canvas._bbDayRetryAt = 0;
     }
 
     // =========================
     // Frame update (NO fetch): recompute X/Y from NOW always
     // =========================
+    // hhmm ผูกกับ "วันนี้" ตอน build + กฎ 23:xx ก่อน 06:00 -> ข้ามวัน/ข้าม 06:00 ต้อง build ใหม่
+    // (DPS ไม่ fetch ซ้ำหลังโหลด ถ้าไม่ build ใหม่ หลังเที่ยงคืนทุกจุดเป็นอดีต -> interpAt clamp ค่า 23:59 ค้างทั้งวัน)
+    function timelineEpoch(d) {
+        return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}|${d.getHours() < 6 ? 0 : 1}`;
+    }
+
+    function dayKey(d) {
+        return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    }
+
+    // ข้ามเที่ยงคืน -> ดึง upper/lower ชุดใหม่จาก backend (เผื่อ backend ปรับค่าของวันใหม่)
+    // ระหว่างรอ / ถ้า fail -> ใช้ raw ชุดเดิมต่อ (ไม่ทำลายกราฟเหมือน refreshData) แล้วลองใหม่ทุก 60s
+    const DAY_REFETCH_RETRY_MS = 60_000;
+
+    async function refetchForNewDay(canvas, day) {
+        const k = canvas._bbSeriesKey;
+        if (!k || canvas._bbDayFetching) return;
+
+        canvas._bbDayFetching = true;
+        const seq = canvas._bbReqSeq;
+        try {
+            const raw = await fetchSeriesPoints(canvas, k);
+            // ระหว่างรอมีเปลี่ยน dropdown / destroy -> ทิ้งผลนี้
+            if (canvas._bbReqSeq !== seq || canvas._bbSeriesKey !== k || !canvas._bbChart) return;
+
+            canvas._bbRaw = raw;
+            canvas._bbEpoch = null;     // บังคับ build timeline ใหม่ใน updateFrame
+            canvas._bbDay = day;
+            updateFrame(canvas);
+            notifyOverlay();
+        } catch (e) {
+            canvas._bbDayRetryAt = Date.now() + DAY_REFETCH_RETRY_MS;
+            try { console.warn("[BBTrend] new-day refetch fail, keep old series", { key: k, err: (e && e.message) ? e.message : e }); } catch { }
+        } finally {
+            canvas._bbDayFetching = false;
+        }
+    }
+
     function updateFrame(canvas) {
         const ch = canvas._bbChart;
-        const hourly = canvas._bbHourly;
-        if (!ch || !hourly || !hourly.length) return;
+        if (!ch) return;
 
         const now = new Date();
+
+        const day = dayKey(now);
+        if (canvas._bbDay && canvas._bbDay !== day && Date.now() >= (canvas._bbDayRetryAt || 0)) {
+            refetchForNewDay(canvas, day);
+        }
+
+        const epoch = timelineEpoch(now);
+        if (canvas._bbRaw && canvas._bbEpoch !== epoch) {
+            canvas._bbHourly = toHourlyPoints(buildTimeline(canvas._bbRaw));
+            canvas._bbEpoch = epoch;
+        }
+
+        const hourly = canvas._bbHourly;
+        if (!hourly || !hourly.length) return;
         const xMin = new Date(now.getTime() - WIN_MS);
         const xMax = new Date(now.getTime() + WIN_MS);
 
@@ -283,12 +338,46 @@ window.BBTrend = (function () {
             yr = { min: 0, max: 10 };
         }
 
+        // dataset อื่นนอกจาก upper/lower (จุด PV ของ dps_smartmap_overlay.js) ต้องอยู่ในจอด้วย
+        // ไม่งั้นจุดที่หลุดกรอบ upper/lower จะถูกตัดหาย (frame นี้ตั้งแกน y ใหม่ทุก 2s)
+        yr = fitYToExtraDatasets(ch, yr, xMin, xMax);
+
         ch.options.scales.x.min = xMin;
         ch.options.scales.x.max = xMax;
         ch.options.scales.y.min = yr.min;
         ch.options.scales.y.max = yr.max;
 
         ch.update("none");
+    }
+
+    function fitYToExtraDatasets(ch, yr, xMin, xMax) {
+        let lo = Infinity, hi = -Infinity;
+        const a = xMin.getTime(), b = xMax.getTime();
+
+        for (const ds of ch.data.datasets.slice(2)) {
+            for (const p of (ds?.data || [])) {
+                const x = new Date(p?.x).getTime();
+                const y = Number(p?.y);
+                if (!Number.isFinite(x) || !Number.isFinite(y) || x < a || x > b) continue;
+                if (y < lo) lo = y;
+                if (y > hi) hi = y;
+            }
+        }
+
+        if (!Number.isFinite(lo) || (lo >= yr.min && hi <= yr.max)) return yr;
+
+        const newLo = Math.min(lo, yr.min);
+        const newHi = Math.max(hi, yr.max);
+        const pad = (newHi - newLo) * 0.08 || 0.1;
+        return {
+            min: lo < yr.min ? newLo - pad : yr.min,
+            max: hi > yr.max ? newHi + pad : yr.max
+        };
+    }
+
+    // upper/lower ชุดใหม่มาแล้ว -> ให้ overlay วางจุด PV + จุดสถานะทันที ไม่ต้องรอ poll รอบถัดไป
+    function notifyOverlay() {
+        try { window.DPSSmartmapOverlay?.tickAll?.(); } catch { }
     }
 
     // =========================
@@ -305,11 +394,22 @@ window.BBTrend = (function () {
         canvas._bbBusyKey = k;
         canvas._bbFailed = false;
 
+        // เปลี่ยน dropdown เร็ว ๆ -> response ของ key เก่าที่กลับมาทีหลังต้องทิ้ง ไม่ให้ทับเส้นของ key ใหม่
+        const seq = (canvas._bbReqSeq || 0) + 1;
+        canvas._bbReqSeq = seq;
+        const stale = () => canvas._bbReqSeq !== seq;
+
         try {
             const raw = await fetchSeriesPoints(canvas, k);
+            if (stale()) return;
             const pts = buildTimeline(raw);
             const hourly = toHourlyPoints(pts);
             canvas._bbHourly = hourly;
+            canvas._bbRaw = raw;
+            canvas._bbEpoch = timelineEpoch(new Date());
+            canvas._bbDay = dayKey(new Date());
+            canvas._bbDayRetryAt = 0;
+            canvas._bbSeriesKey = k;   // overlay ใช้เช็คว่า upper/lower ที่อยู่ในกราฟเป็นของ key ปัจจุบัน
 
             // create chart if needed
             if (!canvas._bbChart) {
@@ -363,12 +463,15 @@ window.BBTrend = (function () {
 
             // update immediately
             updateFrame(canvas);
+            notifyOverlay();
 
         } catch (e) {
+            if (stale()) return;
+            canvas._bbSeriesKey = null;
             stopAndClear(canvas);
             try { console.error("[BBTrend] fetch fail", { key: k, err: (e && e.message) ? e.message : e }); } catch { }
         } finally {
-            canvas._bbBusy = false;
+            if (!stale()) canvas._bbBusy = false;
         }
     }
 
@@ -403,22 +506,29 @@ window.BBTrend = (function () {
         refreshData(canvas, initKey);
     }
 
+    // การ์ด PTC ใช้ class bb-trend-chart-ptc เหมือนกัน แต่เป็นของ PTCview.js (BBTrendPTC)
+    // ถ้าคุมซ้อนกัน 2 ตัว จะแย่ง _bbChart / sel._bbBound กัน -> PTCview ไม่ได้รับ dropdown change
+    // และ updateFrame() ตั้งแกน y ใหม่ทุก 2s ทับการขยายแกนให้เห็นจุด PV ของ overlay
+    function ownCanvases(scope) {
+        return Array.from(scope.querySelectorAll(CANVAS_SELECTOR))
+            .filter(cv => !cv.closest("section.ptc-block"));
+    }
+
     function initWithin(root) {
         const scope = root || document;
-        const canvases = scope.querySelectorAll(CANVAS_SELECTOR);
-        canvases.forEach(cv => wireCanvasWithSelect(scope, cv));
+        ownCanvases(scope).forEach(cv => wireCanvasWithSelect(scope, cv));
     }
 
     function destroyWithin(root) {
         const scope = root || document;
-        scope.querySelectorAll(CANVAS_SELECTOR).forEach(stopAndClear);
+        ownCanvases(scope).forEach(stopAndClear);
     }
 
     function clearCache() { _cache.clear(); }
 
     function refreshWithin(root) {
         const scope = root || document;
-        const canvases = scope.querySelectorAll(CANVAS_SELECTOR);
+        const canvases = ownCanvases(scope);
         canvases.forEach(cv => {
             const key = (cv.getAttribute("data-code") || cv.getAttribute("data-default") || "UZ5411P").trim().toUpperCase();
             refreshData(cv, key);

@@ -1,7 +1,8 @@
 ﻿(function () {
     "use strict";
 
-    const SMARTMAP_URL = "/api/smartmap";
+    // server ดึง series 1 นาทีจาก smartmap newgraph/qry.php แล้วส่งมาแค่จุดล่าสุด { "UZ5411": { t, y } }
+    const SMARTMAP_URL = "/api/smartmap/latest";
     const STORAGE_KEY = "dps_ptc_refresh_v1";
 
     const DEFAULT_UPPERLOWER_REFRESH_SEC = 10800;
@@ -320,8 +321,6 @@
         return el;
     }
 
-    const nowMs = () => Date.now();
-
     function normalizeSmartmapBaseKey(raw) {
         let s = (raw || "").trim().toUpperCase();
         if (!s) return "";
@@ -357,12 +356,32 @@
         }
     }
 
-    function readPvFromMap(map, baseKey) {
-        if (!map || !baseKey) return null;
-        const s = map[baseKey + "_P"];
-        if (s === null || s === undefined || s === "") return null;
-        const n = Number(s);
-        return Number.isFinite(n) ? n : null;
+    function readPointFromMap(map, baseKey) {
+        const p = (map && baseKey) ? map[baseKey] : null;
+        if (!p) return null;
+        const t = Number(p.t);
+        const y = Number(p.y);
+        return (Number.isFinite(t) && Number.isFinite(y)) ? { t, y } : null;
+    }
+
+    // จุดสถานะหัวกราฟ: true = Out of control, false = In control, null = ยังไม่มี upper/lower -> ซ่อน
+    // การ์ดเล็ก -> แสดงเป็นจุดสี คำเต็มอยู่ใน tooltip / aria-label
+    function setStatus(canvas, outOfControl) {
+        const id = canvas.getAttribute("data-status");
+        const el = id ? document.getElementById(id) : null;
+        if (!el) return;
+
+        if (outOfControl === null) {
+            el.hidden = true;
+            return;
+        }
+
+        el.hidden = false;
+        el.classList.toggle("is-out", outOfControl);
+        el.classList.toggle("is-in", !outOfControl);
+        const label = outOfControl ? "Out of control" : "In control";
+        el.title = label;
+        el.setAttribute("aria-label", label);
     }
 
     function getChartInstance(canvas) {
@@ -400,11 +419,18 @@
         return ds;
     }
 
-    function createState() {
-        return { persistent: [], transient: null, lastBucket: null };
+    function createState(base) {
+        return { base, persistent: [], transient: null, lastBucket: null };
     }
 
     function applyPoint30sRule(st, xMs, y, windowMs) {
+        // smartmap ให้จุดละ 1 นาที แต่ poll ถี่กว่า -> จุดเดิม (x ซ้ำ/ย้อนหลัง) แค่อัปเดตค่า ไม่เพิ่มจุด
+        const last = st.persistent.length ? st.persistent[st.persistent.length - 1] : null;
+        if (last && xMs <= last.x) {
+            if (xMs === last.x) last.y = y;
+            return;
+        }
+
         const bucket = Math.floor(xMs / 30000) * 30000;
 
         if (st.lastBucket === null) st.lastBucket = bucket;
@@ -433,15 +459,29 @@
         return arr;
     }
 
-    const stateByCanvasId = new Map();
+    // state ต่อ canvas ผูกกับ key -> เปลี่ยน dropdown แล้วเริ่มใหม่ ไม่เอาจุดของ key เก่ามาปน
+    const stateByCanvas = new WeakMap();
 
-    function getStateForCanvasId(id) {
-        let st = stateByCanvasId.get(id);
-        if (!st) {
-            st = createState();
-            stateByCanvasId.set(id, st);
+    function getStateForCanvas(canvas, base) {
+        let st = stateByCanvas.get(canvas);
+        if (!st || st.base !== base) {
+            st = createState(base);
+            stateByCanvas.set(canvas, st);
         }
         return st;
+    }
+
+    // เปลี่ยน dropdown -> ล้างจุด PV / จุดสถานะของ key เก่าทันที แล้วรอ tick ใหม่เติม
+    function resetCanvas(canvas, overlayKey) {
+        if (!canvas) return;
+        stateByCanvas.delete(canvas);
+        const chart = getChartInstance(canvas);
+        const ds = chart?.data?.datasets?.find((x) => x && x._overlayId === "__smartmap_overlay__" + overlayKey);
+        if (ds) {
+            ds.data = [];
+            safeUpdateChart(chart);
+        }
+        setStatus(canvas, null);
     }
 
     function bindSection(sec) {
@@ -529,6 +569,7 @@
         const sel1 = sec.querySelector("#dpsTrendSel1");
         if (sel1) {
             sel1.addEventListener("change", () => {
+                resetCanvas(sec.querySelector("#dpsTrend1"), "dpsTrend1");
                 if (t1) clearTimeout(t1);
                 t1 = setTimeout(() => tickAll(), 50);
             });
@@ -537,6 +578,7 @@
         const sel2 = sec.querySelector("#dpsTrendSel2");
         if (sel2) {
             sel2.addEventListener("change", () => {
+                resetCanvas(sec.querySelector("#dpsTrend2"), "dpsTrend2");
                 if (t2) clearTimeout(t2);
                 t2 = setTimeout(() => tickAll(), 50);
             });
@@ -694,7 +736,7 @@
                 if (sel1 && cvs1) {
                     const base = normalizeSmartmapBaseKey(sel1.value);
                     if (base) {
-                        targets.push({ base, canvas: cvs1, canvasId: cvs1.id || "dpsTrend1" });
+                        targets.push({ base, key: sel1.value.trim().toUpperCase(), canvas: cvs1, canvasId: cvs1.id || "dpsTrend1" });
                         bases.push(base);
                     }
                 }
@@ -702,7 +744,7 @@
                 if (sel2 && cvs2) {
                     const base = normalizeSmartmapBaseKey(sel2.value);
                     if (base) {
-                        targets.push({ base, canvas: cvs2, canvasId: cvs2.id || "dpsTrend2" });
+                        targets.push({ base, key: sel2.value.trim().toUpperCase(), canvas: cvs2, canvasId: cvs2.id || "dpsTrend2" });
                         bases.push(base);
                     }
                 }
@@ -711,7 +753,7 @@
             if (!targets.length) return;
 
             const uniqBases = Array.from(new Set(bases));
-            let map;
+            let map = null;
 
             try {
                 map = await fetchSmartmapBatchAsync(uniqBases.join(","));
@@ -719,33 +761,39 @@
                 return;
             }
 
-            const x = nowMs();
             const winMs = 30 * 60 * 1000;
             const sectionAlarm = new Map();
 
             for (const t of targets) {
-                const pv = readPvFromMap(map, t.base);
-                if (pv === null) continue;
+                const pt = readPointFromMap(map, t.base);
+                if (!pt) continue;
+                const x = pt.t;   // เวลาของจุดล่าสุดจาก smartmap (วันที่แก้เป็นวันนี้แล้วที่ server)
+                const pv = pt.y;
 
                 const sec = t.canvas.closest("section.dps-block");
                 const chart = getChartInstance(t.canvas);
                 if (!chart) continue;
 
                 const ds = ensureOverlayDataset(chart, t.canvasId);
-                const st = getStateForCanvasId(t.canvasId);
+                const st = getStateForCanvas(t.canvas, t.base);
 
                 applyPoint30sRule(st, x, pv, winMs);
                 ds.data = buildData(st);
 
                 safeUpdateChart(chart);
 
-                const bounds = getBoundsAtNow(t.canvas);
+                // upper/lower ต้องเป็นของ key ปัจจุบัน (ช่วงที่เพิ่งเปลี่ยน dropdown เส้นใหม่อาจยังโหลดไม่เสร็จ)
+                const bounds = t.canvas._bbSeriesKey === t.key ? getBoundsAtNow(t.canvas) : null;
+                const outOfControl = bounds ? (pv > bounds.upper || pv < bounds.lower) : null;
+                setStatus(t.canvas, outOfControl);
+
                 if (sec && bounds) {
-                    const outOfControl = pv > bounds.upper || pv < bounds.lower;
                     if (outOfControl) sectionAlarm.set(sec, true);
                     else if (!sectionAlarm.has(sec)) sectionAlarm.set(sec, false);
                 }
             }
+
+            map = null; // ปล่อย payload ของ tick นี้ทันที
 
             for (const sec of secs) {
                 const settings = loadSettings();

@@ -202,20 +202,90 @@ window.BBTrendPTC = (function () {
         // ตอนนี้ requirement คือ fail แล้วไม่ต้องแสดง => OK
     }
 
-    // ✅ เลื่อน window อย่างเดียว (ไม่ fetch)
+    // ตัด timeline ให้เหลือเฉพาะช่วง now±30 นาที (+ จุดก่อน/หลังขอบ 1 จุด ให้เส้นลากถึงขอบกราฟ)
+    function sliceWindow(pts, now) {
+        const xMin = new Date(now.getTime() - 30 * 60 * 1000);
+        const xMax = new Date(now.getTime() + 30 * 60 * 1000);
+
+        let before = null;
+        let after = null;
+        const mid = [];
+
+        for (const p of pts) {
+            if (p.t < xMin) before = p;
+            else if (p.t > xMax) { after = p; break; }
+            else mid.push(p);
+        }
+
+        const renderPts = [];
+        if (before) renderPts.push(before);
+        renderPts.push(...mid);
+        if (after) renderPts.push(after);
+
+        const usePts = renderPts.length ? renderPts : pts;
+
+        // ฐานคิดแกน y = จุดใน window + ค่าเส้นที่ขอบซ้าย/ขวา (interpolate)
+        // จุด upper/lower ห่างกันชั่วโมงละจุด -> ถ้าใช้แค่ mid ช่วงที่เส้นขึ้น/ลงขั้นบันไดจะหลุดกรอบ y
+        const yBase = mid.slice();
+        const edgeAt = (x) => {
+            // ขอบซ้าย: before -> จุดแรกใน window, ขอบขวา: จุดสุดท้ายใน window -> after
+            const l = x === xMin ? before : (mid.length ? mid[mid.length - 1] : before);
+            const r = x === xMin ? (mid.length ? mid[0] : after) : after;
+            if (!l || !r) return null;
+            const span = r.t - l.t;
+            const f = span > 0 ? (x - l.t) / span : 0;
+            return { upper: l.upper + (r.upper - l.upper) * f, lower: l.lower + (r.lower - l.lower) * f };
+        };
+        for (const x of [xMin, xMax]) {
+            const e = edgeAt(x);
+            if (e) yBase.push(e);
+        }
+        // signature ของชุดจุดที่อยู่ในกราฟ -> เปลี่ยนเมื่อมีจุดเข้า/ออก window เท่านั้น
+        const sig = usePts.length ? `${usePts[0].t.getTime()}|${usePts[usePts.length - 1].t.getTime()}|${usePts.length}` : "";
+
+        return { xMin, xMax, mid, usePts, yBase, sig };
+    }
+
+    // ✅ เลื่อน window (ไม่ fetch) แต่ตัดเส้น upper/lower ใหม่จาก raw ใน memory ด้วย
+    // เดิมเลื่อนแค่แกน x -> ข้อมูลที่ตัดไว้ตอน fetch (±30 นาที) หลุดขอบหลัง ~1 ชม. เส้นควบคุมหายจนกว่าจะ refresh รอบใหญ่ (3 ชม.)
     function slideWindowOnly(canvas) {
         const ch = canvas._bbChart;
         if (!ch) return;
 
         const now = new Date();
-        const xMin = new Date(now.getTime() - 30 * 60 * 1000);
-        const xMax = new Date(now.getTime() + 30 * 60 * 1000);
 
-        ch.options.scales.x.min = xMin;
-        ch.options.scales.x.max = xMax;
+        // build ใหม่ทุกรอบ: hhmm ผูกกับ "วันนี้" -> ข้ามเที่ยงคืน/ข้ามเกณฑ์ 06:00 ต้องเปลี่ยนวันตาม
+        const raw = canvas._bbRaw;
+        const pts = raw ? buildTimeline(raw) : (canvas._bbTimeline || []);
+        canvas._bbTimeline = pts;
+
+        const w = sliceWindow(pts, now);
+
+        ch.options.scales.x.min = w.xMin;
+        ch.options.scales.x.max = w.xMax;
+
+        const changed = w.sig !== canvas._bbWindowSig;
+        if (changed) {
+            canvas._bbWindowSig = w.sig;
+            ch.data.datasets[0].data = w.usePts.map(p => ({ x: p.t, y: p.upper }));
+            ch.data.datasets[1].data = w.usePts.map(p => ({ x: p.t, y: p.lower }));
+
+            const yr = computeYRangeByShares(w.yBase.length ? w.yBase : w.usePts, readYShare(canvas));
+            ch.options.scales.y.min = yr.min;
+            ch.options.scales.y.max = yr.max;
+        }
 
         // update แบบไม่ animate
         ch.update("none");
+
+        // แกน y เพิ่งคิดใหม่จาก upper/lower -> ให้ overlay ขยายรับจุด PV อีกครั้ง
+        if (changed) notifyOverlay();
+    }
+
+    // upper/lower ชุดใหม่มาแล้ว (เปลี่ยน key / refresh รอบใหญ่) -> ให้ overlay วางจุด PV + badge + ขยายแกน y ทันที
+    // ไม่ต้องรอ poll รอบถัดไป (แกน y ที่เพิ่งตั้งใหม่คิดจาก upper/lower อย่างเดียว)
+    function notifyOverlay() {
+        try { window.PTCSmartmapOverlay?.tickAll?.(); } catch { }
     }
 
     // ✅ update data + y-range + latest (fetch เฉพาะที่นี่)
@@ -232,35 +302,23 @@ window.BBTrendPTC = (function () {
         canvas._bbBusy = true;
         canvas._bbBusyKey = k;
 
+        // เปลี่ยน dropdown เร็ว ๆ -> response ของ key เก่าที่กลับมาทีหลังต้องทิ้ง ไม่ให้ทับเส้นของ key ใหม่
+        const seq = (canvas._bbReqSeq || 0) + 1;
+        canvas._bbReqSeq = seq;
+        const stale = () => canvas._bbReqSeq !== seq;
+
         try {
             const raw = await fetchSeriesPoints(canvas, k, forceReload);
+            if (stale()) return;
             const pts = buildTimeline(raw);
 
             const now = new Date();
-            const xMin = new Date(now.getTime() - 30 * 60 * 1000);
-            const xMax = new Date(now.getTime() + 30 * 60 * 1000);
-
-            let before = null;
-            let after = null;
-            const mid = [];
-
-            for (const p of pts) {
-                if (p.t < xMin) before = p;
-                else if (p.t > xMax) { after = p; break; }
-                else mid.push(p);
-            }
-
-            const renderPts = [];
-            if (before) renderPts.push(before);
-            renderPts.push(...mid);
-            if (after) renderPts.push(after);
-
-            const usePts = renderPts.length ? renderPts : pts;
+            const { xMin, xMax, usePts, yBase, sig } = sliceWindow(pts, now);
 
             const upperData = usePts.map(p => ({ x: p.t, y: p.upper }));
             const lowerData = usePts.map(p => ({ x: p.t, y: p.lower }));
 
-            const yrBase = mid.length ? mid : usePts;
+            const yrBase = yBase.length ? yBase : usePts;
             const share = readYShare(canvas);
             const yr = computeYRangeByShares(yrBase, share);
 
@@ -268,10 +326,16 @@ window.BBTrendPTC = (function () {
             for (const p of pts) {
                 if (p.t <= now) last = p; else break;
             }
-            if (last) setLatest(canvas, fmtHHMM(last.t), last.upper, last.lower);
-            else setLatest(canvas, null, null, null);
+            // Latest เป็นของ ptc_smartmap_overlay.js (เวลา | ค่า PV) -> ถ้ามี overlay อย่าเขียนทับด้วย upper/lower
+            if (!window.PTCSmartmapOverlay) {
+                if (last) setLatest(canvas, fmtHHMM(last.t), last.upper, last.lower);
+                else setLatest(canvas, null, null, null);
+            }
 
+            canvas._bbRaw = raw;       // slideWindowOnly ใช้ตัด window ใหม่โดยไม่ต้อง fetch
             canvas._bbTimeline = pts;
+            canvas._bbWindowSig = sig;
+            canvas._bbSeriesKey = k;   // overlay ใช้เช็คว่า upper/lower ที่อยู่ในกราฟเป็นของ key ปัจจุบัน
             syncSectionAlert(canvas.closest("section.ptc-block"));
 
             if (!canvas._bbChart) {
@@ -313,6 +377,7 @@ window.BBTrendPTC = (function () {
                     }, 2000);
                 }
 
+                notifyOverlay();
                 return;
             }
 
@@ -324,11 +389,14 @@ window.BBTrendPTC = (function () {
             ch.options.scales.x.min = xMin;
             ch.options.scales.x.max = xMax;
             ch.update("none");
+            notifyOverlay();
         } catch (e) {
+            if (stale()) return;
+            canvas._bbSeriesKey = null;
             showFail(canvas, `PTC load failed: ${e && e.message ? e.message : 'error'}`);
             syncSectionAlert(canvas.closest("section.ptc-block"));
         } finally {
-            canvas._bbBusy = false;
+            if (!stale()) canvas._bbBusy = false;
         }
     }
 
@@ -366,9 +434,16 @@ window.BBTrendPTC = (function () {
         return key;
     }
 
+    // canvas ของ PTC เท่านั้น: DPS ก็ใช้ class bb-trend-chart-ptc แต่เป็นของ BBTrend.js
+    // (ถ้าคุมซ้อนกัน 2 ตัว จะแย่ง _bbChart / sel._bbBound / แกน y กัน)
+    function ptcCanvases(scope) {
+        return Array.from((scope || document).querySelectorAll("section.ptc-block canvas.bb-trend-chart-ptc"));
+    }
+
     function initWithin(root) {
         const scope = root || document;
-        const canvases = scope.querySelectorAll("canvas.bb-trend-chart-ptc");
+        const canvases = ptcCanvases(scope);
+        if (!canvases.length) return;
 
         canvases.forEach(cv => {
             const key = getCurrentCanvasKey(cv) || "UZ5411P";
@@ -377,12 +452,12 @@ window.BBTrendPTC = (function () {
             refreshData(cv, key, true);
         });
 
-        restartSeriesPoller(scope);
+        restartSeriesPoller();
     }
 
     function destroyWithin(root) {
         const scope = root || document;
-        const canvases = scope.querySelectorAll("canvas.bb-trend-chart-ptc");
+        const canvases = ptcCanvases(scope);
         canvases.forEach(cv => {
             if (cv._bbTimer) clearInterval(cv._bbTimer);
             if (cv._bbChart) {
@@ -393,6 +468,8 @@ window.BBTrendPTC = (function () {
             cv._bbBusy = false;
             cv._bbBusyKey = null;
             cv._bbTimeline = null;
+            cv._bbRaw = null;
+            cv._bbWindowSig = null;
         });
 
         if (_seriesPollTimer) {
@@ -416,8 +493,7 @@ window.BBTrendPTC = (function () {
     }
 
     async function refreshAllSeriesNow(root) {
-        const scope = root || document;
-        const canvases = scope.querySelectorAll("canvas.bb-trend-chart-ptc");
+        const canvases = ptcCanvases(root);
 
         for (const cv of canvases) {
             const key = getCurrentCanvasKey(cv);
@@ -437,14 +513,15 @@ window.BBTrendPTC = (function () {
             _seriesPollTimer = null;
         }
 
+        // timer เดียวทั้งหน้า -> วิ่งทั้ง document เสมอ
+        // (เดิมผูก scope ของ slot ล่าสุดที่ init -> ถ้าไม่ใช่ slot PTC เส้น upper/lower จะไม่ refresh)
         const sec = Number(loadSeriesRefreshSec() || 10800);
-        const scope = root || document;
 
         _seriesPollTimer = setInterval(() => {
-            refreshAllSeriesNow(scope);
+            refreshAllSeriesNow(document);
         }, sec * 1000);
 
-        refreshAllSeriesNow(scope);
+        refreshAllSeriesNow(document);
     }
 
     function clearCache() { _cache.clear(); }

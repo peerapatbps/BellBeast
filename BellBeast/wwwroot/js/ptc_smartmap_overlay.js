@@ -1,6 +1,7 @@
 ﻿/* =========================================================
    ptc_smartmap_overlay.js  (single poller, DPS-like)
-   - Overlay PV from /api/smartmap onto EXISTING PTC charts (BBTrendPTC)
+   - Overlay PV from /api/smartmap/latest onto EXISTING PTC charts (BBTrendPTC)
+   - server ดึง series 1 นาทีจาก smartmap newgraph/qry.php แล้วส่งมาแค่จุดล่าสุด
    - 1 setting (refreshSec) applies to both PTC big charts
    - 1 interval for whole page, 1 request per tick (batched keys)
    - Reads base key from dropdown (canvas data-select) or data-code/default
@@ -8,7 +9,7 @@
 (function () {
     "use strict";
 
-    const SMARTMAP_URL = "/api/smartmap";
+    const SMARTMAP_URL = "/api/smartmap/latest";
     const STORAGE_KEY = "ptc_smartmap_refresh_v1";
 
     const boundSections = new WeakSet();
@@ -169,16 +170,16 @@
         try {
             const resp = await fetch(url, { method: "GET", signal: ac.signal, cache: "no-store", credentials: "omit" });
             if (!resp.ok) throw new Error("smartmap fetch failed");
-            return await resp.json(); // { "UZ5411_P":"6.64", ... }
+            return await resp.json(); // { "UZ5411": { t: <epoch ms>, y: 6.64 }, ... }
         } finally { clearTimeout(t); }
     }
 
-    function readPvFromMap(map, baseKey) {
-        if (!map || !baseKey) return null;
-        const s = map[baseKey + "_P"];
-        if (s === null || s === undefined || s === "") return null;
-        const n = Number(s);
-        return Number.isFinite(n) ? n : null;
+    function readPointFromMap(map, baseKey) {
+        const p = (map && baseKey) ? map[baseKey] : null;
+        if (!p) return null;
+        const t = Number(p.t);
+        const y = Number(p.y);
+        return (Number.isFinite(t) && Number.isFinite(y)) ? { t, y } : null;
     }
 
     // ---------------------------
@@ -194,14 +195,15 @@
     }
 
 
-    // หา dataset สำหรับ overlay (ถ้ายังไม่มีให้สร้างใหม่)
-    function ensureOverlayDataset(chart, overlayKey) {
-        const id = "__smartmap_overlay__" + overlayKey;
+    // หา dataset สำหรับ overlay (ถ้ายังไม่มีให้สร้างใหม่) -> 1 chart มี overlay เดียว
+    // (เดิมผูกชื่อกับ key -> เปลี่ยน dropdown แล้ว dataset ของ key เก่าค้างในกราฟ)
+    const OVERLAY_ID = "__smartmap_overlay__";
+    function ensureOverlayDataset(chart) {
         const list = chart.data.datasets || (chart.data.datasets = []);
-        let ds = list.find(x => x && x._id === id);
+        let ds = list.find(x => x && x._id === OVERLAY_ID);
         if (!ds) {
             ds = {
-                _id: id,
+                _id: OVERLAY_ID,
                 label: "PV",
                 data: [],
                 parsing: false,
@@ -241,15 +243,50 @@
     }
 
     // 30s rule + 30min window (เหมือน DPS overlay)
-    function createState() { return { persistent: [], transient: null }; }
-    const stateByCanvasId = new Map();
-    function getStateForCanvasId(id) {
-        let st = stateByCanvasId.get(id);
-        if (!st) { st = createState(); stateByCanvasId.set(id, st); }
+    function createState(base) { return { base, persistent: [], transient: null }; }
+    const stateByCanvas = new WeakMap();
+    function getStateForCanvas(canvas, base) {
+        let st = stateByCanvas.get(canvas);
+        if (!st || st.base !== base) { st = createState(base); stateByCanvas.set(canvas, st); }
         return st;
+    }
+
+    // เปลี่ยน dropdown -> ล้างจุด PV / Latest / badge ของ key เก่าทันที แล้วรอ tick ใหม่เติม
+    function resetCanvas(canvas) {
+        stateByCanvas.delete(canvas);
+        const chart = getChartInstance(canvas);
+        const ds = chart?.data?.datasets?.find(x => x && x._id === OVERLAY_ID);
+        if (ds) {
+            ds.data = [];
+            safeUpdateChart(chart);
+        }
+        setLatest(canvas, null, null, null, null);
+        setStatus(canvas, null);
+    }
+
+    // แกน y ของ BBTrendPTC คิดจาก upper/lower อย่างเดียว -> ขยายให้เห็นจุด PV ที่หลุดกรอบด้วย
+    function fitYToOverlay(chart, data) {
+        const y = chart?.options?.scales?.y;
+        if (!y || !Number.isFinite(y.min) || !Number.isFinite(y.max) || !data.length) return;
+
+        let lo = Infinity, hi = -Infinity;
+        for (const p of data) { if (p.y < lo) lo = p.y; if (p.y > hi) hi = p.y; }
+        if (lo >= y.min && hi <= y.max) return;
+
+        const newLo = Math.min(lo, y.min);
+        const newHi = Math.max(hi, y.max);
+        const pad = (newHi - newLo) * 0.08 || 0.1;
+        if (lo < y.min) y.min = newLo - pad;
+        if (hi > y.max) y.max = newHi + pad;
     }
     function applyPoint30sRule(st, xMs, y, windowMs) {
         const last = st.persistent.length ? st.persistent[st.persistent.length - 1] : null;
+        // smartmap ให้จุดละ 1 นาที แต่ poll ถี่กว่า -> จุดเดิม (x ซ้ำ/ย้อนหลัง) แค่อัปเดตค่า ไม่เพิ่มจุด
+        if (last && xMs <= last.x) {
+            if (xMs === last.x) last.y = y;
+            st.transient = null;
+            return;
+        }
         if (!last) {
             st.persistent.push({ x: xMs, y });
             st.transient = null;
@@ -365,6 +402,20 @@
             }
         };
 
+        sec.querySelectorAll("canvas.bb-trend-chart-ptc").forEach((cv) => {
+            const selId = (cv.getAttribute("data-select") || "").trim();
+            const sel = selId ? document.getElementById(selId) : null;
+            if (!sel || sel._ptcOverlayBound) return;
+            sel._ptcOverlayBound = true;
+
+            let tmr = null;
+            sel.addEventListener("change", () => {
+                resetCanvas(cv);
+                if (tmr) clearTimeout(tmr);
+                tmr = setTimeout(() => tickAll(), 50);
+            });
+        });
+
         syncBell(sec);
     }
 
@@ -450,8 +501,7 @@
                     const base = normalizeBaseKey(keyRaw);
                     if (!base) continue;
 
-                    const cid = cv.id || ("ptc_" + base);
-                    targets.push({ base, canvas: cv, canvasId: cid });
+                    targets.push({ base, key: keyRaw.trim().toUpperCase(), canvas: cv });
                     bases.push(base);
                 }
             }
@@ -459,20 +509,21 @@
             if (!targets.length) return;
 
             const uniqBases = Array.from(new Set(bases));
-            let map;
+            let map = null;
             try {
                 map = await fetchSmartmapBatchAsync(uniqBases.join(","));
             } catch {
                 return;
             }
 
-            const x = Date.now();
             const winMs = 30 * 60 * 1000;
             const sectionAlarm = new Map();
 
             for (const t of targets) {
-                const pv = readPvFromMap(map, t.base);
-                if (pv === null) continue;
+                const pt = readPointFromMap(map, t.base);
+                if (!pt) continue;
+                const x = pt.t;   // เวลาของจุดล่าสุดจาก smartmap (วันที่แก้เป็นวันนี้แล้วที่ server)
+                const pv = pt.y;
 
                 const sec = t.canvas.closest("section.ptc-block");
 
@@ -485,21 +536,27 @@
                 const chart = getChartInstance(t.canvas);
                 if (!chart) continue; // ถ้า BBTrendPTC ยังไม่สร้าง chart
 
-                const ds = ensureOverlayDataset(chart, t.canvasId);
-                const st = getStateForCanvasId(t.canvasId);
+                const ds = ensureOverlayDataset(chart);
+                const st = getStateForCanvas(t.canvas, t.base);
 
                 applyPoint30sRule(st, x, pv, winMs);
                 ds.data = buildData(st);
+                fitYToOverlay(chart, ds.data);
 
                 safeUpdateChart(chart);
 
-                const bounds = getBoundsAtNow(t.canvas);
+                // upper/lower ต้องเป็นของ key ปัจจุบัน (ช่วงที่เพิ่งเปลี่ยน dropdown เส้นใหม่อาจยังโหลดไม่เสร็จ)
+                const bounds = t.canvas._bbSeriesKey === t.key ? getBoundsAtNow(t.canvas) : null;
+                const outOfControl = bounds ? (pv > bounds.upper || pv < bounds.lower) : null;
+                setStatus(t.canvas, outOfControl);
+
                 if (sec && bounds) {
-                    const outOfControl = pv > bounds.upper || pv < bounds.lower;
                     if (outOfControl) sectionAlarm.set(sec, true);
                     else if (!sectionAlarm.has(sec)) sectionAlarm.set(sec, false);
                 }
             }
+
+            map = null; // ปล่อย payload ของ tick นี้ทันที
 
             for (const sec of secs) {
                 const settings = loadSettings();
@@ -552,6 +609,23 @@
                 : "";
     }
 
+
+    // badge กลางแถว: true = Out of control, false = In control, null = ยังไม่มี upper/lower -> ซ่อน
+    function setStatus(canvas, outOfControl) {
+        const id = canvas.getAttribute("data-status");
+        const el = id ? document.getElementById(id) : null;
+        if (!el) return;
+
+        if (outOfControl === null) {
+            el.hidden = true;
+            return;
+        }
+
+        el.hidden = false;
+        el.classList.toggle("is-out", outOfControl);
+        el.classList.toggle("is-in", !outOfControl);
+        el.textContent = outOfControl ? "Out of control" : "In control";
+    }
 
     function pad2(n) { return String(n).padStart(2, "0"); }
     function fmtHHMMSS(ms) {
