@@ -270,12 +270,7 @@ public sealed class AudioEndpointTests : IClassFixture<BellBeastAdminFactory>, I
             calls++;
             Assert.Equal("openrouter.ai", req.RequestUri!.Host);
             Assert.Equal("Bearer", req.Headers.Authorization!.Scheme);
-            var b64 = Convert.ToBase64String(new byte[480]);   // 10 ms of silence
-            return new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent($"data: {{\"choices\":[{{\"delta\":{{\"audio\":{{\"data\":\"{b64}\"}}}}}}]}}\n\ndata: [DONE]\n\n",
-                    Encoding.UTF8, "text/event-stream")
-            };
+            return TtsSse(req, new byte[480]);   // 10 ms of silence, transcript = the requested text
         };
         try
         {
@@ -300,6 +295,45 @@ public sealed class AudioEndpointTests : IClassFixture<BellBeastAdminFactory>, I
         finally { _admin.EngineHandler.RequestHandler = null; }
     }
 
+    /// <summary>Fake OpenRouter SSE: audio + transcript (the text between &lt;&lt;&lt; &gt;&gt;&gt; in the request, plus <paramref name="extra"/>).</summary>
+    private static HttpResponseMessage TtsSse(HttpRequestMessage req, byte[] pcm, string extra = "")
+    {
+        var body = JsonDocument.Parse(req.Content!.ReadAsStringAsync().Result).RootElement;
+        var user = body.GetProperty("messages")[1].GetProperty("content").GetString() ?? "";
+        var spoken = user.Replace("<<<", "").Replace(">>>", "") + extra;
+        var sse = $"data: {{\"choices\":[{{\"delta\":{{\"audio\":{{\"data\":\"{Convert.ToBase64String(pcm)}\"}}}}}}]}}\n\n" +
+                  $"data: {{\"choices\":[{{\"delta\":{{\"audio\":{{\"transcript\":{JsonSerializer.Serialize(spoken)}}}}}}}]}}\n\n" +
+                  "data: [DONE]\n\n";
+        return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(sse, Encoding.UTF8, "text/event-stream") };
+    }
+
+    [Fact]
+    public async Task Tts_Rejects_Model_Adding_Words_Unless_Forced()
+    {
+        var calls = 0;
+        _admin.EngineHandler.RequestHandler = req => { calls++; return TtsSse(req, new byte[480], " จะพูดชัดเจน เข้าใจแล้วนะ"); };
+        try
+        {
+            var c = _admin.WithWebHostBuilder(b => b.UseSetting("Audio:OpenRouterApiKey", "test-key")).CreateClient();
+            var bad = await c.PostAsJsonAsync("/api/audio/tts", new { id = "s_unverified_test", text = "มิลลิกรัมต่อลิตร" });
+            Assert.Equal(HttpStatusCode.BadGateway, bad.StatusCode);
+            var bj = await bad.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("tts_unverified", bj.GetProperty("error").GetString());
+            Assert.Equal(3, calls);   // retried
+            var clips = await c.GetFromJsonAsync<JsonElement>("/api/audio/clips");
+            Assert.DoesNotContain("s_unverified_test", clips.ToString());
+
+            var forced = await c.PostAsJsonAsync("/api/audio/tts", new { id = "s_unverified_test", text = "มิลลิกรัมต่อลิตร", force = true });
+            Assert.Equal(HttpStatusCode.OK, forced.StatusCode);
+            Assert.False((await forced.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("verified").GetBoolean());
+            await c.DeleteAsync("/api/audio/clip/s_unverified_test");
+        }
+        finally
+        {
+            _admin.EngineHandler.RequestHandler = null;
+        }
+    }
+
     [Fact]
     public async Task Tts_Key_Can_Come_From_Another_Projects_Config_File()
     {
@@ -309,11 +343,7 @@ public sealed class AudioEndpointTests : IClassFixture<BellBeastAdminFactory>, I
         _admin.EngineHandler.RequestHandler = req =>
         {
             seenKey = req.Headers.Authorization?.Parameter;
-            var b64 = Convert.ToBase64String(new byte[48]);
-            return new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent($"data: {{\"choices\":[{{\"delta\":{{\"audio\":{{\"data\":\"{b64}\"}}}}}}]}}\n\ndata: [DONE]\n\n", Encoding.UTF8, "text/event-stream")
-            };
+            return TtsSse(req, new byte[48]);
         };
         try
         {

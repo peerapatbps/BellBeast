@@ -13,4 +13,6 @@ BellBeast/App_Data/backend-config.local.json
 
 # audio clip library (generated / recorded data, deploy by copying the folder)
 BellBeast/App_Data/audio/
+# annunciator fleet: registry + device log + firmware + WiFi credentials (data, never commit)
+BellBeast/App_Data/fleet/
 tts_sample/

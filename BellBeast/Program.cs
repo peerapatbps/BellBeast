@@ -38,6 +38,7 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AllowAnonymousToPage("/MH_report");
     options.Conventions.AllowAnonymousToPage("/MHxViewer/MHxView");
     options.Conventions.AllowAnonymousToPage("/CHEM_report");
+    options.Conventions.AllowAnonymousToPage("/DailyReport");
     options.Conventions.AllowAnonymousToPage("/IotRoom");
     options.Conventions.AllowAnonymousToPage("/AlarmMonitor");
     options.Conventions.AllowAnonymousToPage("/LedDemo");
@@ -181,6 +182,8 @@ builder.Services.AddScoped<SummaryProxyService>();
 builder.Services.AddSingleton<WayfarerMapQueryService>();
 builder.Services.AddSingleton<IotRoomService>();
 builder.Services.AddSingleton<AudioLibraryService>();
+builder.Services.AddSingleton<DeviceFleetService>();
+builder.Services.AddSingleton<LabGlanceService>();
 builder.Services.AddSingleton<TtsService>();
 builder.Services.AddSingleton<CloudflareTunnelService>();
 builder.Services.AddWayfarerData(builder.Configuration);
@@ -1432,6 +1435,11 @@ app.MapPost("/api/lab/summary", async (HttpContext ctx, SummaryProxyService svc)
     await ProxySummaryAsync(ctx, await svc.PostLabSummaryAsync($"{baseUrl}{labSummaryPath}", body, ctx.RequestAborted));
 });
 
+// Clarifier card (MHxViewer) — CW A/B, pH/Alk, jar curve, daily dosage per phase.
+// 502 while Uroboros does not serve it yet → the card falls back to its MOCK payload.
+app.MapGet("/api/clarifier/summary", async (HttpContext ctx, SummaryProxyService svc) =>
+    await ProxyUroborosGetAsync(app, ctx, svc, SummaryProxyService.DefaultClarifierPath));
+
 app.MapGet("/api/admin/test/run", async (EngineAdminService svc) =>
 {
     try
@@ -1619,6 +1627,29 @@ app.MapGet("/api/alarm/active", [AllowAnonymous] (IotRoomService iotRoom, HttpCo
     return Results.Json(AlarmFeedService.Build(state, updatedAt, online, DateTimeOffset.UtcNow, zones));
 });
 
+// Device touch screen → compact LAB view (5 groups × 4 units + 16 status dots), statuses worked out here
+// with the same rules as the MHxView LAB card (LABview.js) — see Services/LabGlanceService.cs
+app.MapGet("/api/device/lab/glance", [AllowAnonymous] async (HttpContext ctx, LabGlanceService svc) =>
+{
+    var (baseUrl, _, _, _, _, _, _, _, _, _, labSummaryPath, _, _) = ReadBackendConfig(app);
+    var lvBase = (app.Configuration["LabVenture:BaseUrl"] ?? "http://localhost:8889").TrimEnd('/');
+    var json = await svc.GetJsonAsync($"{baseUrl}{labSummaryPath}", $"{lvBase}/api/scenarios/limits", ctx.RequestAborted);
+    ctx.Response.Headers.CacheControl = "no-store";
+    ctx.Response.ContentType = "application/json; charset=utf-8";
+    await ctx.Response.WriteAsync(json, ctx.RequestAborted);
+});
+
+// Device 30 s loop → active scenario / epidemic + threshold revision (LabVenture /api/scenarios/log).
+// A new revision drops the glance cache so the device's next glance carries the new limits.
+app.MapGet("/api/device/lab/scenario", [AllowAnonymous] async (HttpContext ctx, LabGlanceService svc) =>
+{
+    var lvBase = (app.Configuration["LabVenture:BaseUrl"] ?? "http://localhost:8889").TrimEnd('/');
+    var json = await svc.GetScenarioJsonAsync(lvBase, ctx.RequestAborted);
+    ctx.Response.Headers.CacheControl = "no-store";
+    ctx.Response.ContentType = "application/json; charset=utf-8";
+    await ctx.Response.WriteAsync(json, ctx.RequestAborted);
+});
+
 // Monitor page → z-score table / chart data, forwarded to Uroboros (same-origin for the browser)
 app.MapGet("/api/alarm/monitor", [AllowAnonymous] async (HttpContext ctx, SummaryProxyService svc) =>
     await ProxyUroborosGetAsync(app, ctx, svc, "/api/alarm/monitor"));
@@ -1725,10 +1756,19 @@ app.MapPost("/api/audio/tts", [Authorize(Policy = "AdminOnly")] async (AudioLibr
     if (string.IsNullOrWhiteSpace(rawId) && lib.Get(id) is { } cached)
         return Results.Json(new { ok = true, cached = true, clip = cached });
 
+    // force=true saves the best attempt even when it fails the check (admin listened and accepts it)
+    var force = body.TryGetProperty("force", out var fEl) && fEl.ValueKind == JsonValueKind.True;
     try
     {
-        var pcm = await tts.SynthesizeAsync(text, ctx.RequestAborted);
-        return Results.Json(new { ok = true, cached = false, clip = lib.Save(id, pcm, "tts", text) });
+        var r = await tts.SynthesizeVerifiedAsync(text, ctx.RequestAborted);
+        if (!r.Verified && !force)
+            return Results.Json(new
+            {
+                ok = false, error = "tts_unverified",
+                detail = $"เสียงที่ได้ไม่ตรงข้อความหลังลอง {r.Attempts} ครั้ง: {r.Problem} — ไม่ได้บันทึก (ลองใหม่ หรืออัปโหลดเสียงที่อัดเอง)",
+                transcript = r.Transcript, attempts = r.Attempts,
+            }, statusCode: StatusCodes.Status502BadGateway);
+        return Results.Json(new { ok = true, cached = false, verified = r.Verified, attempts = r.Attempts, transcript = r.Transcript, clip = lib.Save(id, r.Pcm, "tts", text) });
     }
     catch (TtsException ex)
     {
@@ -1744,6 +1784,142 @@ app.MapPost("/api/audio/tts", [Authorize(Policy = "AdminOnly")] async (AudioLibr
         return Results.Json(new { ok = false, error = "tts_unreachable", detail = ex.Message }, statusCode: StatusCodes.Status502BadGateway);
     }
 });
+
+// ===============================
+// Annunciator fleet (P4): device report / config / OTA + admin (iot-device_plan.md §4)
+// Devices authenticate with X-Device-Key (random per device, trust-on-first-use, admin approves).
+// WiFi credentials only go to approved devices; never logged, never in a URL.
+// ===============================
+
+// device → batch of events (played/ack/fallback/boot/wifi/ota/health) + status; returns config etag so the device knows when to re-pull
+app.MapPost("/api/device/{id}/report", [AllowAnonymous] async (string id, DeviceFleetService fleet, HttpContext ctx) =>
+{
+    if (FleetAuth(fleet, ctx, id) is { } err) return err;
+    if (ctx.Request.ContentLength is > 64 * 1024) return Results.BadRequest(new { ok = false, error = "body_too_large" });
+    DeviceFleetService.ReportBody? body;
+    try { body = await ctx.Request.ReadFromJsonAsync<DeviceFleetService.ReportBody>(DeviceFleetService.JsonOpts, ctx.RequestAborted); }
+    catch (JsonException) { return Results.BadRequest(new { ok = false, error = "bad_json" }); }
+    var d = fleet.ApplyReport(id, body ?? new DeviceFleetService.ReportBody());
+    var (_, etag) = fleet.BuildConfig(id);
+    return Results.Json(new { ok = true, approved = d.Approved, config_etag = etag.Trim('"') });
+});
+
+// device → effective config (zones/poll/remind/volume/channel + wifi for approved devices). ETag / If-None-Match → 304
+app.MapGet("/api/device/{id}/config", [AllowAnonymous] (string id, DeviceFleetService fleet, HttpContext ctx) =>
+{
+    if (FleetAuth(fleet, ctx, id) is { } err) return err;
+    var (body, etag) = fleet.BuildConfig(id);
+    ctx.Response.Headers.ETag = etag;
+    ctx.Response.Headers.CacheControl = "no-store";
+    if (ctx.Request.Headers.IfNoneMatch.ToString() == etag) return Results.StatusCode(StatusCodes.Status304NotModified);
+    return Results.Json(body);
+});
+
+// device → firmware for its channel (stable/beta/none). version null = nothing to install
+app.MapGet("/api/ota/manifest", [AllowAnonymous] (DeviceFleetService fleet, HttpContext ctx) =>
+{
+    var id = ctx.Request.Query["device_id"].FirstOrDefault();
+    if (id is not null && FleetAuth(fleet, ctx, id) is { } err) return err;
+    var (channel, fw) = fleet.ManifestFor(id);
+    ctx.Response.Headers.CacheControl = "no-store";
+    return Results.Json(fw is null
+        ? new { ok = true, channel, version = (string?)null, size = 0L, sha256 = (string?)null, url = (string?)null }
+        : new { ok = true, channel, version = (string?)fw.Version, size = fw.Size, sha256 = (string?)fw.Sha256, url = (string?)$"/api/ota/firmware/{fw.Version}" });
+});
+
+app.MapGet("/api/ota/firmware/{version}", [AllowAnonymous] (string version, DeviceFleetService fleet, HttpContext ctx) =>
+{
+    if (!DeviceFleetService.ValidVersion(version) || fleet.GetFirmware(version) is not { } fw) return Results.NotFound(new { ok = false, error = "firmware_not_found" });
+    var path = fleet.FirmwarePath(version);
+    if (!File.Exists(path)) return Results.NotFound(new { ok = false, error = "firmware_file_missing" });
+    ctx.Response.Headers["X-Firmware-Sha256"] = fw.Sha256;
+    return Results.File(path, "application/octet-stream", $"annunciator-{version}.bin");
+});
+
+// admin (/Admin/Fleet)
+app.MapGet("/api/admin/fleet", [Authorize(Policy = "AdminOnly")] (DeviceFleetService fleet) => Results.Json(fleet.AdminView(), DeviceFleetService.JsonOpts));
+
+app.MapGet("/api/admin/fleet/events", [Authorize(Policy = "AdminOnly")] (DeviceFleetService fleet, HttpContext ctx) =>
+{
+    var dev = ctx.Request.Query["device"].FirstOrDefault();
+    var n = int.TryParse(ctx.Request.Query["n"], out var nn) ? nn : 200;
+    return Results.Json(new { ok = true, events = fleet.RecentEvents(string.IsNullOrWhiteSpace(dev) ? null : dev, n) });
+});
+
+app.MapPost("/api/admin/fleet/device/{id}", [Authorize(Policy = "AdminOnly")] async (string id, DeviceFleetService fleet, HttpContext ctx) =>
+{
+    JsonElement body;
+    try { body = await ctx.Request.ReadFromJsonAsync<JsonElement>(ctx.RequestAborted); }
+    catch (JsonException) { return Results.BadRequest(new { ok = false, error = "bad_json" }); }
+    var e = fleet.UpdateDevice(id, body);
+    return e is null ? Results.Json(new { ok = true }) : e == "device_not_found" ? Results.NotFound(new { ok = false, error = e }) : Results.BadRequest(new { ok = false, error = e });
+});
+
+app.MapDelete("/api/admin/fleet/device/{id}", [Authorize(Policy = "AdminOnly")] (string id, DeviceFleetService fleet) =>
+    fleet.DeleteDevice(id) ? Results.Json(new { ok = true }) : Results.NotFound(new { ok = false, error = "device_not_found" }));
+
+app.MapPut("/api/admin/fleet/defaults", [Authorize(Policy = "AdminOnly")] async (DeviceFleetService fleet, HttpContext ctx) =>
+{
+    JsonElement body;
+    try { body = await ctx.Request.ReadFromJsonAsync<JsonElement>(ctx.RequestAborted); }
+    catch (JsonException) { return Results.BadRequest(new { ok = false, error = "bad_json" }); }
+    var e = fleet.UpdateDefaults(body);
+    return e is null ? Results.Json(new { ok = true }) : Results.BadRequest(new { ok = false, error = e });
+});
+
+app.MapPut("/api/admin/fleet/wifi", [Authorize(Policy = "AdminOnly")] async (DeviceFleetService fleet, HttpContext ctx) =>
+{
+    JsonElement body;
+    try { body = await ctx.Request.ReadFromJsonAsync<JsonElement>(ctx.RequestAborted); }
+    catch (JsonException) { return Results.BadRequest(new { ok = false, error = "bad_json" }); }
+    var e = fleet.UpdateWifi(body);
+    return e is null ? Results.Json(new { ok = true }) : Results.BadRequest(new { ok = false, error = e });
+});
+
+app.MapPost("/api/admin/ota/firmware", [Authorize(Policy = "AdminOnly")] async (DeviceFleetService fleet, HttpContext ctx) =>
+{
+    if (!ctx.Request.HasFormContentType) return Results.BadRequest(new { ok = false, error = "multipart_required" });
+    var form = await ctx.Request.ReadFormAsync(ctx.RequestAborted);
+    var version = form["version"].ToString().Trim();
+    var file = form.Files.GetFile("file");
+    if (version.Length > 0 && !DeviceFleetService.ValidVersion(version)) return Results.BadRequest(new { ok = false, error = "bad_version" });
+    if (file is null || file.Length == 0 || file.Length > DeviceFleetService.MaxFirmwareBytes) return Results.BadRequest(new { ok = false, error = "bad_size" });
+    using var ms = new MemoryStream();
+    await file.CopyToAsync(ms, ctx.RequestAborted);
+    try { return Results.Json(new { ok = true, firmware = fleet.SaveFirmware(version.Length > 0 ? version : null, ms.ToArray(), form["note"]) }); }
+    catch (ArgumentException ex) { return Results.BadRequest(new { ok = false, error = ex.Message }); }
+});
+
+app.MapDelete("/api/admin/ota/firmware/{version}", [Authorize(Policy = "AdminOnly")] (string version, DeviceFleetService fleet) =>
+{
+    var e = fleet.DeleteFirmware(version);
+    return e is null ? Results.Json(new { ok = true }) : Results.BadRequest(new { ok = false, error = e });
+});
+
+app.MapPost("/api/admin/ota/channel", [Authorize(Policy = "AdminOnly")] async (DeviceFleetService fleet, HttpContext ctx) =>
+{
+    JsonElement body;
+    try { body = await ctx.Request.ReadFromJsonAsync<JsonElement>(ctx.RequestAborted); }
+    catch (JsonException) { return Results.BadRequest(new { ok = false, error = "bad_json" }); }
+    var channel = ConfigArg(body, "channel") ?? "";
+    var version = ConfigArg(body, "version");
+    var e = fleet.SetChannel(channel, string.IsNullOrWhiteSpace(version) ? null : version);
+    return e is null ? Results.Json(new { ok = true }) : Results.BadRequest(new { ok = false, error = e });
+});
+
+// device auth helper: 400 bad id/key, 403 key mismatch, null = ok (unknown devices register as pending)
+static IResult? FleetAuth(DeviceFleetService fleet, HttpContext ctx, string id)
+{
+    var key = ctx.Request.Headers[DeviceFleetService.KeyHeader].FirstOrDefault()?.Trim().ToLowerInvariant();
+    var (status, _) = fleet.Authenticate(id, key, ctx.Connection.RemoteIpAddress?.ToString());
+    return status switch
+    {
+        DeviceFleetService.AuthStatus.BadId => Results.BadRequest(new { ok = false, error = "bad_device_id", detail = "id must be [a-z0-9-]{3,32}" }),
+        DeviceFleetService.AuthStatus.BadKey => Results.BadRequest(new { ok = false, error = "bad_device_key", detail = $"{DeviceFleetService.KeyHeader}: 64 hex chars" }),
+        DeviceFleetService.AuthStatus.KeyMismatch => Results.Json(new { ok = false, error = "device_key_mismatch" }, statusCode: StatusCodes.Status403Forbidden),
+        _ => null,
+    };
+}
 
 // ===============================
 // Stage endpoint — returns current stage from aquadat-connector device

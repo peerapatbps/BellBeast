@@ -35,6 +35,8 @@
 
     .al-missing { display: flex; flex-wrap: wrap; gap: 6px; }
     .al-missing code { background: rgba(239,68,68,.12); color: #fca5a5; border-radius: 6px; padding: 2px 8px; font-size: 12px; }
+    .al-missing code.lv { background: rgba(245,158,11,.12); color: #fcd34d; }
+    .al-missing code.notext { opacity: .55; }
     .al-none { color: #86efac; }
 
     .al-table-wrap { overflow-x: auto; }
@@ -61,6 +63,8 @@
 </style>
 }
 
+<partial name="_AdminTabs" model='"audio"' />
+
 <div class="al-wrap">
     <div class="al-head">
         <div>
@@ -77,8 +81,13 @@
     <div class="al-msg" id="msg"></div>
 
     <div class="al-card">
-        <h2>ยังขาด (vocabulary + ที่ engine ส่งใน playlist ตอนนี้)</h2>
-        <div class="al-body"><div class="al-missing" id="missing">–</div></div>
+        <h2>ยังขาด (vocabulary + ที่ engine ส่งใน playlist ตอนนี้ + ที่ Event Class ของ LabVenture ใช้) <span class="sp"></span>
+            <button class="al-btn" id="ttsAll" type="button" disabled>TTS ทั้งหมดที่ขาด</button>
+        </h2>
+        <div class="al-body">
+            <div class="al-missing" id="missing">–</div>
+            <p class="al-note" id="missingNote" style="margin:8px 0 0"></p>
+        </div>
     </div>
 
     <div class="al-card">
@@ -91,6 +100,7 @@
                 <option value="unit">unit</option>
                 <option value="point">point</option>
                 <option value="custom">custom</option>
+                <option value="labventure">labventure (Event Class)</option>
                 <option value="other">อื่น ๆ (ไม่อยู่ใน vocabulary)</option>
             </select>
         </h2>

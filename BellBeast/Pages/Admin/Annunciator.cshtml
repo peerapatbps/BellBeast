@@ -1,0 +1,136 @@
+@page
+@model BellBeast.Pages.Admin.AnnunciatorModel
+@{
+    ViewData["Title"] = "Annunciator";
+}
+
+@section Styles {
+<style>
+    .an-wrap { width: min(1280px, 96%); margin: 0 auto; padding: 18px 0 28px; color: #e8eefc; }
+    .an-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 14px; }
+    .an-title { margin: 0; font-size: clamp(22px, 2.2vw, 30px); font-weight: 800; }
+    .an-sub { font-size: 12px; color: rgba(148,163,184,.75); letter-spacing: .04em; }
+    .an-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+    .an-chip { padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid rgba(148,163,184,.25); background: rgba(15,23,42,.7); white-space: nowrap; }
+    .an-chip.ok { border-color: #22c55e; color: #86efac; } .an-chip.warn { border-color: #f59e0b; color: #fcd34d; } .an-chip.bad { border-color: #ef4444; color: #fca5a5; }
+    .an-grid { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-start; }
+    .an-dev { padding: 22px; background: #05080c; border-radius: 28px; box-shadow: 0 10px 40px rgba(0,0,0,.6); flex: none; }
+    .an-zoom { width: 360px; height: 360px; }
+    .an-side { flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 12px; }
+    .an-card { border: 1px solid rgba(148,163,184,.16); border-radius: 16px; background: linear-gradient(180deg, rgba(15,23,42,.82), rgba(15,23,42,.56)); overflow: hidden; }
+    .an-card h2 { margin: 0; padding: 10px 14px; font-size: 13px; font-weight: 700; letter-spacing: .04em; color: rgba(226,232,240,.9); border-bottom: 1px solid rgba(148,163,184,.12); display: flex; gap: 8px; align-items: center; }
+    .an-card h2 .sp { flex: 1; }
+    .an-body { padding: 10px 14px; font-size: 13px; }
+    .an-kv { display: grid; grid-template-columns: 120px 1fr; gap: 4px 10px; }
+    .an-kv .k { color: rgba(148,163,184,.85); } .an-kv .v { font-family: ui-monospace, Consolas, monospace; font-size: 12px; word-break: break-word; }
+    .an-in { background: rgba(2,6,23,.6); color: #e2e8f0; border: 1px solid rgba(148,163,184,.25); border-radius: 8px; padding: 4px 8px; font-size: 12px; }
+    .an-btn { background: rgba(56,189,248,.12); color: #7dd3fc; border: 1px solid rgba(56,189,248,.4); border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .an-btn:hover { background: rgba(56,189,248,.22); } .an-btn.on { color: #86efac; border-color: rgba(34,197,94,.5); background: rgba(34,197,94,.12); }
+    .an-log { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; max-height: 240px; overflow: auto; line-height: 1.55; color: rgba(226,232,240,.85); }
+    .an-log .t { color: rgba(148,163,184,.7); } .an-log .w { color: #fcd34d; } .an-log .e { color: #fca5a5; }
+    .an-note { font-size: 11.5px; color: rgba(148,163,184,.8); line-height: 1.5; }
+    .an-say { font-size: 12px; color: #e9d5ff; white-space: pre-line; }
+
+    /* ---- 240x240 device screen ---- */
+    #anScr { --panel:#1a212b; --line:#2c3846; --txt:#e7edf3; --muted:#8a9bab; --ok:#22c55e; --first:#3b82f6; --bad:#ef4444; --na:#4b5563; --warn:#f59e0b; --test:#a855f7;
+             width: 240px; height: 240px; transform: scale(1.5); transform-origin: 0 0; background: #0f141b; border-radius: 6px; overflow: hidden; position: relative;
+             font-size: 11px; color: var(--txt); cursor: pointer; user-select: none; }
+    #anScr * { box-sizing: border-box; }
+    #anScr .bar { position: absolute; left: 0; right: 0; height: 26px; display: flex; align-items: center; padding: 0 8px; gap: 6px; }
+    #anScr .bar.top { top: 0; border-bottom: 1px solid var(--line); } #anScr .bar.bot { bottom: 0; border-top: 1px solid var(--line); justify-content: space-between; }
+    #anScr .ttl { font-weight: 700; font-size: 12px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #anScr .nav { color: var(--muted); font-size: 11px; white-space: nowrap; }
+    #anScr .body { position: absolute; top: 26px; bottom: 26px; left: 0; right: 0; padding: 6px 8px; }
+    #anScr .muted { color: var(--muted); } #anScr .ann { font-size: 9.5px; color: var(--muted); }
+    #anScr .scn { position: absolute; left: 0; right: 0; top: 0; height: 48px; background: var(--panel); border-bottom: 1px solid var(--line); padding: 4px 30px 0 8px; line-height: 1.3; }
+    #anScr .scn .l1 { font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; }
+    #anScr .scn .l2 { font-size: 11px; color: var(--muted); white-space: nowrap; } #anScr .scn .on { color: #fca5a5; font-weight: 700; } #anScr .scn .stale { color: var(--warn); }
+    #anScr .scn .k { color: var(--muted); font-weight: 400; }
+    #anScr .lt { position: absolute; left: 4px; right: 2px; top: 52px; display: grid; grid-template-columns: 48px repeat(4,1fr); gap: 4px 2px; font-size: 14px; }
+    #anScr .lt .h { font-size: 9.5px; color: var(--muted); text-align: center; }
+    #anScr .lt .r { font-size: 11px; color: var(--muted); font-weight: 700; display: flex; align-items: center; }
+    #anScr .lt .v { height: 34px; font-size: 15px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 700; background: #161c24; border: 1px solid transparent; }
+    #anScr .lt .v.ok { color: #86efac; } #anScr .lt .v.out { background: var(--bad); color: #000; } #anScr .lt .v.na { color: #6b7280; } #anScr .lt .v.none { color: var(--txt); border-color: #4b5563; }
+    #anScr .chg { outline: 3px solid #ff8c2e; outline-offset: -3px; }
+    #anScr .g23 { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3,1fr); gap: 6px; height: 100%; }
+    #anScr .gbtn { display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--panel); border: 2px solid var(--line); border-radius: 10px; line-height: 1.15; }
+    #anScr .gbtn .g1 { font-weight: 700; font-size: 15px; } #anScr .gbtn .g2 { font-weight: 700; font-size: 13px; color: var(--muted); }
+    #anScr .gbtn.alt { background: #16202b; border-style: dashed; } #anScr .gbtn.alt .g1 { font-size: 20px; line-height: 1; }
+    #anScr .gbtn.is-bad { border-color: var(--bad); } #anScr .gbtn.is-first { border-color: var(--first); } #anScr .gbtn.dim .g1 { color: var(--muted); }
+    #anScr .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; height: 100%; }
+    #anScr .tile { background: var(--panel); border-radius: 6px; padding: 4px 6px; position: relative; overflow: hidden; border: 1px solid transparent; }
+    #anScr .tile.bad { border-color: var(--bad); } #anScr .tile.first { border-color: var(--first); }
+    #anScr .tile .n { font-size: 10px; color: var(--muted); } #anScr .tile .val { font-size: 19px; font-weight: 700; line-height: 1.1; }
+    #anScr .pill { position: absolute; top: 4px; right: 5px; font-size: 8.5px; font-weight: 700; padding: 1px 5px; border-radius: 8px; background: #374151; color: #cbd5e1; }
+    #anScr .pill.ok { background: #14532d; color: #86efac; } #anScr .pill.b { background: #7f1d1d; color: #fecaca; } #anScr .pill.f { background: #1e3a8a; color: #bfdbfe; }
+    #anScr .big { font-size: 40px; font-weight: 700; line-height: 1; }
+    #anScr .al { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 10px 12px; gap: 4px; }
+    #anScr .al.critical { background: #2a0c0b; box-shadow: inset 0 0 0 4px #ff3b30; } #anScr .al.warning { background: #2a1d07; box-shadow: inset 0 0 0 4px #ffb020; }
+    #anScr .al.info { background: #0b1d2e; box-shadow: inset 0 0 0 4px #2ea8ff; }
+    #anScr .al.test { background: repeating-linear-gradient(135deg,#231233 0 12px,#1a0d27 12px 24px); box-shadow: inset 0 0 0 4px var(--test); }
+    #anScr .al .hd { font-weight: 700; font-size: 13px; } #anScr .al .t1 { font-size: 15px; font-weight: 700; line-height: 1.3; }
+    #anScr .al .val { font-size: 34px; font-weight: 700; } #anScr .al .val small { font-size: 13px; color: #cbd5e1; margin-left: 4px; }
+    #anScr .al .ft { margin-top: auto; font-size: 11px; text-align: center; padding: 6px; border-radius: 12px; background: #ffb020; color: #1a1200; font-weight: 700; }
+    #anScr .say { font-size: 10.5px; color: #e9d5ff; background: rgba(168,85,247,.18); border-radius: 5px; padding: 3px 6px; }
+    #anScr .row { display: flex; align-items: center; gap: 6px; background: #161c24; border-radius: 8px; padding: 4px 8px; margin-bottom: 4px; border: 1px solid var(--line); }
+    @@media (max-width: 460px) { .an-zoom { width: 240px; height: 240px; } #anScr { transform: none; } .an-dev { padding: 12px; } }
+</style>
+}
+
+<partial name="_AdminTabs" model='"ann"' />
+
+<div class="an-wrap">
+    <div class="an-head">
+        <div>
+            <h1 class="an-title">Annunciator (จอจำลอง)</h1>
+            <div class="an-sub">จอ 240×240 แบบเดียวกับเครื่อง ann-1.2.0 · ข้อมูลจริงจาก endpoint เดียวกับเครื่อง · คลิก = แตะจอ</div>
+        </div>
+        <div class="an-chips">
+            <span class="an-chip" id="chipFeed">alarm: –</span>
+            <span class="an-chip" id="chipScn">สถานการณ์: –</span>
+            <span class="an-chip" id="chipLab">ผลแล็บ: –</span>
+        </div>
+    </div>
+
+    <div class="an-grid">
+        <div class="an-dev"><div class="an-zoom"><div id="anScr" aria-label="จอจำลอง annunciator"></div></div></div>
+
+        <div class="an-side">
+            <div class="an-card">
+                <h2>ตั้งค่าจอจำลอง<span class="sp"></span>
+                    <button class="an-btn" id="btnSound" type="button">🔇 เสียงปิด</button>
+                    <button class="an-btn" id="btnRefresh" type="button">ดึงใหม่ตอนนี้</button>
+                </h2>
+                <div class="an-body">
+                    <div class="an-kv">
+                        <span class="k">zone</span>
+                        <span><input class="an-in" id="inZones" placeholder="ว่าง = ทุก zone เช่น TPS,CWS" style="width:220px" /></span>
+                        <span class="k">BOOT</span>
+                        <span><button class="an-btn" id="btnBoot" type="button">⏺ กดปุ่ม BOOT</button> <span class="an-note">หน้า alarm = รับทราบ · หน้าอื่น = HOME</span></span>
+                    </div>
+                    <div class="an-note" style="margin-top:8px">
+                        รอบดึงเหมือนเครื่อง: alarm ทุก 5 วิ · สถานการณ์ทุก 30 วิ (เปลี่ยน = ดึงผลแล็บทันที + กรอบส้ม 10 วิ) ·
+                        ผลแล็บทุก 5 นาที + ทันทีเมื่อมี alarm แล็บใหม่ / เปิดหน้าแล็บ (ถ้าเก่ากว่า 60 วิ) ·
+                        การรับทราบเก็บในแท็บนี้เท่านั้น (ไม่กระทบเครื่องจริงและ MHxView)
+                    </div>
+                </div>
+            </div>
+            <div class="an-card">
+                <h2>สถานะข้อมูล</h2>
+                <div class="an-body"><div class="an-kv" id="kvState"></div></div>
+            </div>
+            <div class="an-card">
+                <h2>เสียงที่เครื่องจะพูด</h2>
+                <div class="an-body"><div class="an-say" id="sayBox">—</div></div>
+            </div>
+            <div class="an-card">
+                <h2>เหตุการณ์<span class="sp"></span><button class="an-btn" id="btnClearLog" type="button">ล้าง</button></h2>
+                <div class="an-body"><div class="an-log" id="logBox"></div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="~/js/annunciator.js" asp-append-version="true"></script>
+}

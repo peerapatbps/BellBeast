@@ -179,6 +179,28 @@
             box-shadow: inset 0 0 0 1px rgba(255,255,255,.35);
         }
 
+        /* first = เกินเกณฑ์ครั้งแรก (น้ำเงิน) · bad = เกินต่อเนื่อง ≥2 ครั้ง (แดง) — เกณฑ์จาก LabVenture /config */
+        section.lab-block .status-dot.first {
+            background: #3b82f6;
+            box-shadow: 0 0 10px rgba(59,130,246,.55);
+        }
+
+        /* none = สถานการณ์นี้ไม่มีเกณฑ์ของจุดนี้ */
+        section.lab-block .status-dot.none {
+            background: #64748b;
+        }
+
+    section.lab-block .lab-limit-title {
+        font-size: 11px;
+        font-weight: 700;
+        color: rgba(255,255,255,.72);
+        letter-spacing: .02em;
+    }
+
+        section.lab-block .lab-limit-title.fallback {
+            color: #fcd34d;
+        }
+
     /* ===== ROW 2 ===== */
     section.lab-block .filter-row {
         display: flex;
@@ -255,6 +277,11 @@
         section.lab-block .mini-card .ov-status.warn {
             background: rgba(245,158,11,.16);
             color: #fcd34d;
+        }
+
+        section.lab-block .mini-card .ov-status.first {
+            background: rgba(59,130,246,.20);
+            color: #93c5fd;
         }
 
     section.lab-block .mini-meta {
@@ -492,7 +519,7 @@
                 <div class="lab-top-card">
                     <div class="lab-top-head">
                         <div>
-
+                            <div class="lab-limit-title" id="labLimitTitle" title="เกณฑ์ LCL/UCL จาก LabVenture /config → สถานการณ์ · น้ำเงิน = เกินครั้งแรก · แดง = เกินต่อเนื่อง">เกณฑ์: –</div>
                         </div>
                     </div>
 

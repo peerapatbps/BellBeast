@@ -154,6 +154,7 @@
             "CW T": { type: "max", max: 5 },
             "CW CL": { type: "max", max: 0.3 },
             "FW T": { type: "max", max: 1 },
+            "TW T": { type: "max", max: 1 }, // TW Turbid ใช้เกณฑ์เดียวกับ FW Turbid
             "TW CL": { type: "range", min: 1.0, max: 1.4 }
         };
 
@@ -161,13 +162,86 @@
             "CW T": { type: "max", max: 3 },
             "CW CL": { type: "max", max: 0.5 },
             "FW T": { type: "max", max: 1 },
+            "TW T": { type: "max", max: 1 }, // = FW T
             "TW CL": { type: "range", min: 1.0, max: 1.4 }
         };
 
         return mode === "emergency" ? emergency : normal;
     }
 
-    function classifyStatusItem(item, mode) {
+    // ── เกณฑ์จาก LabVenture (/config → สถานการณ์ที่ active) ─────────────────────
+    // GET /labventure/api/scenarios/limits → [{ param_key, configparam_id, lcl, ucl }]
+    // ดึงไม่ได้ → ใช้ชุดสำรองด้านบน (getStatusRules ตาม Status Mode) และป้ายหัวการ์ดขึ้นสีเหลือง
+    const LIMITS_URL = "/labventure/api/scenarios/limits";
+    let limits = null; // { scenario, epidemic, byCfg: Map<configparam_id, item> }
+
+    async function fetchLimits() {
+        try {
+            const r = await fetch(LIMITS_URL, { cache: "no-store" });
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            const j = await r.json();
+            const byCfg = new Map();
+            for (const it of safeArray(j.items)) {
+                if (it && it.configparam_id !== null && it.configparam_id !== undefined) byCfg.set(Number(it.configparam_id), it);
+            }
+            limits = { scenario: j.scenario || null, epidemic: !!j.epidemic, byCfg };
+        } catch (err) {
+            console.warn("LAB limits from LabVenture unavailable — using fallback rules:", err);
+            limits = null;
+        }
+    }
+
+    function ruleFromLimit(it) {
+        if (!it) return null;
+        const lo = toNumber(it.lcl);
+        const hi = toNumber(it.ucl);
+        if (lo !== null && hi !== null) return { type: "range", min: lo, max: hi };
+        if (hi !== null) return { type: "max", max: hi };
+        if (lo !== null) return { type: "min", min: lo };
+        return null;
+    }
+
+    // null = สถานการณ์นี้ไม่มีเกณฑ์ของจุดนี้
+    function ruleForCfg(cfg, fallbackRule) {
+        if (!limits) return fallbackRule || null;
+        return ruleFromLimit(limits.byCfg.get(Number(cfg)));
+    }
+
+    function renderLimitTitle() {
+        const el = rootEl?.querySelector("#labLimitTitle");
+        if (!el) return;
+        if (limits) {
+            el.textContent = `เกณฑ์: ${limits.scenario?.name || "–"}${limits.epidemic ? " · โรคระบาด" : ""}`;
+            el.classList.remove("fallback");
+        } else {
+            el.textContent = "เกณฑ์สำรอง (ติดต่อ LabVenture ไม่ได้)";
+            el.classList.add("fallback");
+        }
+    }
+
+    // ครั้งที่เกินติดกันของตัวอย่างล่าสุด (ข้ามรอบที่ไม่มีค่า): 0 = ในเกณฑ์ · 1 = เกินครั้งแรก · ≥2 = เกินต่อเนื่อง
+    function streakOf(values, rule) {
+        let streak = 0;
+        for (const v of values) {
+            if (v === null || v === undefined || !Number.isFinite(v)) continue;
+            streak = isZone4Exceeded(v, rule) ? streak + 1 : 0;
+        }
+        return streak;
+    }
+
+    const streakClass = (streak) => (streak >= 2 ? "bad" : streak === 1 ? "first" : "ok");
+
+    function statusGroup(key) {
+        const k = normalizeStatusKey(key);
+        return k.includes("CW") && k.includes("CL") ? "CW CL" :
+            k.includes("CW") && k.includes("T") ? "CW T" :
+                k.includes("FW") && k.includes("T") ? "FW T" :
+                    k.includes("TW") && k.includes("CL") ? "TW CL" :
+                        null;
+    }
+
+    // history: Map<configparam_id, number[]> (ค่าย้อนหลังจาก zone4 ของกลุ่มนั้น เรียงเก่า→ใหม่)
+    function classifyStatusItem(item, mode, history) {
         const rawReal = item?.value_real;
         const rawText = item?.value_text;
 
@@ -180,27 +254,17 @@
         // null = ดำ
         if (value === null && isNullish) return "off";
 
-        const key = normalizeStatusKey(item?.key);
-        const group =
-            key.includes("CW") && key.includes("CL") ? "CW CL" :
-                key.includes("CW") && key.includes("T") ? "CW T" :
-                    key.includes("FW") && key.includes("T") ? "FW T" :
-                        key.includes("TW") && key.includes("CL") ? "TW CL" :
-                            null;
+        const group = statusGroup(item?.key);
+        const rule = ruleForCfg(item?.configparam_id, group ? getStatusRules(mode)[group] : null);
+        if (!rule) return limits ? "none" : "off";
 
-        if (!group) return "off";
-
-        const rule = getStatusRules(mode)[group];
-        if (!rule) return "off";
-
-        // 0 ต้องเข้ากติกาปกติ ไม่ใช่ดำ
-        if (rule.type === "max") return value <= rule.max ? "ok" : "bad";
-        if (rule.type === "range") return value >= rule.min && value <= rule.max ? "ok" : "bad";
-
-        return "off";
+        const past = history?.get(Number(item?.configparam_id));
+        // ค่าล่าสุดของ zone3 คือจุดสุดท้ายที่มีค่าของ zone4 อยู่แล้ว → นับจากประวัติได้เลย; ไม่มีประวัติ = ดูแค่ค่าล่าสุด
+        const streak = past && past.some(v => v !== null) ? streakOf(past, rule) : (isZone4Exceeded(value, rule) ? 1 : 0);
+        return streakClass(streak);
     }
 
-    function renderStatus(items, mode) {
+    function renderStatus(items, mode, history) {
         const grid = rootEl?.querySelector("#labStatusGrid");
         if (!grid) return 0;
 
@@ -217,13 +281,16 @@
 
         for (const key of keys) {
             const item = byKey.get(normalizeStatusKey(key));
-            const cls = classifyStatusItem(item, mode);
+            const cls = classifyStatusItem(item, mode, history);
             if (cls === "bad") badCount++;
 
             const pill = document.createElement("div");
             pill.className = "status-pill";
+            const lim = limits?.byCfg.get(Number(item?.configparam_id));
+            const limText = lim ? `  [เกณฑ์ ${lim.lcl ?? "–"}–${lim.ucl ?? "–"}]` : (limits ? "  [ไม่มีเกณฑ์]" : "");
+            const stateText = cls === "first" ? "  เกินครั้งแรก" : cls === "bad" ? "  เกินต่อเนื่อง" : "";
             pill.title = item?.active
-                ? `${item.ts_local ?? ""}  ${item.value_text ?? item.value_real ?? ""}`.trim()
+                ? `${item.ts_local ?? ""}  ${item.value_text ?? item.value_real ?? ""}${limText}${stateText}`.trim()
                 : "no data";
 
             const dot = document.createElement("span");
@@ -334,7 +401,7 @@
             case "CW Pre CL": return rules["CW CL"];
             case "FW Turbid": return rules["FW T"];
             case "TW Pos CL": return rules["TW CL"];
-            case "TW Turbid": return null;
+            case "TW Turbid": return rules["TW T"];
             default: return null;
         }
     }
@@ -372,6 +439,13 @@
             };
         }
 
+        if (rule.type === "min") {
+            return {
+                min: Math.max(0, Math.min(dataMin, rule.min * 0.8)),
+                max: Math.max(dataMax, rule.min * 1.4)
+            };
+        }
+
         return { min: 0, max: Math.max(10, dataMax) };
     }
 
@@ -380,6 +454,7 @@
         if (!rule) return false;
 
         if (rule.type === "max") return value > rule.max;
+        if (rule.type === "min") return value < rule.min;
         if (rule.type === "range") return !(value >= rule.min && value <= rule.max);
 
         return false;
@@ -392,6 +467,7 @@
         for (let i = 0; i < points.length; i++) {
             const p = points[i];
             const value = Array.isArray(p) ? toNumber(p[1]) : null;
+            if (value === null) continue; // รอบที่ไม่มีผล ไม่ตัดการนับ
             const exceeded = isZone4Exceeded(value, rule);
 
             if (exceeded) {
@@ -460,23 +536,32 @@
         }
     };
 
-    function classifyZone4Latest(points, filterLabel, mode) {
-        const last = safeArray(points).at(-1);
-        if (!Array.isArray(last)) return "warn";
+    // badge ของการ์ด: ไม่มีค่าเลย = warn (–) · ไม่มีเกณฑ์ = ok · ที่เหลือตามจำนวนครั้งที่เกินติดกัน
+    function classifyZone4(values, rule) {
+        if (!values.some(v => v !== null)) return { cls: "warn", text: "–" };
+        if (!rule) return { cls: "ok", text: "OK" };
+        const streak = streakOf(values, rule);
+        if (streak >= 2) return { cls: "bad", text: "BAD" };
+        if (streak === 1) return { cls: "first", text: "เกิน 1" };
+        return { cls: "ok", text: "OK" };
+    }
 
-        const value = toNumber(last[1]);
-
-        // null = ไม่มีข้อมูลจริง ค่อยถือว่าไม่พร้อม
-        if (value === null) return "warn";
-
-        const rule = getZone4Rule(filterLabel, mode);
-        if (!rule) return "ok";
-
-        // 0 ต้องเข้าเกณฑ์ปกติ ไม่ใช่ BAD
-        if (rule.type === "max") return value <= rule.max ? "ok" : "bad";
-        if (rule.type === "range") return value >= rule.min && value <= rule.max ? "ok" : "bad";
-
-        return "warn";
+    function limitDatasets(rule, n) {
+        if (!rule) return [];
+        const line = (v) => ({
+            data: Array(n).fill(v),
+            borderColor: "rgba(252,165,165,.75)",
+            borderWidth: 1,
+            borderDash: [5, 4],
+            pointRadius: 0,
+            pointHoverRadius: 0,
+            fill: false,
+            tension: 0
+        });
+        const out = [];
+        if (rule.type === "range" || rule.type === "max") out.push(line(rule.max));
+        if (rule.type === "range" || rule.type === "min") out.push(line(rule.min));
+        return out;
     }
 
     function renderZone4(zone4, settings) {
@@ -484,7 +569,7 @@
         if (!Chart) return;
 
         const filterLabel = settings.zone4Filter;
-        const rule = getZone4Rule(filterLabel, settings.statusMode);
+        const fallbackRule = getZone4Rule(filterLabel, settings.statusMode);
 
         const titles = [
             rootEl.querySelector("#labCardTitle1"),
@@ -516,13 +601,17 @@
             const points = safeArray(s.points);
             const labels = points.map(x => Array.isArray(x) ? toHourAmPm(x[0]) : "");
             const values = points.map(x => Array.isArray(x) ? toNumber(x[1]) : null);
+            const rule = ruleForCfg(s.configparam_id, fallbackRule);
             const bands = buildZone4Bands(points, rule);
 
-            const badgeCls = classifyZone4Latest(points, filterLabel, settings.statusMode);
+            const badge = classifyZone4(values, rule);
             const badgeEl = statuses[i];
             if (badgeEl) {
-                badgeEl.className = `ov-status ${badgeCls}`;
-                badgeEl.textContent = badgeCls === "ok" ? "OK" : "BAD";
+                badgeEl.className = `ov-status ${badge.cls}`;
+                badgeEl.textContent = badge.text;
+                badgeEl.title = rule
+                    ? `เกณฑ์ ${rule.min ?? "–"}–${rule.max ?? "–"} · น้ำเงิน = เกินครั้งแรก · แดง = เกินต่อเนื่อง`
+                    : "สถานการณ์นี้ไม่มีเกณฑ์ของจุดนี้";
             }
 
             destroyChart(CHARTS.z4[i]);
@@ -544,7 +633,7 @@
                         borderWidth: 2,
                         pointRadius: 2,
                         tension: 0.2
-                    }]
+                    }, ...limitDatasets(rule, values.length)]
                 },
                 plugins: [zone4BandPlugin],
                 options: {
@@ -575,6 +664,27 @@
                 }
             });
         }
+    }
+
+    // zone4 groups behind the 16 status dots (CW T, CW CL, FW T, TW CL) — their series give each dot's history
+    const STATUS_FILTERS = ["CW Turbid", "CW Pre CL", "FW Turbid", "TW Pos CL"];
+
+    function addHistory(history, zone4) {
+        for (const s of safeArray(zone4?.series)) {
+            if (s?.configparam_id === null || s?.configparam_id === undefined) continue;
+            history.set(Number(s.configparam_id), safeArray(s.points).map(x => Array.isArray(x) ? toNumber(x[1]) : null));
+        }
+    }
+
+    // series of the status groups not already in the main response; a failed group just has no history
+    async function fetchStatusHistory(settings, mainZone4) {
+        const history = new Map();
+        addHistory(history, mainZone4);
+        const others = STATUS_FILTERS.filter(f => f !== settings.zone4Filter);
+        const results = await Promise.all(others.map(f =>
+            fetchLabSummary({ ...settings, zone4Filter: f }).catch(() => null)));
+        for (const r of results) addHistory(history, r?.data?.zone4);
+        return history;
     }
 
     async function fetchLabSummary(settings) {
@@ -609,12 +719,14 @@
 
         inFlightPromise = (async () => {
             try {
-                const payload = await fetchLabSummary(settings);
+                const [payload] = await Promise.all([fetchLabSummary(settings), fetchLimits()]);
                 const data = payload?.data || {};
+                const history = await fetchStatusHistory(settings, data.zone4);
 
+                renderLimitTitle();
                 renderRwChart(data.zone1, settings);
                 renderRecommend(data.zone2 || {});
-                  const badCount = renderStatus(data.zone3?.items || [], settings.statusMode);
+                  const badCount = renderStatus(data.zone3?.items || [], settings.statusMode, history);
                   renderZone4(data.zone4 || {}, settings);
                   const exceeded = window.BBAlerts?.evaluate?.(rootEl, {
                       ruleKey: "lab-bad-count",
@@ -703,7 +815,7 @@
                                     </div>
 
                                     <div class="lab-settings-row">
-                                        <label>Status Mode</label>
+                                        <label title="เกณฑ์ปกติมาจาก LabVenture /config → สถานการณ์ · ชุดนี้ใช้เฉพาะตอนติดต่อ LabVenture ไม่ได้">Status Mode (สำรอง เมื่อดึงเกณฑ์จาก LabVenture ไม่ได้)</label>
                                         <div style="display:flex;gap:8px;">
                                             <button type="button" id="labModeNormal" class="primary" style="flex:1;">Normal</button>
                                             <button type="button" id="labModeEmergency" style="flex:1;">Emergency</button>

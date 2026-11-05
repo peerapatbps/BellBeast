@@ -30,6 +30,11 @@ const btnAddSelected = document.getElementById("btnAddSelected");
 const selectedCountEl = document.getElementById("selectedCount");
 
 const selectedTbody = document.querySelector("#tblSelected tbody");
+const chkAllEl = document.getElementById("chkAll");
+const btnSelPrev = document.getElementById("btnSelPrev");
+const btnSelNext = document.getElementById("btnSelNext");
+const selPageInfo = document.getElementById("selPageInfo");
+const selTotalEl = document.getElementById("selTotal");
 
 const plantChipsEl = document.getElementById("plantChips");
 const stationChipsEl = document.getElementById("stationChips");
@@ -58,6 +63,10 @@ const activeStations = new Set();   // station_code multi-toggle
 
 const checkedMap = new Map();       // key: configID, value: row
 const selectedMap = new Map();      // key: configID, value: row
+
+// "รายการที่เลือก" แสดงทีละหน้า
+const SELECTED_PAGE_SIZE = 10;
+let selectedPage = 1;
 
 const PLANTS = ["ทุกโรงงาน", "MS", "BK", "SS", "SS1", "SS2", "SS3", "SS4", "TB", "WQ"];
 const STATIONS = ["TPS", "DPS", "RWS", "CDS", "CTS", "QWS", "FWS", "CWS"];
@@ -164,16 +173,26 @@ async function doLogout() {
 }
 
 // --------------------------
-// Selected render (โชว์ 5 รายการแรก)
+// Selected render (ทีละ SELECTED_PAGE_SIZE รายการ + Prev/Next)
 // --------------------------
 function renderSelectedTable() {
     if (!selectedTbody) return;
 
     selectedTbody.innerHTML = "";
 
-    const rows = Array.from(selectedMap.values())
-        .sort((a, b) => Number(a.configID) - Number(b.configID))
-        .slice(0, 5);
+    const all = Array.from(selectedMap.values())
+        .sort((a, b) => Number(a.configID) - Number(b.configID));
+
+    const totalPages = Math.max(1, Math.ceil(all.length / SELECTED_PAGE_SIZE));
+    selectedPage = Math.min(Math.max(1, selectedPage), totalPages); // หน้าเกินหลังลบ/clear → ถอยกลับ
+
+    if (selTotalEl) selTotalEl.textContent = String(all.length);
+    if (selPageInfo) selPageInfo.textContent = `Page ${selectedPage} / ${totalPages}`;
+    if (btnSelPrev) btnSelPrev.disabled = (selectedPage <= 1);
+    if (btnSelNext) btnSelNext.disabled = (selectedPage >= totalPages);
+
+    const start = (selectedPage - 1) * SELECTED_PAGE_SIZE;
+    const rows = all.slice(start, start + SELECTED_PAGE_SIZE);
 
     for (const r of rows) {
         const tr = document.createElement("tr");
@@ -251,6 +270,30 @@ function renderChips() {
         }
     }
 }
+
+// --------------------------
+// "เลือกทั้งหมด" (เฉพาะแถวในหน้าผลลัพธ์ปัจจุบัน)
+// --------------------------
+function syncCheckAll() {
+    if (!chkAllEl || !tbody) return;
+    const boxes = Array.from(tbody.querySelectorAll(".row-check"));
+    const n = boxes.filter(b => b.checked).length;
+    chkAllEl.disabled = boxes.length === 0;
+    chkAllEl.checked = boxes.length > 0 && n === boxes.length;
+    chkAllEl.indeterminate = n > 0 && n < boxes.length;
+}
+
+chkAllEl?.addEventListener("change", () => {
+    if (!tbody) return;
+    const target = chkAllEl.checked;
+    tbody.querySelectorAll(".row-check").forEach(cb => {
+        if (cb.checked !== target) {
+            cb.checked = target;
+            cb.dispatchEvent(new Event("change")); // ใช้ applyCheckedState ของแต่ละแถว
+        }
+    });
+    syncCheckAll();
+});
 
 // --------------------------
 // Load AQ Table
@@ -336,6 +379,7 @@ async function loadAqTable() {
                 }
 
                 setCheckedCount(checkedMap.size);
+                syncCheckAll();
             }
 
             cb.addEventListener("click", (ev) => ev.stopPropagation());
@@ -354,6 +398,7 @@ async function loadAqTable() {
         }
 
         setCheckedCount(checkedMap.size);
+        syncCheckAll();
 
     } catch (err) {
         console.error(err);
@@ -432,6 +477,16 @@ btnNext?.addEventListener("click", () => {
     currentPage++;
     clearChecked();
     loadAqTable();
+});
+
+btnSelPrev?.addEventListener("click", () => {
+    selectedPage--;
+    renderSelectedTable();
+});
+
+btnSelNext?.addEventListener("click", () => {
+    selectedPage++;
+    renderSelectedTable();
 });
 
 btnAddSelected?.addEventListener("click", () => {

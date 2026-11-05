@@ -1,0 +1,60 @@
+@model string
+@*
+    แถบ tab ย่อยของ Admin — Tasks (/Admin/AdminPage) เป็นหน้าหลัก
+    ใช้: <partial name="_AdminTabs" model='"tasks"' />   (tasks | iot | alarm | audio | fleet | ann)
+    แต่ละหน้ายังอยู่ URL เดิม (อุปกรณ์/ลิงก์ภายนอกที่ใช้ /IotRoom, /AlarmMonitor ไม่พัง)
+*@
+@{
+    var tabs = new (string Key, string Page, string Label)[]
+    {
+        ("tasks", "/Admin/AdminPage", "Tasks"),
+        ("iot", "/IotRoom", "IoT Room"),
+        ("alarm", "/AlarmMonitor", "Alarm Monitor"),
+        ("audio", "/Admin/AudioLibrary", "Audio Library"),
+        ("fleet", "/Admin/Fleet", "Fleet"),
+        ("ann", "/Admin/Annunciator", "Annunciator"),
+    };
+}
+
+<style>
+    .adm-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        width: min(1280px, 96%); /* = ความกว้างหน้า Alarm Monitor / Audio Library */
+        margin: 14px auto 0;
+        padding: 6px;
+        border: 1px solid rgba(148,163,184,.18);
+        border-radius: 14px;
+        background: rgba(15,23,42,.55);
+        flex: none;
+    }
+
+        .adm-tabs a {
+            padding: 8px 16px;
+            border-radius: 10px;
+            color: rgba(226,232,240,.75);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+            .adm-tabs a:hover {
+                background: rgba(148,163,184,.12);
+                color: #e8eefc;
+            }
+
+            .adm-tabs a.active {
+                background: rgba(80,110,255,.28);
+                color: #fff;
+                box-shadow: inset 0 0 0 1px rgba(120,150,255,.45);
+            }
+</style>
+
+<nav class="adm-tabs" aria-label="Admin">
+    @foreach (var t in tabs)
+    {
+        <a asp-page="@t.Page" class="@(t.Key == Model ? "active" : null)" aria-current="@(t.Key == Model ? "page" : null)">@t.Label</a>
+    }
+</nav>

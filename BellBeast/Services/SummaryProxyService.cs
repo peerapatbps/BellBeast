@@ -17,6 +17,7 @@ public sealed class SummaryProxyService
     public const string DefaultEventPath      = "/api/event/summary";
     public const string DefaultLabPath        = "/api/lab/summary";
     public const string DefaultClDetectorPath = "/api/cldetector/summary";
+    public const string DefaultClarifierPath  = "/api/clarifier/summary";
 
     // ── HTTP client ───────────────────────────────────────────────────────────
 

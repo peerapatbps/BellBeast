@@ -322,6 +322,9 @@ public sealed class AudioLibraryService
         v.Add(new("s_latest_value", "ค่าล่าสุด", "word"));
         v.Add(new("s_low", "ต่ำกว่าเกณฑ์", "word"));
         v.Add(new("s_high", "สูงกว่าเกณฑ์", "word"));
+        // test signal (LabVenture /config test mode) — Uroboros TestSignal puts these around every test playlist
+        v.Add(new("s_test_notice", "นี่เป็นสัญญาณทดสอบ", "word"));
+        v.Add(new("s_test_end", "สิ้นสุดสัญญาณทดสอบ ไม่ใช่เหตุจริง", "word"));
         v.Add(new("s_m3h", "ลูกบาศก์เมตรต่อชั่วโมง", "unit"));
         v.Add(new("s_bar", "บาร์", "unit"));
         v.Add(new("s_ppm", "พีพีเอ็ม", "unit"));

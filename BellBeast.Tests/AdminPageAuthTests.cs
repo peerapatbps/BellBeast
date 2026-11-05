@@ -78,6 +78,23 @@ public sealed class AdminPageAuthTests : IClassFixture<BellBeastBaseFactory>
     }
 
     [Fact]
+    public async Task Annunciator_Page_Needs_Admin_And_Has_Tab_And_Script()
+    {
+        var anon = _factory.CreateClient(new() { AllowAutoRedirect = false });
+        var r = await anon.GetAsync("/Admin/Annunciator");
+        Assert.Equal(HttpStatusCode.Redirect, r.StatusCode);
+        Assert.Contains("/Admin/Login", r.Headers.Location?.ToString() ?? "", StringComparison.OrdinalIgnoreCase);
+
+        await using var factory = new BellBeastAdminFactory();
+        var html = await factory.CreateClient().GetStringAsync("/Admin/Annunciator");
+        Assert.Contains("id=\"anScr\"", html);
+        Assert.Contains("/js/annunciator.js", html);
+        Assert.Contains("href=\"/Admin/Annunciator\"", html);          // tab in the admin strip
+        var tasks = await factory.CreateClient().GetStringAsync("/Admin/AdminPage");
+        Assert.Contains("href=\"/Admin/Annunciator\"", tasks);           // reachable from AdminPage
+    }
+
+    [Fact]
     public async Task AdminMe_AuthenticatedAdmin_ReturnsOk()
     {
         await using var factory = new BellBeastAdminFactory();

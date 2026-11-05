@@ -1,0 +1,158 @@
+@page
+@model BellBeast.Pages.Admin.FleetModel
+@{
+    ViewData["Title"] = "Annunciator Fleet";
+}
+
+@section Styles {
+<style>
+    .fl-wrap { width: min(1360px, 96%); margin: 0 auto; padding: 18px 0 28px; color: #e8eefc; }
+    .fl-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 14px; }
+    .fl-title { margin: 0; font-size: clamp(22px, 2.2vw, 30px); font-weight: 800; }
+    .fl-sub { font-size: 12px; color: rgba(148,163,184,.75); letter-spacing: .04em; }
+    .fl-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+    .fl-chip { padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 700;
+               border: 1px solid rgba(148,163,184,.25); background: rgba(15,23,42,.7); white-space: nowrap; }
+    .fl-chip.ok { border-color: #22c55e; color: #86efac; }
+    .fl-chip.warn { border-color: #f59e0b; color: #fcd34d; }
+    .fl-card { border: 1px solid rgba(148,163,184,.16); border-radius: 16px; margin-bottom: 14px; overflow: hidden;
+               background: linear-gradient(180deg, rgba(15,23,42,.82), rgba(15,23,42,.56)); box-shadow: 0 14px 36px rgba(0,0,0,.2); }
+    .fl-card h2 { margin: 0; padding: 12px 16px; font-size: 14px; font-weight: 700; letter-spacing: .04em; color: rgba(226,232,240,.9);
+                  border-bottom: 1px solid rgba(148,163,184,.12); display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .fl-card h2 .sp { flex: 1; }
+    .fl-body { padding: 12px 16px; font-size: 13px; }
+    .fl-in { background: rgba(2,6,23,.6); color: #e2e8f0; border: 1px solid rgba(148,163,184,.25); border-radius: 8px; padding: 4px 8px; font-size: 12px; }
+    .fl-in.w-s { width: 64px; } .fl-in.w-m { width: 120px; } .fl-in.w-l { width: 200px; }
+    .fl-btn { background: rgba(56,189,248,.12); color: #7dd3fc; border: 1px solid rgba(56,189,248,.4); border-radius: 8px;
+              padding: 4px 10px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+    .fl-btn:hover { background: rgba(56,189,248,.22); }
+    .fl-btn.ok { color: #86efac; border-color: rgba(34,197,94,.5); background: rgba(34,197,94,.1); }
+    .fl-btn.del { color: #fca5a5; border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.08); }
+    .fl-table-wrap { overflow-x: auto; }
+    table.fl { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table.fl th { text-align: left; padding: 8px 8px; font-size: 11px; font-weight: 700; letter-spacing: .06em; color: rgba(148,163,184,.8);
+                  text-transform: uppercase; border-bottom: 1px solid rgba(148,163,184,.14); white-space: nowrap; }
+    table.fl td { padding: 6px 8px; border-bottom: 1px solid rgba(148,163,184,.07); vertical-align: middle; white-space: nowrap; }
+    table.fl td.mono { font-family: ui-monospace, Consolas, monospace; }
+    .fl-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: #64748b; margin-right: 6px; }
+    .fl-dot.on { background: #22c55e; } .fl-dot.late { background: #f59e0b; } .fl-dot.off { background: #ef4444; }
+    .fl-tag { font-size: 11px; padding: 1px 7px; border-radius: 6px; background: rgba(148,163,184,.14); }
+    .fl-tag.pending { background: rgba(245,158,11,.18); color: #fcd34d; }
+    .fl-tag.ok { background: rgba(34,197,94,.15); color: #86efac; }
+    .fl-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .fl-row label { font-size: 11px; color: rgba(148,163,184,.85); }
+    .fl-msg { padding: 8px 16px; font-size: 12px; display: none; }
+    .fl-msg.err { color: #fca5a5; display: block; } .fl-msg.ok { color: #86efac; display: block; }
+    .fl-note { font-size: 12px; color: rgba(148,163,184,.85); line-height: 1.6; margin: 8px 0 0; }
+    .fl-muted { color: rgba(148,163,184,.7); }
+</style>
+}
+
+<partial name="_AdminTabs" model='"fleet"' />
+
+<div class="fl-wrap">
+    <div class="fl-head">
+        <div>
+            <h1 class="fl-title">Annunciator Fleet</h1>
+            <div class="fl-sub">อุปกรณ์แจ้งเตือน · อนุมัติเครื่องใหม่ · zone/ค่าตั้ง · WiFi รหัสถัดไป · firmware OTA · log จากเครื่อง</div>
+        </div>
+        <div class="fl-chips">
+            <span class="fl-chip" id="chipOnline">online: –</span>
+            <span class="fl-chip" id="chipPending">pending: –</span>
+            <span class="fl-chip" id="chipFw">stable: –</span>
+        </div>
+    </div>
+
+    <div class="fl-msg" id="msg"></div>
+
+    <div class="fl-card">
+        <h2>Devices <span class="sp"></span><button class="fl-btn" id="reload" type="button">รีเฟรช</button></h2>
+        <div class="fl-table-wrap">
+            <table class="fl">
+                <thead><tr>
+                    <th>device</th><th>สถานะ</th><th>ชื่อ</th><th>zones</th><th>channel</th><th>poll/remind/vol/lab/scn</th>
+                    <th>fw</th><th>ip</th><th>wifi</th><th>เล่นล่าสุด</th><th>ack ล่าสุด</th><th>last seen</th><th></th>
+                </tr></thead>
+                <tbody id="rows"></tbody>
+            </table>
+        </div>
+        <p class="fl-note" style="padding:0 16px 12px">
+            เครื่องใหม่จะขึ้นเป็น <b>pending</b> เมื่อรายงานครั้งแรก (ยืนยันตัวด้วย key ประจำเครื่อง) — ต้องกด <b>อนุมัติ</b> ก่อนเครื่องจะได้รหัส WiFi ·
+            ช่องว่าง = ใช้ค่ากลาง · "reset key" ใช้เมื่อเปลี่ยนบอร์ด/ล้าง NVS (เครื่องใหม่ต้องอนุมัติอีกครั้ง)
+        </p>
+    </div>
+
+    <div class="fl-card">
+        <h2>ค่ากลาง (ใช้กับทุกเครื่องที่ไม่ได้ตั้งเอง)</h2>
+        <div class="fl-body">
+            <div class="fl-row">
+                <label>zones</label><input class="fl-in w-l" id="dZones" placeholder="ว่าง = ทุก zone · เช่น RWS,DPS" />
+                <label>poll (s)</label><input class="fl-in w-s" id="dPoll" type="number" min="1" max="60" />
+                <label>remind (s)</label><input class="fl-in w-s" id="dRemind" type="number" min="0" max="3600" />
+                <label title="รอบดึงผลแล็บของจอ (นอกจากนี้ดึงทันทีเมื่อมี alarm แล็บใหม่ / สถานการณ์เปลี่ยน)">lab (s)</label><input class="fl-in w-s" id="dLab" type="number" min="60" max="3600" />
+                <label title="รอบเช็กสถานการณ์/โรคระบาดจาก LabVenture">scn (s)</label><input class="fl-in w-s" id="dScn" type="number" min="10" max="600" />
+                <label>volume</label><input class="fl-in w-s" id="dVol" type="number" min="0" max="100" placeholder="-" />
+                <label>channel</label><select class="fl-in" id="dChannel"><option>stable</option><option>beta</option><option>none</option></select>
+                <button class="fl-btn" id="saveDefaults" type="button">บันทึก</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="fl-card">
+        <h2>WiFi (KNOWN tier — pre-emptive rotation)</h2>
+        <div class="fl-body">
+            <div class="fl-row">
+                <label>SSID</label><input class="fl-in w-m" id="wSsid" />
+                <label>identity</label><input class="fl-in w-m" id="wIdentity" />
+                <label>รหัสปัจจุบัน</label><input class="fl-in w-m" id="wCurrent" type="password" autocomplete="new-password" />
+                <label>รหัสถัดไป</label><input class="fl-in w-m" id="wNext" type="password" autocomplete="new-password" />
+                <label>ใช้รหัสถัดไปตั้งแต่</label><input class="fl-in" id="wFrom" type="datetime-local" />
+                <button class="fl-btn" id="saveWifi" type="button">บันทึก</button>
+                <button class="fl-btn del" id="clearWifi" type="button">ลบ</button>
+            </div>
+            <div class="fl-muted" id="wifiNow">–</div>
+            <p class="fl-note">
+                ส่งให้เฉพาะเครื่องที่อนุมัติแล้ว · เครื่องลอง: รหัสปัจจุบัน → รหัสถัดไป → bootstrap (ฝังใน firmware, recovery ถาวร) ·
+                ⚠️ BellBeast ไม่มี TLS — รหัสวิ่งเป็น plaintext ใน LAN โรงงาน ควรย้ายไป dedicated IoT SSID / EAP-TLS ในระยะยาว (Overview §3.4)
+            </p>
+        </div>
+    </div>
+
+    <div class="fl-card">
+        <h2>Firmware OTA</h2>
+        <div class="fl-body">
+            <div class="fl-row">
+                <label>version</label><input class="fl-in w-m" id="fwVersion" placeholder="ว่าง = อ่านจากไฟล์" />
+                <label>note</label><input class="fl-in w-l" id="fwNote" />
+                <input class="fl-in" id="fwFile" type="file" accept=".bin" />
+                <button class="fl-btn" id="fwUpload" type="button">อัปโหลด</button>
+            </div>
+            <div class="fl-table-wrap">
+                <table class="fl">
+                    <thead><tr><th>version</th><th>size</th><th>sha256</th><th>uploaded</th><th>note</th><th>channel</th><th></th></tr></thead>
+                    <tbody id="fwRows"></tbody>
+                </table>
+            </div>
+            <p class="fl-note">
+                ไฟล์ = <code>build/xiaozhi.bin</code> (app image) · version ต้องตรงกับ <code>PROJECT_VER</code> ในไฟล์ (เว้นว่างได้ ระบบอ่านให้) · ตั้ง <b>beta</b> ให้ 1–2 เครื่องก่อน แล้วค่อยเลื่อน <b>stable</b> ·
+                เครื่องจะไม่อัปเดตระหว่างมี alarm ที่ยังไม่ ack · firmware ใหม่ต้องดึง alarm feed สำเร็จภายใน 5 นาที ไม่งั้นย้อนกลับเอง (A/B rollback)
+            </p>
+        </div>
+    </div>
+
+    <div class="fl-card">
+        <h2>Log จากเครื่อง <span class="sp"></span>
+            <select class="fl-in" id="evDevice"><option value="">ทุกเครื่อง</option></select>
+        </h2>
+        <div class="fl-table-wrap">
+            <table class="fl">
+                <thead><tr><th>รับเมื่อ</th><th>เวลาเครื่อง</th><th>device</th><th>type</th><th>alarm</th><th>detail</th></tr></thead>
+                <tbody id="evRows"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="~/js/fleet.js" asp-append-version="true"></script>
+}

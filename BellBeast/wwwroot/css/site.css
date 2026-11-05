@@ -1375,6 +1375,13 @@ section.dps-block .ov-title         { font-size: clamp(10px, 1.6cqi, 12px); }
     section.dps-block .row4      { grid-template-columns: 1fr 1fr; }
 }
 
+/* ===== ONLINE TURBID Card ===== */
+section.otb-block .ov-title { font-size: clamp(10px, 1.6cqi, 12px); }
+
+@container (max-width: 860px) {
+    section.otb-block .row4 { grid-template-columns: 1fr 1fr; }
+}
+
 /* ===== RPS Card ===== */
 section.rws-block .val-center     { font-size: clamp(18px, 4.5cqi, 36px); }
 section.rws-block .kpi .val       { font-size: clamp(14px, 3.8cqi, 30px); }
@@ -1416,6 +1423,15 @@ section.rws-block .ov-title       { font-size: clamp(10px, 1.5cqi, 12px); }
 @container (max-width: 460px) {
     .bb-slot section.lab-block .lab-top-grid  { grid-template-columns: 1fr; }
     .bb-slot section.lab-block .status-grid   { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+
+/* ===== Clarifier Card ===== (.bb-slot prefix out-ranks the inline rules in _BlockClarifier) */
+@container (max-width: 860px) {
+    .bb-slot section.clr-block .clr-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); }
+    .bb-slot section.clr-block .clr-phases { grid-template-columns: 1fr 1fr; }
+}
+@container (max-width: 460px) {
+    .bb-slot section.clr-block .clr-top { grid-template-columns: 1fr; }
 }
 
 /* ===== CL Detector Card =====

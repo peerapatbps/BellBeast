@@ -4,8 +4,8 @@
     ViewData["Title"] = "Main";
 
     // ✅ รายชื่อ block ที่คุณมีจริง (ปรับชื่อให้ตรงของคุณ)
-    // ถ้าคุณมี 8 ช่อง ก็ใส่ 8 ตัว
-    var defaultSlots = new[] { "TPS", "DPS", "RPS", "CHEM", "EVENT", "LAB", "CLDETECTOR", "PTC" };
+    // จำนวนช่อง = จำนวนตัวในนี้ (10 ช่อง: 5 = ONLINE TURBID, 6 = CLARIFIER)
+    var defaultSlots = new[] { "TPS", "DPS", "RPS", "CHEM", "ONLINETURBID", "CLARIFIER", "EVENT", "LAB", "CLDETECTOR", "PTC" };
 
     // ✅ สำหรับ dropdown ใน modal
     // label จะโชว์ในหน้าตั้งค่า
@@ -17,7 +17,9 @@
         ("CHEM", "CHEM"),
         ("PTC", "PTC"),
         ("LAB", "LAB"),
+        ("CLARIFIER", "Clarifier"),
         ("CLDETECTOR", "CL Detector"),
+        ("ONLINETURBID", "Online-Turbid"),
         ("EMPTY","(EMPTY)")
     };
 
@@ -229,6 +231,80 @@
             margin-left: 10px;
             font-weight: 800;
             letter-spacing: .3px;
+        }
+
+        /* แถบข่าวจาก LabVenture (MHxLiveFeed.js): [ ข้อความวิ่ง ← | สถานการณ์ · โรคระบาด ] */
+        .bb-topbar .lv-marquee {
+            flex: 1 1 auto;
+            min-width: 0;
+            margin: 0 14px;
+            height: 30px;
+            display: flex;
+            align-items: stretch;
+            border-radius: 10px;
+            background: rgba(0,0,0,.18);
+            border: 1px solid rgba(255,255,255,.10);
+            overflow: hidden;
+        }
+        .bb-topbar .lv-marquee[hidden] { display: none; }
+        .bb-topbar .lv-mq-view {
+            flex: 1 1 auto;
+            min-width: 0;
+            position: relative;
+            overflow: hidden;
+            /* จางที่ขอบซ้าย-ขวา → ข้อความค่อย ๆ โผล่ออกมาจากความว่างเปล่าข้างป้ายสถานะ */
+            -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 36px), transparent);
+            mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 36px), transparent);
+        }
+        .bb-topbar .lv-mq-track {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            display: inline-flex;
+            align-items: center;
+            white-space: nowrap;
+            transform: translateX(var(--lv-from, 100vw));
+            will-change: transform;
+        }
+        .bb-topbar .lv-mq-view:hover .lv-mq-track { animation-play-state: paused !important; }
+        .bb-topbar .lv-mq-horn { margin: 0 12px; font-size: 15px; }
+        .bb-topbar .lv-mq-msg { font-size: 14px; font-weight: 600; color: rgba(255,255,255,.92); }
+        @@keyframes lv-mq-run { from { transform: translateX(var(--lv-from)); } to { transform: translateX(var(--lv-to)); } }
+
+        .bb-topbar .lv-mq-status {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0 6px 0 8px;
+            border-left: 1px solid rgba(255,255,255,.12);
+            background: rgba(0,0,0,.14);
+        }
+        .bb-topbar .lv-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            height: 22px;
+            padding: 0 9px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+            color: rgba(255,255,255,.88);
+            background: rgba(255,255,255,.08);
+            border: 1px solid rgba(255,255,255,.14);
+        }
+        .bb-topbar .lv-chip i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.35); flex: 0 0 auto; }
+        .bb-topbar .lv-chip[data-tone="ok"] i { background: #5ad36d; box-shadow: 0 0 6px rgba(90,211,109,.7); }
+        .bb-topbar .lv-chip[data-tone="info"] i { background: #5ab8f0; }
+        .bb-topbar .lv-chip[data-tone="warn"] { color: #ffd77a; border-color: rgba(255,200,80,.40); background: rgba(255,190,60,.12); }
+        .bb-topbar .lv-chip[data-tone="warn"] i { background: #ffc24d; box-shadow: 0 0 6px rgba(255,194,77,.7); }
+        .bb-topbar .lv-chip[data-tone="bad"] { color: #ff9b9b; border-color: rgba(255,100,100,.45); background: rgba(255,80,80,.14); }
+        .bb-topbar .lv-chip[data-tone="bad"] i { background: #ff5c5c; box-shadow: 0 0 6px rgba(255,92,92,.8); }
+        @@media (max-width: 768px) {
+            .bb-topbar .lv-mq-status { padding: 0 4px; gap: 4px; }
+            .bb-topbar .lv-chip { padding: 0 6px; font-size: 11px; }
         }
 
         .bb-topbar .right {
@@ -2339,8 +2415,9 @@
 <div class="bb-topbar">
     <div class="hamb" id="drawerToggle" role="button" tabindex="0" aria-label="Open menu">≡</div>
     <div class="title">Main</div>
+    <div class="lv-marquee" id="lvMarquee" hidden aria-label="ข้อความประกาศจาก LabVenture"></div>
     <div class="right">
-        <div class="bb-ico" title="Bell"><span>🔔</span></div>
+        <div class="bb-ico" id="btnIotAlarm" title="IoT alarm" role="button" tabindex="0" aria-label="IoT alarm list"><span>🔔</span></div>
         <div class="bb-ico" id="btnFeedback" title="Rate us / Bug report" role="button" tabindex="0" aria-label="Rate us or report a bug"><span>🙂</span></div>
         <div class="bb-ico" id="btnSettings" title="Settings"><span>⚙️</span><i class="bb-eng-dot" id="engineDot" title="Engine paused"></i></div>
     </div>
@@ -2775,9 +2852,15 @@
         }
 
         function normalize(arr){
+            // layout 8 ช่องแบบเดิม -> แทรก ONLINE TURBID / CLARIFIER เป็นช่อง 5-6 ช่องเดิม 5-8 เลื่อนลงไป 7-10
+            if (Array.isArray(arr) && arr.length === 8) {
+                arr = [...arr.slice(0, 4), "ONLINETURBID", "CLARIFIER", ...arr.slice(4)];
+            }
+
             const base = [...DEFAULT_SLOTS];
             for (let i = 0; i < base.length; i++){
-                base[i] = normalizeSlotKey(arr && arr[i]);
+                // layout ที่เซฟไว้สั้นกว่า -> ช่องที่เพิ่มมาใช้ค่า default ไม่ใช่ EMPTY
+                if (arr && i < arr.length) base[i] = normalizeSlotKey(arr[i]);
             }
             return base;
         }
@@ -2836,6 +2919,8 @@
                 try { window.CHEMSummary?.initWithin(slots[i]); } catch(e){ console.warn("CHEMSummary init fail", e); }
                 try { window.CHEMsettings?.initWithin(slots[i]); } catch(e){ console.warn("CHEM setting init fail", e); }
                 try { window.LABView?.initWithin(slots[i]); } catch(e){ console.warn("LABView init fail", e); }
+                try { window.ClarifierView?.initWithin(slots[i]); } catch(e){ console.warn("ClarifierView init fail", e); }
+                try { window.OnlineTurbidView?.initWithin(slots[i]); } catch(e){ console.warn("OnlineTurbidView init fail", e); }
                 try { window.CLDetectorView?.initWithin(slots[i]); } catch(e){ console.warn("CLDetector init fail", e); }
                 try { window.CLDetectorSettings?.initWithin(slots[i]); } catch(e){ console.warn("CLDetector setting init fail", e); }
 
@@ -3148,6 +3233,7 @@
 <script src="~/js/dps_smartmap_overlay.js?v=4"></script>
 <script src="~/js/dps_summary.js" asp-append-version="true"></script>
 <script src="~/js/bb-alerts.js" asp-append-version="true"></script>
+<script src="~/js/MHxIotAlarm.js" asp-append-version="true"></script>
 <script src="~/js/TPS_settings.js"></script>
 <script src="~/js/TPS_summary.js"></script>
 <script src="~/js/RWS_summary.js" asp-append-version="true"></script>
@@ -3156,6 +3242,9 @@
 <script src="~/js/PTCview.js" asp-append-version="true"></script>
 <script src="~/js/ptc_smartmap_overlay.js?v=5"></script>
 <script src="~/js/LABview.js"></script>
+<script src="~/js/MHxLiveFeed.js" asp-append-version="true"></script>
+<script src="~/js/ClarifierView.js" asp-append-version="true"></script>
+<script src="~/js/OnlineTurbidView.js" asp-append-version="true"></script>
 <script src="~/js/CLDetectorView.js"></script>
 <script src="~/js/CLDetectorSettings.js"></script>
 <script>
@@ -3179,6 +3268,8 @@
         try { window.CHEMSummary?.initWithin(root); } catch (e) {}
         try { window.CHEsettings?.initWithin(root); } catch (e) {}
         try { window.LABView?.initWithin(root); } catch (e) {}
+        try { window.ClarifierView?.initWithin(root); } catch (e) {}
+        try { window.OnlineTurbidView?.initWithin(root); } catch (e) {}
         try { window.CLDetectorView?.initWithin(root); } catch (e) {}
         try { window.CLDetectorSettings?.initWithin(root); } catch (e) {}
       }

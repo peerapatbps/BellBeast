@@ -4,6 +4,20 @@
     ViewData["Title"] = "AQ Table";
 }
 
+@section Styles {
+    <style>
+        /* หัวคอลัมน์ "เลือกทั้งหมด" ในตารางผลลัพธ์ */
+        #tbl th.col-check { width: 92px; }
+        .chk-all { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+        .chk-all input { cursor: pointer; }
+
+        /* รายการที่เลือก: แสดงครั้งละ 10 แถว + เปลี่ยนหน้า (ไม่ต้อง scroll) */
+        .table-wrap.small.sel-paged { max-height: none; overflow-y: visible; }
+        .sel-pager { margin-top: 10px; }
+        .sel-count { color: var(--muted); font-weight: 700; }
+    </style>
+}
+
 <div class="card">
     <div class="toolbar">
         <div class="toolbar-left">
@@ -63,7 +77,11 @@
         <table id="tbl" class="aq-table">
             <thead>
                 <tr>
-                    <th class="col-check">เลือก</th>
+                    <th class="col-check">
+                        <label class="chk-all" title="เลือก/ยกเลิกทุกแถวในหน้านี้">
+                            <input type="checkbox" id="chkAll" /> ทั้งหมด
+                        </label>
+                    </th>
                     <th class="col-id">configID</th>
                     <th class="col-plant">Plant</th>
                     <th class="col-station">Station</th>
@@ -84,7 +102,7 @@
 
     <div class="selected">
         <div class="selected-bar">
-            <div class="selected-title">รายการที่เลือก</div>
+            <div class="selected-title">รายการที่เลือก <span class="sel-count">(<span id="selTotal">0</span>)</span></div>
 
             <div class="selected-actions">
                 <button id="btnSaveTemplate" class="btn btn-success" type="button">
@@ -100,7 +118,7 @@
             </div>
         </div>
 
-        <div class="table-wrap small">
+        <div class="table-wrap small sel-paged">
             <table id="tblSelected" class="aq-table">
                 <thead>
                     <tr>
@@ -115,6 +133,12 @@
                 </thead>
                 <tbody></tbody>
             </table>
+        </div>
+
+        <div class="pager sel-pager">
+            <button id="btnSelPrev" class="btn" type="button">Prev</button>
+            <div id="selPageInfo" class="pageinfo">Page 1 / 1</div>
+            <button id="btnSelNext" class="btn" type="button">Next</button>
         </div>
     </div>
 

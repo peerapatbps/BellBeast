@@ -144,6 +144,68 @@ public sealed class TtsService
     }
 
     private static string Truncate(string s, int n) => s.Length <= n ? s : s[..n] + "…";
+
+    // ---------------------------------------------------------------- verification
+    // gpt-audio is a chat model: now and then it "answers" the instruction instead of only reading the text
+    // (s_mgl 2026-10-27 came back as "มิลลิกรัมต่อลิตร … จะพูดชัดเจน เข้าใจแล้วนะ"). Every clip saved from
+    // /api/audio/tts is therefore checked: the model's own transcript must equal the text and the audio must
+    // not be far longer than the text needs. Failing attempts are retried.
+
+    public sealed record VerifiedTts(byte[] Pcm, string Transcript, bool Verified, int Attempts, string? Problem);
+
+    /// <summary>Compare text vs transcript ignoring case, spaces/punctuation and Arabic-vs-Thai digits.</summary>
+    public static string NormalizeSpoken(string s)
+    {
+        string[] th = { "ศูนย์", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า" };
+        var sb = new StringBuilder();
+        foreach (var ch in s.ToLowerInvariant())
+        {
+            if (ch is >= '0' and <= '9') sb.Append(th[ch - '0']);
+            else if (char.IsLetterOrDigit(ch) || char.GetUnicodeCategory(ch) is System.Globalization.UnicodeCategory.NonSpacingMark) sb.Append(ch);
+        }
+        return sb.ToString();
+    }
+
+    public static bool TranscriptMatches(string text, string transcript) => NormalizeSpoken(text) == NormalizeSpoken(transcript);
+
+    /// <summary>Generous ceiling for the spoken length of <paramref name="text"/> (library median ≈ 110 ms per character + lead/trail).</summary>
+    public static int MaxPlausibleMs(string text) => 2 * (700 + 110 * NormalizeSpoken(text).Length);
+
+    public static int DurationMs(byte[] pcm) => pcm.Length / 48; // PCM16 24 kHz mono = 48 bytes per ms
+
+    /// <summary>null = looks right; otherwise why this attempt is rejected.</summary>
+    public static string? Check(string text, byte[] pcm, string transcript)
+    {
+        if (transcript.Trim().Length == 0) return "no transcript from model";
+        if (!TranscriptMatches(text, transcript)) return $"model said \"{Truncate(transcript.Trim(), 120)}\"";
+        var ms = DurationMs(pcm);
+        if (ms > MaxPlausibleMs(text)) return $"audio {ms} ms is too long for the text (max {MaxPlausibleMs(text)} ms)";
+        return null;
+    }
+
+    /// <summary>
+    /// Up to <paramref name="maxAttempts"/> tries until <see cref="Check"/> passes. Returns the first passing attempt,
+    /// or the last one with Verified=false. Throws only when no attempt produced audio at all.
+    /// </summary>
+    public async Task<VerifiedTts> SynthesizeVerifiedAsync(string text, CancellationToken ct, int maxAttempts = 3)
+    {
+        VerifiedTts? last = null;
+        Exception? lastError = null;
+        for (var i = 1; i <= Math.Max(1, maxAttempts); i++)
+        {
+            var tr = new StringBuilder();
+            byte[] pcm;
+            try { pcm = await SynthesizeAsync(text, ct, tr); }
+            catch (TtsException ex) when (ex.Code != "tts_not_configured") { lastError = ex; continue; }
+            catch (HttpRequestException ex) { lastError = ex; continue; }
+
+            var problem = Check(text, pcm, tr.ToString());
+            last = new VerifiedTts(pcm, tr.ToString(), problem is null, i, problem);
+            if (problem is null) return last;
+        }
+        if (last is not null) return last;
+        throw lastError ?? new TtsException("tts_no_audio", "upstream returned no audio");
+    }
 }
 
 public sealed class TtsException(string code, string message) : Exception(message)

@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "bellbeast",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "BellBeast/BellBeast.csproj",
+        "--no-launch-profile",
+        "--",
+        "--Kestrel:Endpoints:Http:Url=http://localhost:5077"
+      ],
+      "port": 5077
+    }
+  ]
+}

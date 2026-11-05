@@ -13,44 +13,68 @@
         max-height: calc(100dvh - 92px);
         padding: 18px;
         display: flex;
-        overflow: hidden;
+        flex-direction: column; /* แถบ Admin tabs อยู่บน, iot-page กินที่เหลือ */
+        gap: 12px;
+        /* เนื้อหาสูงเกินจอ → scroll แนวตั้งในหน้านี้ */
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+
+    .iot-content > .adm-tabs {
+        width: 100%;
+        margin: 0;
     }
 
     .iot-page {
-        flex: 1;
-        min-height: 0;
-        overflow: hidden;
+        flex: 1 0 auto; /* โตเกินความสูงจอได้ → iot-content scroll */
+        display: flex;
     }
 
+    /* 2 แถว: [ข้อความ 80% | IoT Room + อุปกรณ์ 20%]  /  [ช่องพิมพ์] */
     .iot-layout {
-        height: 100%;
-        min-height: 0;
-        display: grid;
-        grid-template-rows: minmax(0, 8fr) minmax(0, 70fr) minmax(0, 22fr);
-        gap: 18px;
-        overflow: hidden;
-    }
-
-    .iot-top,
-    .iot-middle,
-    .iot-bottom {
-        width: 90%;
+        flex: 0 0 90%; /* กว้าง 90% กึ่งกลาง (flex: 1 จะทับ width) */
         margin: 0 auto;
-        min-height: 0;
-        overflow: hidden;
-    }
-
-    .iot-top {
         display: grid;
-        grid-template-columns: minmax(280px, 3fr) minmax(0, 7fr);
+        grid-template-rows: minmax(420px, 1fr) auto;
         gap: 18px;
     }
 
-    .iot-middle,
+    .iot-row1 {
+        min-height: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 4fr) minmax(220px, 1fr);
+        gap: 18px;
+    }
+
+    .iot-main {
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+    }
+
+    .iot-side {
+        min-width: 0;
+        min-height: 0;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        gap: 18px;
+    }
+
+        .iot-side > .iot-hero {
+            height: auto;
+        }
+
     .iot-bottom {
         display: flex;
-        justify-content: center;
     }
+
+        .iot-bottom .iot-card {
+            height: auto;
+        }
+
+        .iot-bottom .iot-input {
+            height: 110px;
+        }
 
     .iot-card {
         height: 100%;
@@ -90,31 +114,42 @@
 
     /* ── Member Panel (top-right) ── */
     .iot-members-card {
-        padding: 0 16px;
+        padding: 14px 14px;
         display: flex;
-        align-items: center;
+        flex-direction: column; /* ช่องด้านข้าง: รายการอุปกรณ์เรียงลงล่าง */
+        align-items: stretch;
         overflow: hidden;
-        gap: 0;
+        gap: 10px;
     }
+
+        .iot-members-card .iot-member-count {
+            align-self: flex-start;
+        }
 
     .iot-members-list {
         flex: 1;
         min-width: 0;
+        min-height: 0;
         display: flex;
-        flex-direction: row;
+        flex-direction: column;
         flex-wrap: nowrap;
-        align-items: center;
+        align-items: stretch;
         gap: 8px;
-        overflow-x: auto;
-        overflow-y: hidden;
-        padding: 10px 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        padding: 0;
         /* hide scrollbar on non-hover, show on hover */
         scrollbar-width: thin;
         scrollbar-color: rgba(148, 163, 184, 0.2) transparent;
     }
 
     .iot-members-list::-webkit-scrollbar {
-        height: 4px;
+        width: 4px;
+    }
+
+    .iot-members-list .iot-member-chip {
+        white-space: normal;
+        overflow-wrap: anywhere;
     }
 
     .iot-members-list::-webkit-scrollbar-track {
@@ -734,9 +769,15 @@
         background: linear-gradient(135deg, rgba(153, 27, 27, 0.85), rgba(127, 29, 29, 0.7));
     }
 
-    @@media (max-width: 560px) {
-        .iot-top {
+    /* จอแคบ: ช่อง IoT Room + อุปกรณ์ ย้ายลงใต้กล่องข้อความ */
+    @@media (max-width: 900px) {
+        .iot-row1 {
             grid-template-columns: 1fr;
+            grid-template-rows: minmax(360px, 1fr) auto;
+        }
+
+        .iot-members-list {
+            max-height: 180px;
         }
     }
 
@@ -746,8 +787,8 @@
         }
 
         .iot-layout {
+            flex-basis: 100%;
             gap: 12px;
-            grid-template-rows: auto minmax(0, 1fr) minmax(180px, auto);
         }
 
         .iot-toolbar {
@@ -765,34 +806,40 @@
     }
 </style>
 
+<partial name="_AdminTabs" model='"iot"' />
+
 <div class="iot-page" data-iot-root>
     <div class="iot-layout">
 
-        <section class="iot-top">
-            <div class="iot-card iot-hero">
-                <h1 class="iot-title">IoT Room</h1>
-            </div>
-
-            <aside class="iot-card iot-members-card" aria-label="Connected Devices">
-                <div id="iotMembersList" class="iot-members-list">
-                    <span class="iot-members-empty">No devices connected.</span>
-                </div>
-                <span id="iotMemberCount" class="iot-member-count empty" style="display:none">0 online</span>
-            </aside>
-        </section>
-
-        <section class="iot-middle">
-            <div class="iot-card iot-panel">
-                <div class="iot-messages-shell">
-                    <div id="iotMessages" class="iot-messages">
-                        <div class="iot-message-stack">
-                            <div class="iot-empty">Room is ready. Waiting for devices to connect...</div>
+        <!-- Row 1: ข้อความ (80%) | IoT Room + รายการอุปกรณ์ (20%) -->
+        <section class="iot-row1">
+            <div class="iot-main">
+                <div class="iot-card iot-panel">
+                    <div class="iot-messages-shell">
+                        <div id="iotMessages" class="iot-messages">
+                            <div class="iot-message-stack">
+                                <div class="iot-empty">Room is ready. Waiting for devices to connect...</div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <div class="iot-side">
+                <div class="iot-card iot-hero">
+                    <h1 class="iot-title">IoT Room</h1>
+                </div>
+
+                <aside class="iot-card iot-members-card" aria-label="Connected Devices">
+                    <span id="iotMemberCount" class="iot-member-count empty" style="display:none">0 online</span>
+                    <div id="iotMembersList" class="iot-members-list">
+                        <span class="iot-members-empty">No devices connected.</span>
+                    </div>
+                </aside>
+            </div>
         </section>
 
+        <!-- Row 2: ช่องพิมพ์คำสั่ง -->
         <section class="iot-bottom">
             <div class="iot-card iot-panel">
                 <div class="iot-compose">

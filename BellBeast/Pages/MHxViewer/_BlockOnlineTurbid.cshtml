@@ -1,0 +1,194 @@
+<style>
+    /* =========================
+       ONLINE TURBID block — OnlineLab turbidity, 2 rows x 4 mini charts (same cards as DPS row4)
+       data/logic: wwwroot/js/OnlineTurbidView.js
+       ========================= */
+
+    section.otb-block .bb-section-h .left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    section.otb-block .otb-toggle {
+        display: inline-flex;
+        padding: 2px;
+        gap: 2px;
+        border-radius: 10px;
+        background: rgba(255,255,255,.06);
+        border: 1px solid rgba(255,255,255,.08);
+        position: relative;
+        z-index: 100000;
+    }
+
+    section.otb-block .otb-toggle button {
+        appearance: none;
+        border: 0;
+        background: transparent;
+        color: rgba(255,255,255,.72);
+        border-radius: 8px;
+        padding: 4px 12px;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: .15s ease;
+    }
+
+        section.otb-block .otb-toggle button:hover {
+            background: rgba(255,255,255,.08);
+        }
+
+        section.otb-block .otb-toggle button[aria-pressed="true"] {
+            background: rgba(255, 153, 51, 1);
+            color: #f9fafb;
+        }
+
+    section.otb-block .row4 + .row4 {
+        margin-top: 10px;
+    }
+
+    section.otb-block .mini-card .chart {
+        position: relative;
+        height: 110px;
+        min-height: 110px;
+        border-radius: 10px;
+        border: 1px dashed rgba(255,255,255,.18);
+        background: rgba(255,255,255,.04);
+        overflow: hidden;
+    }
+
+        section.otb-block .mini-card .chart canvas {
+            width: 100% !important;
+            height: 100% !important;
+            display: block !important;
+        }
+
+    section.otb-block .otb-empty {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        color: rgba(255,255,255,.45);
+    }
+
+        section.otb-block .otb-empty[hidden] { display: none; }
+
+    section.otb-block .bb-section-h,
+    section.otb-block .bb-section-h .right-icons {
+        position: relative;
+        z-index: 99999 !important;
+        pointer-events: auto !important;
+    }
+
+    section.otb-block .right-icons {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    section.otb-block .bb-ico {
+        position: relative;
+        z-index: 100000 !important;
+        pointer-events: auto !important;
+        cursor: pointer;
+    }
+
+    /* ===== settings popup ===== */
+    .otb-settings-overlay {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,.28);
+        z-index: 200000;
+    }
+
+        .otb-settings-overlay.show { display: flex; }
+
+    .otb-settings-pop {
+        width: 300px;
+        max-width: calc(100vw - 24px);
+        border-radius: 16px;
+        background: linear-gradient(180deg, #1f2937 0%, #182231 100%);
+        border: 1px solid rgba(255,255,255,.10);
+        box-shadow: 0 18px 44px rgba(0,0,0,.42);
+        padding: 14px;
+        color: #f9fafb;
+    }
+
+        .otb-settings-pop .t { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
+        .otb-settings-pop .row { display: grid; gap: 6px; margin-bottom: 12px; }
+        .otb-settings-pop label { font-size: 12px; color: rgba(255,255,255,.82); font-weight: 600; }
+        .otb-settings-pop .hint { font-size: 11px; color: rgba(255,255,255,.5); }
+        .otb-settings-pop select {
+            width: 100%;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,.12);
+            background: rgba(255,255,255,.07);
+            color: #f9fafb;
+            padding: 8px 10px;
+        }
+        .otb-settings-pop select option { background: #1f2937; color: #f9fafb; }
+        .otb-settings-pop input[type="checkbox"] { accent-color: #ff9f2f; }
+        .otb-settings-pop .actions { display: flex; justify-content: flex-end; gap: 8px; }
+        .otb-settings-pop button {
+            border: 1px solid rgba(255,255,255,.12);
+            background: rgba(255,255,255,.08);
+            color: #f9fafb;
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .otb-settings-pop button.primary {
+            background: linear-gradient(180deg, #ffb347 0%, #ff972f 100%);
+            border-color: rgba(255,179,71,.55);
+        }
+</style>
+
+<section class="bb-section otb-block" data-otb-url="/api/online_lab">
+    <div class="bb-section-h">
+        <div class="left">
+            <div class="title">ONLINE TURBID</div>
+            <div class="otb-toggle" role="group" aria-label="Series">
+                <button type="button" data-otb-mode="CW-TW" aria-pressed="true">CW-TW</button>
+                <button type="button" data-otb-mode="CW-AB" aria-pressed="false">CW-AB</button>
+            </div>
+        </div>
+
+        <div class="right-icons">
+            <button class="bb-ico is-armed" data-role="otb-alert-bell" type="button" title="Bell: armed" aria-label="Bell armed">
+                <span>🔔</span>
+            </button>
+            <button class="bb-ico" data-role="otb-settings" type="button" title="Settings" aria-label="Settings">
+                <span>⚙️</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="bb-section-b">
+        @for (var row = 0; row < 2; row++)
+        {
+            <div class="row4">
+                @for (var col = 0; col < 4; col++)
+                {
+                    var i = row * 4 + col;
+                    <div class="mini-card">
+                        <div class="ov-top">
+                            <div class="ov-title" data-otb-title="@i">-</div>
+                            <div class="ov-status" data-otb-status="@i">-</div>
+                        </div>
+                        <div class="chart">
+                            <canvas data-otb-chart="@i"></canvas>
+                            <div class="otb-empty" data-otb-empty="@i" hidden>no data</div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</section>

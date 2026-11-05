@@ -2,6 +2,7 @@
 @model BellBeast.Pages.CHEM_reportModel
 @{
     ViewData["Title"] = "CHEM Receive Report";
+    ViewData["ContentClass"] = "content content-wide"; // ปลด max-width 1280px ของ .content → เต็มจอ
 }
 
 <style>
@@ -22,26 +23,62 @@
         width: 100% !important;
         max-width: none !important;
         margin: 0 !important;
-        padding: 16px;
+        padding: 16px 10%; /* เว้นขอบจอซ้าย-ขวาฝั่งละ 10% */
     }
 
+    /* แถว 1: กล่องค้นหา (ซ้าย) | banner (ขวา, สูงเท่ากล่อง)  ·  แถว 2: Result เต็มความกว้าง */
     .bb-grid {
         width: 100%;
         display: grid;
-        grid-template-columns: 240px minmax(0, 1fr); /* ซ้ายคงที่ / ขวากินที่เหลือ */
+        grid-template-columns: 264px minmax(0, 1fr); /* 240px × 1.1 */
         gap: 14px;
-        align-items: start;
+        align-items: stretch;
+    }
+
+    .bb-grid > .bb-result {
+        grid-column: 1 / -1;
+    }
+
+    /* banner ไม่กำหนดความสูงแถวเอง → แถวสูงตามกล่องค้นหา แล้วภาพ crop ให้เต็มกรอบ */
+    .bb-grid > .bb-filter {
+        grid-column: 1;
+        grid-row: 1;
     }
 
     .bb-grid > .bb-banner {
-        grid-column: 1 / -1;
+        grid-column: 2;
+        grid-row: 1;
+        position: relative;
         margin-bottom: 0;
     }
 
+        .bb-grid > .bb-banner img {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: left center;
+        }
+
     /* จอเล็กให้เรียงลง */
     @@media (max-width: 900px) {
+        .bb-wrap {
+            padding: 16px;
+        }
+
         .bb-grid {
             grid-template-columns: 1fr;
+        }
+
+        .bb-grid > .bb-filter,
+        .bb-grid > .bb-banner {
+            grid-column: auto;
+            grid-row: auto;
+        }
+
+        .bb-grid > .bb-banner {
+            aspect-ratio: 16 / 5;
         }
     }
 
@@ -93,6 +130,39 @@
         cursor: pointer;
     }
 
+
+    /* วันที่: แสดง d-MMM-yyyy (12-Oct-2026) ในช่องข้อความ, ปฏิทินใช้ native date input ที่ซ่อนไว้ */
+    .bb-date {
+        position: relative;
+    }
+
+        .bb-date input[type="text"] {
+            cursor: pointer;
+            padding-right: 32px;
+        }
+
+        .bb-date::after {
+            content: "📅";
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 13px;
+            opacity: .8;
+            pointer-events: none;
+        }
+
+    .bb-date-native {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        height: 0;
+        padding: 0 !important;
+        border: 0 !important;
+        opacity: 0;
+        pointer-events: none;
+    }
 
     .bb-actions {
         display: flex;
@@ -161,12 +231,44 @@
         white-space: nowrap;
     }
 
-    /* ===== TABLE: ✅ เต็ม 100% และ “ไม่มี scroll แนวนอน” ===== */
+    /* ===== SUMMARY CHIPS (ยอดตามฝั่งถัง AB / CD) ===== */
+    .bb-summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .bb-chip {
+        padding: 6px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,.12);
+        background: rgba(255,255,255,.05);
+        font-size: 12px;
+        color: #e8eefc;
+        white-space: nowrap;
+    }
+
+        .bb-chip b {
+            font-size: 13px;
+        }
+
+        .bb-chip.ab {
+            border-color: rgba(80,160,255,.45);
+            background: rgba(80,160,255,.12);
+        }
+
+        .bb-chip.cd {
+            border-color: rgba(255,170,60,.45);
+            background: rgba(255,170,60,.12);
+        }
+
+    /* ===== TABLE: เต็มความกว้าง, คอลัมน์เยอะจึงเลื่อนแนวนอนได้ ===== */
     .bb-table-wrap {
         width: 100%;
-        overflow-x: hidden; /* ตัดแนวนอน */
+        overflow-x: hidden; /* ไม่มี scroll แนวนอน — คอลัมน์ย่อ/ตัดคำแทน */
         overflow-y: auto;
-        max-height: calc(100vh - 190px);
+        max-height: calc(100vh - 230px);
     }
 
     table.bb-table {
@@ -175,16 +277,73 @@
         table-layout: fixed; /* บังคับไม่ให้ตารางดันกว้าง */
     }
 
+    /* หัวตารางตัดบรรทัดได้ (จอแคบ) */
+    .bb-table th {
+        white-space: normal !important;
+        overflow-wrap: normal !important; /* ตัดที่ช่องว่างเท่านั้น ไม่หักกลางคำ */
+        line-height: 1.25;
+        vertical-align: bottom !important;
+        padding-left: 4px !important;
+        padding-right: 4px !important;
+    }
+
+    .bb-sub {
+        display: block;
+        font-size: 11px;
+        color: rgba(232,238,252,.5);
+    }
+
+    /* แถวต่อ (รถคันเดียวเติมถังที่ 2+) */
+    .bb-table tr.cont td {
+        border-top: none;
+    }
+
+    .bb-table tr.trip-start td {
+        border-top: 1px solid rgba(255,255,255,.14);
+    }
+
+    .bb-tank {
+        display: inline-block;
+        min-width: 22px;
+        padding: 1px 6px;
+        border-radius: 6px;
+        text-align: center;
+        font-weight: 700;
+    }
+
+        .bb-tank.ab {
+            background: rgba(80,160,255,.22);
+        }
+
+        .bb-tank.cd {
+            background: rgba(255,170,60,.22);
+        }
+
+    .bb-muted {
+        color: rgba(232,238,252,.45);
+    }
+
     .bb-table th, .bb-table td {
         border-bottom: 1px solid rgba(255,255,255,.08);
-        padding: 8px 10px;
+        padding: 7px 6px;
         font-size: 12px;
         color: #e8eefc;
         text-align: left;
-        overflow: hidden; /* ตัด ... */
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        /* แสดงข้อมูลครบ: ตัดบรรทัดแทนการตัด ... (จอแคบแถวจะสูงขึ้นแทน) */
+        white-space: normal;
+        overflow-wrap: anywhere;
+        vertical-align: top;
     }
+
+        .bb-table td.num {
+            white-space: nowrap;
+            overflow-wrap: normal;
+        }
+
+        /* ระดับ "8.6 → 19.6" ตัดบรรทัดได้ที่ช่องว่างรอบลูกศรเท่านั้น */
+        .bb-table td.lv {
+            white-space: normal;
+        }
 
     .bb-table th {
         position: sticky;
@@ -202,15 +361,101 @@
         }
 
     /* ✅ สัดส่วนคอลัมน์รวม ~100% */
-    col.c-no {width: 5%;}
-    col.c-date {width: 10%;}
-    col.c-prod {width: 17%;}
-    col.c-comp {width: 25%;}
-    col.c-truck {width: 10%;}
-    col.c-type {width: 6%;}
-    col.c-in {width: 9%;}
-    col.c-out {width: 9%;}
-    col.c-net {width: 9%;}
+    /* 14 คอลัมน์: วันที่+เวลา / บริษัท+สินค้า / ระดับก่อน→หลัง รวมช่องเพื่อไม่ต้อง scroll แนวนอน */
+    col.c-no {width: 4%;}
+    col.c-date {width: 9.5%;}
+    col.c-truck {width: 8.5%;}
+    col.c-comp {width: 13%;}
+    col.c-sg {width: 5%;}
+    col.c-temp {width: 5%;}
+    col.c-vol {width: 5.5%;}
+    col.c-tank {width: 5.5%;}
+    col.c-lv {width: 10%;}
+    col.c-in {width: 6.5%;}
+    col.c-out {width: 6.5%;}
+    col.c-net {width: 6.5%;}
+    col.c-alloc {width: 7%;}
+    col.c-bill {width: 7.5%;}
+
+    /* ===== ขยายตัวอักษร 1.1 เท่า: กล่อง CHEM Receive Report + Result ===== */
+    .bb-filter .bb-title {
+        font-size: 20px;
+    }
+
+    .bb-filter .bb-field label {
+        font-size: 13px;
+    }
+
+    .bb-filter .bb-field input,
+    .bb-filter .bb-field select {
+        font-size: 15px;
+        padding: 10px 11px;
+    }
+
+    .bb-filter .bb-date input[type="text"] {
+        padding-right: 34px;
+    }
+
+    .bb-filter .bb-date::after {
+        font-size: 14px;
+    }
+
+    .bb-filter .bb-btn {
+        font-size: 15px;
+        padding: 10px 13px;
+    }
+
+    .bb-filter .bb-status {
+        font-size: 13px;
+    }
+
+    .bb-result .bb-title {
+        font-size: 20px;
+    }
+
+    .bb-result .bb-result-total {
+        font-size: 14px;
+    }
+
+    .bb-result .bb-summary {
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .bb-result .bb-chip {
+        font-size: 13px;
+        padding: 7px 11px;
+        border-radius: 12px;
+    }
+
+        .bb-result .bb-chip b {
+            font-size: 14px;
+        }
+
+    .bb-result .bb-table th,
+    .bb-result .bb-table td {
+        font-size: 13px;
+        padding: 8px 7px;
+    }
+
+    .bb-result .bb-table th {
+        padding-left: 6px !important;
+        padding-right: 6px !important;
+    }
+
+    .bb-result .bb-sub {
+        font-size: 12px;
+    }
+
+    .bb-result .bb-tank {
+        min-width: 24px;
+        padding: 1px 7px;
+        border-radius: 8px;
+    }
+
+    .bb-result .bb-table-wrap {
+        max-height: 85vh;
+    }
 </style>
 
 <div class="bb-wrap">
@@ -219,19 +464,25 @@
             <img src="~/images/chem-report_banner.png" alt="CHEM report banner" />
         </div>
 
-        <!-- LEFT -->
-        <div class="bb-card">
+        <!-- LEFT (แถวเดียวกับ banner) -->
+        <div class="bb-card bb-filter">
             <h2 class="bb-title">CHEM Receive Report</h2>
 
             <div class="bb-row">
                 <div class="bb-field">
-                    <label>Start Date (yyyy-MM-dd)</label>
-                    <input id="startDate" type="date" value="@Model.DefaultStartYmd" />
+                    <label for="startDateText">Start Date</label>
+                    <div class="bb-date">
+                        <input id="startDateText" type="text" readonly data-date-for="startDate" />
+                        <input id="startDate" type="date" class="bb-date-native" tabindex="-1" aria-hidden="true" value="@Model.DefaultStartYmd" />
+                    </div>
                 </div>
 
                 <div class="bb-field">
-                    <label>End Date (yyyy-MM-dd)</label>
-                    <input id="endDate" type="date" value="@Model.DefaultEndYmd" />
+                    <label for="endDateText">End Date</label>
+                    <div class="bb-date">
+                        <input id="endDateText" type="text" readonly data-date-for="endDate" />
+                        <input id="endDate" type="date" class="bb-date-native" tabindex="-1" aria-hidden="true" value="@Model.DefaultEndYmd" />
+                    </div>
                 </div>
 
                 <div class="bb-field">
@@ -260,47 +511,61 @@
                     <button type="button" class="bb-btn" id="btnLoad" data-bb-action>Load</button>
                     <button type="button" class="bb-btn secondary" id="btnExport" data-bb-action>Export CSV</button>
                 </div>
+                <div class="bb-actions" style="margin-top:0;">
+                    <button type="button" class="bb-btn" id="btnExportF29" data-bb-action title="F-MS-HACCP-กผจ-29 REV04 — 1 sheet ต่อวัน × สาร">Export F-29 (Excel)</button>
+                </div>
 
                 <div class="bb-status" id="status">Ready.</div>
             </div>
         </div>
 
-        <!-- RIGHT -->
-        <div class="bb-card">
+        <!-- RESULT (แถวล่าง เต็มความกว้าง) -->
+        <div class="bb-card bb-result">
             <div class="bb-result-header">
                 <h2 class="bb-title" style="margin:0;">Result</h2>
                 <div class="bb-result-total" id="totalNet">Total NetWeight: -</div>
             </div>
+
+            <div class="bb-summary" id="summary"></div>
 
             <div class="bb-table-wrap">
                 <table class="bb-table" id="tbl">
                     <colgroup>
                         <col class="c-no" />
                         <col class="c-date" />
-                        <col class="c-prod" />
-                        <col class="c-comp" />
                         <col class="c-truck" />
-                        <col class="s
-                        <col class="c-type" />
+                        <col class="c-comp" />
+                        <col class="c-sg" />
+                        <col class="c-temp" />
+                        <col class="c-vol" />
+                        <col class="c-tank" />
+                        <col class="c-lv" />
                         <col class="c-in" />
                         <col class="c-out" />
                         <col class="c-net" />
+                        <col class="c-alloc" />
+                        <col class="c-bill" />
                     </colgroup>
                     <thead>
                         <tr>
-                            <th class="center">No.</th>
-                            <th>Date</th>
-                            <th>Product</th>
-                            <th>Company</th>
+                            <th class="center">#</th>
+                            <th>Date / Time</th>
                             <th>Truck</th>
-                            <th>Type</th>
-                            <th class="num">Gross(In)</th>
-                            <th class="num">Gross(Out)</th>
-                            <th class="num">NetWeight</th>
+                            <th>Company / Product</th>
+                            <th class="num">SG</th>
+                            <th class="num">Temp °C</th>
+                            <th class="num">Vol m³</th>
+                            <th class="center">Tank</th>
+                            <th class="num">Level ก่อน → หลัง</th>
+                            <th class="num">Gross In</th>
+                            <th class="num">Gross Out</th>
+                            <th class="num">Net (kg)</th>
+                            <th class="num" title="น้ำหนักที่ปันส่วนเข้าถังตามปริมาตรที่เพิ่ม">เข้าถัง (t)</th>
+                            <th>ใบนำส่ง</th>
                         </tr>
                     </thead>
                     <tbody id="tbody">
-                        <tr><td colspan="9" style="color: rgba(232,238,252,.6);">No data.</td></tr>
+                        <tr><td colspan="14" style="color: rgba(232,238,252,.6);">No data.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -370,11 +635,69 @@
         return new Intl.NumberFormat("en-US").format(n);
     }
 
+    // ===== วันที่: เก็บค่า yyyy-MM-dd ใน native input, แสดงผล d-MMM-yyyy (12-Oct-2026) =====
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+    function ymdToDisplay(ymd) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || ""));
+        if (!m) return ymd || "";
+        return `${Number(m[3])}-${MONTHS[Number(m[2]) - 1]}-${m[1]}`;
+    }
+
+    function syncDateText(nativeId) {
+        const native = document.getElementById(nativeId);
+        const text = document.querySelector(`[data-date-for="${nativeId}"]`);
+        if (native && text) text.value = ymdToDisplay(native.value);
+    }
+
+    document.querySelectorAll("[data-date-for]").forEach(text => {
+        const native = document.getElementById(text.dataset.dateFor);
+        const open = () => {
+            try { native.showPicker(); } catch { native.focus(); native.click(); }
+        };
+        text.addEventListener("click", open);
+        text.addEventListener("keydown", e => {
+            if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") { e.preventDefault(); open(); }
+        });
+        native.addEventListener("change", () => syncDateText(native.id));
+        syncDateText(native.id);
+    });
+
+    function fmt(v, digits) {
+        if (v === null || v === undefined || v === "") return "";
+        const n = Number(v);
+        return isNaN(n) ? escapeHtml(v) : n.toFixed(digits);
+    }
+
+    function tankLetter(tank) {
+        const parts = String(tank || "").trim().split(/\s+/);
+        return parts[parts.length - 1] || "";
+    }
+
+    function sideClass(side) {
+        return side === "AB" ? "ab" : side === "CD" ? "cd" : "";
+    }
+
+    function renderSummary(summary) {
+        const el = document.getElementById("summary");
+        if (!summary || summary.length === 0) { el.innerHTML = ""; return; }
+
+        el.innerHTML = summary.map(s => {
+            const est = s.Estimated ? "≈" : "";
+            const tip = s.Estimated ? ' title="มีเที่ยวที่ระดับถังไม่ครบ — ปันเท่ากันทุกถัง (ประมาณการ)"' : "";
+            return `<div class="bb-chip ${sideClass(s.Side)}"${tip}>
+                ${escapeHtml(s.Chemical)} ${escapeHtml(s.Label)}:
+                <b>${est}${formatNumber(Number(s.Tonnes).toFixed(3))}</b> t
+            </div>`;
+        }).join("");
+    }
+
+    // รถเติมหลายถัง = 1 แถวต่อถัง แถวที่ 2+ แสดงเฉพาะข้อมูลถัง (เหมือนแบบฟอร์ม F-29)
     function renderRows(rows) {
         const tbody = document.getElementById("tbody");
 
         if (!rows || rows.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="9" style="color: rgba(232,238,252,.6);">No data.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="14" style="color: rgba(232,238,252,.6);">No data.</td></tr>`;
             setTotalNet("-");
             return;
         }
@@ -386,17 +709,39 @@
             const net = parseNetWeight(r.NetWeight);
             total += net;
 
-            html += `<tr>
-                <td class="center">${escapeHtml(r.No)}</td>
-                <td>${escapeHtml(r.Date)}</td>
-                <td>${escapeHtml(r.Product)}</td>
-                <td title="${escapeHtml(r.Company)}">${escapeHtml(r.Company)}</td>
-                <td>${escapeHtml(r.Truck)}</td>
-                <td>${escapeHtml(r.Type)}</td>
-                <td class="num">${escapeHtml(r.GrossIn)}</td>
-                <td class="num">${escapeHtml(r.GrossOut)}</td>
-                <td class="num">${escapeHtml(r.NetWeight)}</td>
-            </tr>`;
+            const bill = [r.BillBook && r.BillBook !== "-" ? r.BillBook : "", r.BillNo || ""].filter(x => x).join("/");
+            const fills = (r.Fills && r.Fills.length) ? r.Fills : [null];
+
+            fills.forEach((f, i) => {
+                const first = i === 0;
+                const tankCell = f
+                    ? `<span class="bb-tank ${sideClass(f.Side)}" title="${escapeHtml(f.Tank)}">${escapeHtml(tankLetter(f.Tank))}</span>${r.IsWash ? ' <span class="bb-muted">ล้าง</span>' : ""}`
+                    : `<span class="bb-muted" title="ไม่มีบันทึกจาก Sidecar">-</span>`;
+                const alloc = f
+                    ? `${f.Estimated ? '<span title="ระดับถังไม่ครบ — ประมาณการ">≈</span>' : ""}${fmt(f.Tonnes, 3)}`
+                    : "";
+                const level = f && (f.LevelBefore != null || f.LevelAfter != null)
+                    ? `${fmt(f.LevelBefore, 1) || "?"} → ${fmt(f.LevelAfter, 1) || "?"}`
+                    : "";
+                const t = (v) => first ? v : "";
+
+                html += `<tr class="${first ? "trip-start" : "cont"}">
+                    <td class="center">${t(escapeHtml(r.No))}</td>
+                    <td>${t(`${escapeHtml(ymdToDisplay(r.Date))}<span class="bb-sub">${escapeHtml(r.Time)}</span>`)}</td>
+                    <td>${t(escapeHtml(r.Truck))}</td>
+                    <td title="${escapeHtml(r.Company)} · ${escapeHtml(r.Product)}">${t(`${escapeHtml(r.Company)}<span class="bb-sub">${escapeHtml(r.Product)}</span>`)}</td>
+                    <td class="num">${t(fmt(r.SG, 2))}</td>
+                    <td class="num">${t(fmt(r.TempC, 1))}</td>
+                    <td class="num">${t(fmt(r.VolumeM3, 2))}</td>
+                    <td class="center">${tankCell}</td>
+                    <td class="num lv">${level}</td>
+                    <td class="num">${t(escapeHtml(r.GrossIn))}</td>
+                    <td class="num">${t(escapeHtml(r.GrossOut))}</td>
+                    <td class="num">${t(escapeHtml(r.NetWeight))}</td>
+                    <td class="num">${alloc}</td>
+                    <td title="${escapeHtml(bill)}">${t(escapeHtml(bill))}</td>
+                </tr>`;
+            });
         }
 
         tbody.innerHTML = html;
@@ -433,29 +778,35 @@
 
             const rows = data.rows || [];
             renderRows(rows);
+            renderSummary(data.summary || []);
             setStatus(`OK. Rows = ${rows.length}`);
         } catch (e) {
             setStatus("Exception: " + (e?.message || e));
         }
     });
 
-    document.getElementById("btnExport").addEventListener("click", async () => {
+    document.getElementById("btnExport").addEventListener("click", () => exportFile("csv", "CHEM_receive.csv"));
+    document.getElementById("btnExportF29").addEventListener("click", () => exportFile("xlsx", "F-29_CHEM.xlsx"));
+
+    async function exportFile(format, defaultName) {
         try {
-            const payload = buildPayload();
-            setStatus("Exporting CSV...");
+            const payload = { ...buildPayload(), format };
+            setStatus(format === "xlsx" ? "Exporting F-29 (Excel)..." : "Exporting CSV...");
 
             const url = combineUrl(BACKEND_BASE_URL, CHEM_EXPORT_PATH);
             const res = await postJson(url, payload);
 
             if (!res.ok) {
                 const txt = await res.text();
-                setStatus("Error: " + txt);
+                let msg = txt;
+                try { msg = JSON.parse(txt).error || txt; } catch { }
+                setStatus("Error: " + msg);
                 return;
             }
 
             const blob = await res.blob();
 
-            let filename = "CHEM_receive.csv";
+            let filename = defaultName;
             const cd = res.headers.get("Content-Disposition");
             if (cd) {
                 const m = /filename="([^"]+)"/i.exec(cd);
@@ -475,7 +826,7 @@
         } catch (e) {
             setStatus("Exception: " + (e?.message || e));
         }
-    });
+    }
 
     // ===== Bypass role enforcement =====
     (function applyBypassState(role) {

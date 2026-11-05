@@ -216,8 +216,9 @@
         const chP34AMid = aqVal(aqMid, 190);
         const chP34BMid = aqVal(aqMid, 191);
 
-        const FullCL12 = aqVal(aqMid, 6972) - unl15 + rec15;
-        const FullCL34 = aqVal(aqMid, 6973) - unl62 + rec62;
+        // full cylinders now = midnight full − lifted up (Tiu) + received (Rec)
+        const FullCL12 = num(aqVal(aqMid, 6972), 0) - tiu15 + rec15;
+        const FullCL34 = num(aqVal(aqMid, 6973), 0) - tiu62 + rec62;
 
         out["ALUM.P12.TANKA.FILL"] = pct(num(alumP12A, 0), CAP.ALUM);
         out["ALUM.P12.TANKA.MIDNIGHT"] = pct(num(alumP12AMid, 0), CAP.ALUM);

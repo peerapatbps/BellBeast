@@ -1,0 +1,356 @@
+<style>
+    /* =========================
+           CLARIFIER block — settled water (CW) result + the factors behind it
+           data/logic: wwwroot/js/ClarifierView.js
+           ========================= */
+
+    section.clr-block .bb-section-h,
+    section.clr-block .bb-section-h .right-icons {
+        position: relative;
+        z-index: 99999 !important;
+        pointer-events: auto !important;
+    }
+
+    section.clr-block .bb-ico {
+        position: relative;
+        z-index: 100000 !important;
+        pointer-events: auto !important;
+    }
+
+    section.clr-block .clr-head-meta {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: 8px;
+        font-size: 12px;
+        font-weight: 400;
+        color: rgba(255,255,255,.62);
+    }
+
+    /* fill the slot (rows share --card-h with the other blocks); the top row / trend absorbs spare height */
+    section.clr-block {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    section.clr-block > .bb-section-b {
+        flex: 1;
+        min-height: 0;
+    }
+
+    section.clr-block .clr-layout {
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) auto;
+        gap: 6px;
+        height: 100%;
+    }
+
+    section.clr-block .clr-card {
+        border-radius: 10px;
+        background: rgba(255,255,255,.025);
+        border: 1px solid rgba(255,255,255,.08);
+        padding: 6px 8px;
+        min-width: 0;
+    }
+
+    section.clr-block .clr-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        font-size: 13px;
+        font-weight: 700;
+        color: #f3f4f6;
+        margin-bottom: 4px;
+    }
+
+    section.clr-block .clr-lbl {
+        font-size: 11px;
+        color: rgba(255,255,255,.55);
+    }
+
+    section.clr-block .clr-num {
+        font-weight: 700;
+        color: #f3f4f6;
+    }
+
+    /* ===== ROW 1 ===== */
+    section.clr-block .clr-top {
+        display: grid;
+        min-height: 0;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+        gap: 6px;
+    }
+
+    /* RW LOAD: main row takes the spare height (row 1 is as tall as the CW trend), spark fills it */
+    section.clr-block .clr-rw-main {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    section.clr-block .clr-rw-now {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 2px;
+    }
+
+    section.clr-block .clr-rw-now .clr-lbl {
+        font-size: 12px;
+    }
+
+    section.clr-block .clr-big {
+        font-size: clamp(24px, 4.6cqi, 44px);
+        font-weight: 800;
+        line-height: 1.1;
+        color: #f9fafb;
+    }
+
+    section.clr-block .clr-spark {
+        position: relative;
+        flex: 1;
+        min-width: 0;
+        min-height: 60px;
+    }
+
+    section.clr-block .clr-rw-stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 4px;
+        margin-top: 8px;
+        padding-top: 6px;
+        border-top: 1px solid rgba(255,255,255,.08);
+    }
+
+        section.clr-block .clr-rw-stats .clr-lbl { font-size: 12px; }
+        section.clr-block .clr-rw-stats .clr-num { font-size: clamp(14px, 2.3cqi, 20px); }
+
+    section.clr-block .clr-trend canvas,
+    section.clr-block .clr-spark canvas {
+        width: 100% !important;
+        height: 100% !important;
+        display: block !important;
+    }
+
+    /* ===== ROW 2 : phase cards ===== */
+    section.clr-block .clr-phases {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+    }
+
+    section.clr-block .clr-phase {
+        border-top: 3px solid var(--clr-phase, #9ca3af);
+        border-radius: 0 0 10px 10px;
+    }
+
+    /* basin A / B table: label | A | B | A−B */
+    section.clr-block .clr-abt {
+        display: grid;
+        grid-template-columns: auto repeat(3, minmax(0, 1fr));
+        column-gap: 8px;
+        row-gap: 1px;
+        align-items: baseline;
+        font-size: 12px;
+        color: rgba(255,255,255,.84);
+        padding-bottom: 3px;
+        margin-bottom: 2px;
+        border-bottom: 1px solid rgba(255,255,255,.10);
+    }
+
+        section.clr-block .clr-abt > span { text-align: right; white-space: nowrap; }
+        section.clr-block .clr-abt > span:nth-child(4n+1) { text-align: left; }
+        section.clr-block .clr-abt .clr-num { font-size: 15px; }
+        section.clr-block .clr-abt .gap { color: rgba(255,255,255,.55); }
+        section.clr-block .clr-abt .gap.is-warn { color: #fcd34d; font-weight: 700; }
+
+    section.clr-block .clr-kvs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: 10px;
+    }
+
+    section.clr-block .clr-kv {
+        display: flex;
+        justify-content: space-between;
+        gap: 4px;
+        padding: 1px 0;
+        font-size: 11.5px;
+        color: rgba(255,255,255,.84);
+        border-bottom: 1px solid rgba(255,255,255,.06);
+        white-space: nowrap;
+        min-width: 0;
+    }
+
+    section.clr-block .is-ok { color: #86efac; }
+    section.clr-block .is-warn { color: #fcd34d; }
+    section.clr-block .is-bad { color: #fca5a5; }
+
+    section.clr-block .clr-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 40px;
+        height: 20px;
+        padding: 0 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        background: rgba(255,255,255,.08);
+        color: rgba(255,255,255,.7);
+    }
+
+        section.clr-block .clr-pill[hidden] { display: none; }
+        section.clr-block .clr-pill.ok { background: rgba(34,197,94,.16); color: #86efac; }
+        section.clr-block .clr-pill.warn { background: rgba(245,158,11,.16); color: #fcd34d; }
+        section.clr-block .clr-pill.bad { background: rgba(239,68,68,.16); color: #fca5a5; }
+
+    /* ===== trend (row 1, right) ===== */
+    section.clr-block .clr-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        font-size: 11px;
+        font-weight: 400;
+    }
+
+    section.clr-block .clr-top > .clr-card {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+    section.clr-block .clr-trend {
+        position: relative;
+        flex: 1;
+        min-height: 80px;
+    }
+
+    /* out of flow: Chart.js resizing must not grow the row (see MHxView equal-height note) */
+    section.clr-block .clr-trend canvas,
+    section.clr-block .clr-spark canvas {
+        position: absolute;
+        inset: 0;
+    }
+
+    /* ===== settings popup ===== */
+    .clr-settings-overlay {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,.28);
+        z-index: 200000;
+    }
+
+        .clr-settings-overlay.show { display: flex; }
+
+    .clr-settings-pop {
+        width: 300px;
+        max-width: calc(100vw - 24px);
+        border-radius: 16px;
+        background: linear-gradient(180deg, #1f2937 0%, #182231 100%);
+        border: 1px solid rgba(255,255,255,.10);
+        box-shadow: 0 18px 44px rgba(0,0,0,.42);
+        padding: 14px;
+        color: #f9fafb;
+    }
+
+        .clr-settings-pop .t { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
+        .clr-settings-pop .row { display: grid; gap: 6px; margin-bottom: 12px; }
+        .clr-settings-pop label { font-size: 12px; color: rgba(255,255,255,.82); font-weight: 600; }
+        .clr-settings-pop select,
+        .clr-settings-pop input[type="number"] {
+            width: 100%;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,.12);
+            background: rgba(255,255,255,.07);
+            color: #f9fafb;
+            padding: 8px 10px;
+        }
+        .clr-settings-pop select option { background: #1f2937; color: #f9fafb; }
+        .clr-settings-pop input[type="checkbox"] { accent-color: #ff9f2f; }
+        .clr-settings-pop .actions { display: flex; justify-content: flex-end; gap: 8px; }
+        .clr-settings-pop button {
+            border: 1px solid rgba(255,255,255,.12);
+            background: rgba(255,255,255,.08);
+            color: #f9fafb;
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .clr-settings-pop button.primary {
+            background: linear-gradient(180deg, #ffb347 0%, #ff972f 100%);
+            border-color: rgba(255,179,71,.55);
+        }
+
+    /* ===== responsive: container queries in site.css (Razor cannot parse CSS at-container rules) ===== */
+</style>
+
+<section class="bb-section clr-block"
+         data-clr-summary-url="/api/clarifier/summary">
+    <div class="bb-section-h">
+        <div class="left">
+            <div class="title">
+                CLARIFIER
+                <span class="clr-head-meta">
+                    <span data-clr="stamp">LAB -</span>
+                </span>
+            </div>
+        </div>
+
+        <div class="right-icons">
+            <button class="bb-ico is-armed" data-role="clr-alert-bell" type="button" title="Bell: armed" aria-label="Bell armed">
+                <span>🔔</span>
+            </button>
+            <button class="bb-ico" data-role="clr-settings" type="button" title="Settings" aria-label="Settings">
+                <span>⚙️</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="bb-section-b">
+        <div class="clr-layout">
+
+            <!-- ROW 1 : what comes in (RW load) / CW trend vs limit -->
+            <div class="clr-top">
+                <div class="clr-card">
+                    <div class="clr-title">RW LOAD <span class="clr-pill" data-clr="rwTrend">-</span></div>
+                    <div class="clr-rw-main">
+                        <div class="clr-rw-now">
+                            <div class="clr-lbl">Turb (NTU)</div>
+                            <div class="clr-big" data-clr="rwTurb">-</div>
+                            <div class="clr-lbl" data-clr="rwDelta">-</div>
+                        </div>
+                        <div class="clr-spark"><canvas data-clr-chart="spark"></canvas></div>
+                    </div>
+                    <div class="clr-rw-stats">
+                        <div><div class="clr-lbl">TSS</div><div class="clr-num" data-clr="rwTss">-</div></div>
+                        <div><div class="clr-lbl">Temp °C</div><div class="clr-num" data-clr="rwTemp">-</div></div>
+                        <div><div class="clr-lbl">pH</div><div class="clr-num" data-clr="rwPh">-</div></div>
+                        <div><div class="clr-lbl">Alk</div><div class="clr-num" data-clr="rwAlk">-</div></div>
+                    </div>
+                </div>
+
+                <div class="clr-card">
+                    <div class="clr-title">
+                        CW TURB TREND (NTU)
+                        <span class="clr-legend" data-clr="legend"></span>
+                    </div>
+                    <div class="clr-trend"><canvas data-clr-chart="trend"></canvas></div>
+                </div>
+            </div>
+
+            <!-- ROW 2 : result per phase (filled by ClarifierView.js) -->
+            <div class="clr-phases" data-clr="phases"></div>
+
+        </div>
+    </div>
+</section>
