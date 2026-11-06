@@ -909,11 +909,12 @@
     // pause refresh while editing
     let pauseRefreshBecauseEditing = false;
 
-    // backend base (from /api/backend-config)  -> reads App_data/backend-config.json via your razor API
+    // backendBaseUrl (from /api/backend-config) is shown for info only.
+    // All engine calls go same-origin through BellBeast (/api/admin/...) — WiFi clients cannot reach Uroboros :8888.
     let backendBaseUrl = "";
     function api(path) {
         if (!path.startsWith("/")) path = "/" + path;
-        return (backendBaseUrl || "").replace(/\/+$/, "") + path;
+        return "/api" + path;
     }
 
     // cached snapshots
@@ -994,7 +995,10 @@
         const ct = (r.headers.get('content-type') || '').toLowerCase();
         const text = await r.text();
 
-        if (!ct.includes('application/json')){
+        // pause / resume / cancelall answer 200 with an empty body
+        if (r.ok && !(text || '').trim()) return {};
+
+        if (!ct.includes('json')){
             throw new Error(`Non-JSON response (${r.status}) ct='${ct}' body='${(text||'').slice(0,120)}'`);
         }
 
@@ -1190,11 +1194,7 @@
         const paused = !!st.paused;
         setButtonsEnabled(paused);
 
-        if (!backendBaseUrl){
-            setEnginePill('error', 'no backendBaseUrl');
-        } else {
-            setEnginePill(paused ? 'paused' : 'running', paused ? 'paused' : 'running');
-        }
+        setEnginePill(paused ? 'paused' : 'running', paused ? 'paused' : 'running');
 
         const tasks = Array.isArray(lastConfig && lastConfig.tasks) ? lastConfig.tasks : [];
         if (tasks.length === 0){
@@ -1415,7 +1415,6 @@
 
     async function tick(force){
         if (!force && pauseRefreshBecauseEditing) return;
-        if (!backendBaseUrl) return;
 
         try{
             const [cfg, st] = await Promise.all([getConfig(), getStatus()]);
@@ -1457,11 +1456,6 @@
     }
 
     async function forcerun(){
-    if (!backendBaseUrl){
-        logLine('err', 'forcerun: no backendBaseUrl');
-        return;
-    }
-
     try{
         // ส่ง now+3s ให้ backend (กัน clock skew เล็กน้อย)
         const dueUnixMs = Date.now() + 3000;

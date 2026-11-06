@@ -1059,6 +1059,25 @@ app.MapGet("/api/admin/tasks/status", async (EngineAdminService svc) =>
     }
 });
 
+// Admin page task table: config read/write + force run, relayed to Uroboros unchanged.
+// The browser only talks to BellBeast (443); WiFi clients cannot reach Uroboros on 8888.
+app.MapGet("/api/admin/tasks/config", [Authorize(Policy = "AdminOnly")] (EngineAdminService svc) =>
+    RelayEngineAsync(() => svc.GetTasksConfigRawAsync()));
+
+app.MapPost("/api/admin/tasks/config", [Authorize(Policy = "AdminOnly")] async (HttpContext ctx, EngineAdminService svc) =>
+{
+    using var reader = new StreamReader(ctx.Request.Body);
+    var body = await reader.ReadToEndAsync();
+    return await RelayEngineAsync(() => svc.PostTasksConfigRawAsync(body));
+});
+
+app.MapPost("/api/admin/tasks/forcerun", [Authorize(Policy = "AdminOnly")] async (HttpContext ctx, EngineAdminService svc) =>
+{
+    using var reader = new StreamReader(ctx.Request.Body);
+    var body = await reader.ReadToEndAsync();
+    return await RelayEngineAsync(() => svc.ForceRunRawAsync(body));
+});
+
 // ── Engine sequential start (MHxView ⚙️ → Engine tab) ─────────────────────────
 // MHxView is anonymous, so start/cancel require the EngineControl PIN (rate-limited per IP).
 // Status is read-only and open. Uroboros runs every enabled task one at a time, then resumes.

@@ -52,6 +52,17 @@ public class EngineAdminService
     public Task<(int Status, string Body)> CancelSequenceAsync()
         => SendRawAsync(HttpMethod.Post, "admin/sequence/cancel", null);
 
+    // ── Admin page task table (same-origin proxy; WiFi clients cannot reach :8888) ──
+
+    public Task<(int Status, string Body)> GetTasksConfigRawAsync()
+        => SendRawAsync(HttpMethod.Get, "admin/tasks/config", null);
+
+    public Task<(int Status, string Body)> PostTasksConfigRawAsync(string jsonBody)
+        => SendRawAsync(HttpMethod.Post, "admin/tasks/config", new StringContent(jsonBody, System.Text.Encoding.UTF8, "application/json"));
+
+    public Task<(int Status, string Body)> ForceRunRawAsync(string jsonBody)
+        => SendRawAsync(HttpMethod.Post, "admin/tasks/forcerun", new StringContent(jsonBody, System.Text.Encoding.UTF8, "application/json"));
+
     private async Task<(int Status, string Body)> SendRawAsync(HttpMethod method, string path, HttpContent? content)
     {
         using var req = new HttpRequestMessage(method, path) { Content = content };
