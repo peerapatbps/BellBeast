@@ -2,11 +2,12 @@
 @model BellBeast.Pages.Admin.AnnunciatorModel
 @{
     ViewData["Title"] = "Annunciator";
+    ViewData["ContentClass"] = "content content-admin"; // เต็มจอแบบ IoT Room (site.css)
 }
 
 @section Styles {
 <style>
-    .an-wrap { width: min(1280px, 96%); margin: 0 auto; padding: 18px 0 28px; color: #e8eefc; }
+    .an-wrap { width: 90%; margin: 0 auto; padding: 0 0 28px; color: #e8eefc; }
     .an-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 14px; }
     .an-title { margin: 0; font-size: clamp(22px, 2.2vw, 30px); font-weight: 800; }
     .an-sub { font-size: 12px; color: rgba(148,163,184,.75); letter-spacing: .04em; }

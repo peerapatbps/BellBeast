@@ -2,6 +2,7 @@
 @model AdminPageModel
 @{
     ViewData["Title"] = "Engine Admin";
+    ViewData["ContentClass"] = "content content-admin"; // เต็มจอแบบ IoT Room (site.css)
 }
 
 <!-- ── Regression Test Modal ──────────────────────────────── -->
@@ -170,8 +171,8 @@
 
     /* ── Wrapper ──────────────────────────────────────────── */
     .bb-wrap {
-        width: min(1240px, calc(100% - 24px));
-        margin: 20px auto 48px;
+        width: 90%;
+        margin: 0 auto 48px;
     }
 
     /* ── Header card ──────────────────────────────────────── */

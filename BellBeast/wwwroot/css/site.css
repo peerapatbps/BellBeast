@@ -360,6 +360,13 @@ tr.is-selected {
     padding: 0;
 }
 
+/* หน้า Admin ที่มีแถบ _AdminTabs → เต็มจอแบบ IoT Room (padding 18, แถบ tab เต็มกว้าง, เนื้อหา 90%) */
+.content.content-admin {
+    max-width: none;
+    width: 100%;
+    padding: 18px;
+}
+
 /* การ์ดหลักไม่ต้องกว้างเต็มจอ */
 .card {
     margin: 0 auto;

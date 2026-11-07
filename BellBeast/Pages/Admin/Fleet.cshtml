@@ -2,6 +2,7 @@
 @model BellBeast.Pages.Admin.FleetModel
 @{
     ViewData["Title"] = "Annunciator Fleet";
+    ViewData["ContentClass"] = "content content-admin"; // เต็มจอแบบ IoT Room (site.css)
 }
 
 @section Styles {
@@ -14,7 +15,7 @@
         --fl-ok: #3fcf7f; --fl-ok-bg: rgba(63,207,127,.14); --fl-warn: #f2b33d; --fl-warn-bg: rgba(242,179,61,.14);
         --fl-bad: #f06a6a; --fl-bad-bg: rgba(240,106,106,.13);
         --fl-mono: ui-monospace, Consolas, "IBM Plex Mono", monospace;
-        width: min(1280px, 96%); margin: 0 auto; padding: 18px 0 40px; color: var(--fl-fg); font-size: 14px; line-height: 1.55;
+        width: 90%; margin: 0 auto; padding: 0 0 40px; color: var(--fl-fg); font-size: 14px; line-height: 1.55;
     }
     .fl-wrap *, .fl-drawer * { box-sizing: border-box; }
     .fl-wrap [hidden], .fl-drawer[hidden], .fl-drawer [hidden], .fl-scrim[hidden], .fl-toast[hidden] { display: none !important; }
