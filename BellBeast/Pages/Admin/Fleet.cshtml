@@ -6,45 +6,204 @@
 
 @section Styles {
 <style>
-    .fl-wrap { width: min(1360px, 96%); margin: 0 auto; padding: 18px 0 28px; color: #e8eefc; }
-    .fl-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 14px; }
-    .fl-title { margin: 0; font-size: clamp(22px, 2.2vw, 30px); font-weight: 800; }
-    .fl-sub { font-size: 12px; color: rgba(148,163,184,.75); letter-spacing: .04em; }
-    .fl-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
-    .fl-chip { padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 700;
-               border: 1px solid rgba(148,163,184,.25); background: rgba(15,23,42,.7); white-space: nowrap; }
-    .fl-chip.ok { border-color: #22c55e; color: #86efac; }
-    .fl-chip.warn { border-color: #f59e0b; color: #fcd34d; }
-    .fl-card { border: 1px solid rgba(148,163,184,.16); border-radius: 16px; margin-bottom: 14px; overflow: hidden;
-               background: linear-gradient(180deg, rgba(15,23,42,.82), rgba(15,23,42,.56)); box-shadow: 0 14px 36px rgba(0,0,0,.2); }
-    .fl-card h2 { margin: 0; padding: 12px 16px; font-size: 14px; font-weight: 700; letter-spacing: .04em; color: rgba(226,232,240,.9);
-                  border-bottom: 1px solid rgba(148,163,184,.12); display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-    .fl-card h2 .sp { flex: 1; }
-    .fl-body { padding: 12px 16px; font-size: 13px; }
-    .fl-in { background: rgba(2,6,23,.6); color: #e2e8f0; border: 1px solid rgba(148,163,184,.25); border-radius: 8px; padding: 4px 8px; font-size: 12px; }
-    .fl-in.w-s { width: 64px; } .fl-in.w-m { width: 120px; } .fl-in.w-l { width: 200px; }
-    .fl-btn { background: rgba(56,189,248,.12); color: #7dd3fc; border: 1px solid rgba(56,189,248,.4); border-radius: 8px;
-              padding: 4px 10px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
-    .fl-btn:hover { background: rgba(56,189,248,.22); }
-    .fl-btn.ok { color: #86efac; border-color: rgba(34,197,94,.5); background: rgba(34,197,94,.1); }
-    .fl-btn.del { color: #fca5a5; border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.08); }
-    .fl-table-wrap { overflow-x: auto; }
-    table.fl { width: 100%; border-collapse: collapse; font-size: 12px; }
-    table.fl th { text-align: left; padding: 8px 8px; font-size: 11px; font-weight: 700; letter-spacing: .06em; color: rgba(148,163,184,.8);
-                  text-transform: uppercase; border-bottom: 1px solid rgba(148,163,184,.14); white-space: nowrap; }
-    table.fl td { padding: 6px 8px; border-bottom: 1px solid rgba(148,163,184,.07); vertical-align: middle; white-space: nowrap; }
-    table.fl td.mono { font-family: ui-monospace, Consolas, monospace; }
-    .fl-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: #64748b; margin-right: 6px; }
-    .fl-dot.on { background: #22c55e; } .fl-dot.late { background: #f59e0b; } .fl-dot.off { background: #ef4444; }
-    .fl-tag { font-size: 11px; padding: 1px 7px; border-radius: 6px; background: rgba(148,163,184,.14); }
-    .fl-tag.pending { background: rgba(245,158,11,.18); color: #fcd34d; }
-    .fl-tag.ok { background: rgba(34,197,94,.15); color: #86efac; }
-    .fl-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
-    .fl-row label { font-size: 11px; color: rgba(148,163,184,.85); }
-    .fl-msg { padding: 8px 16px; font-size: 12px; display: none; }
-    .fl-msg.err { color: #fca5a5; display: block; } .fl-msg.ok { color: #86efac; display: block; }
-    .fl-note { font-size: 12px; color: rgba(148,163,184,.85); line-height: 1.6; margin: 8px 0 0; }
-    .fl-muted { color: rgba(148,163,184,.7); }
+    /* status strip → tabs → one task per tab; device settings open in a side drawer */
+    .fl-wrap {
+        --fl-panel: rgba(15,23,42,.78); --fl-panel2: rgba(30,41,59,.55); --fl-line: rgba(148,163,184,.2); --fl-soft: rgba(148,163,184,.09);
+        --fl-fg: #e6ecf8; --fl-muted: #94a3b8; --fl-faint: #64748b; --fl-bg: #0b1220;
+        --fl-accent: #5cb8f0; --fl-accent-bg: rgba(92,184,240,.13);
+        --fl-ok: #3fcf7f; --fl-ok-bg: rgba(63,207,127,.14); --fl-warn: #f2b33d; --fl-warn-bg: rgba(242,179,61,.14);
+        --fl-bad: #f06a6a; --fl-bad-bg: rgba(240,106,106,.13);
+        --fl-mono: ui-monospace, Consolas, "IBM Plex Mono", monospace;
+        width: min(1280px, 96%); margin: 0 auto; padding: 18px 0 40px; color: var(--fl-fg); font-size: 14px; line-height: 1.55;
+    }
+    .fl-wrap *, .fl-drawer * { box-sizing: border-box; }
+    .fl-wrap [hidden], .fl-drawer[hidden], .fl-drawer [hidden], .fl-scrim[hidden], .fl-toast[hidden] { display: none !important; }
+    .fl-wrap button, .fl-wrap input, .fl-wrap select, .fl-drawer button, .fl-drawer input, .fl-drawer select { font: inherit; color: inherit; }
+    .fl-wrap button, .fl-drawer button { cursor: pointer; }
+    .fl-mono { font-family: var(--fl-mono); font-size: 12.5px; }
+    .fl-muted { color: var(--fl-muted); } .fl-faint { color: var(--fl-faint); }
+    .c-ok { color: var(--fl-ok); } .c-warn { color: var(--fl-warn); } .c-bad { color: var(--fl-bad); }
+
+    .fl-head { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 16px; margin-bottom: 16px; }
+    .fl-head h1 { margin: 0; font-size: clamp(22px, 2.2vw, 28px); font-weight: 800; }
+    .fl-head p { margin: 0; color: var(--fl-muted); font-size: 13px; }
+    .fl-head .sp { flex: 1; }
+
+    .fl-msg { padding: 9px 14px; border-radius: 10px; margin-bottom: 12px; font-size: 13px; background: var(--fl-bad-bg); color: #fca5a5; }
+
+    .fl-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .fl-tile { text-align: left; background: var(--fl-panel); border: 1px solid var(--fl-line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 2px; }
+    .fl-tile:hover, .fl-tile.sel { border-color: var(--fl-accent); }
+    .fl-tile.sel { background: var(--fl-accent-bg); }
+    .fl-tile .lbl { font-size: 12px; color: var(--fl-muted); display: flex; align-items: center; gap: 6px; }
+    .fl-tile .num { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .fl-tile .num small { font-size: 14px; color: var(--fl-muted); font-weight: 500; }
+    .fl-tile .sub { font-size: 12px; color: var(--fl-faint); }
+    .fl-tile.t-warn .num { color: var(--fl-warn); } .fl-tile.t-bad .num { color: var(--fl-bad); }
+
+    .fl-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; background: var(--fl-faint); }
+    .fl-dot.on { background: var(--fl-ok); box-shadow: 0 0 0 3px var(--fl-ok-bg); }
+    .fl-dot.late { background: var(--fl-warn); box-shadow: 0 0 0 3px var(--fl-warn-bg); }
+    .fl-dot.off { background: var(--fl-bad); box-shadow: 0 0 0 3px var(--fl-bad-bg); }
+    .fl-dot.pend { background: var(--fl-warn); }
+
+    .fl-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--fl-line); margin-bottom: 16px; overflow-x: auto; }
+    .fl-tab { background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 14px; color: var(--fl-muted); white-space: nowrap; font-weight: 600; }
+    .fl-tab:hover { color: var(--fl-fg); }
+    .fl-tab[aria-selected="true"] { color: var(--fl-fg); border-bottom-color: var(--fl-accent); }
+    .fl-tab .cnt { font-size: 11px; background: var(--fl-warn-bg); color: var(--fl-warn); border-radius: 999px; padding: 0 7px; margin-left: 4px; }
+
+    .fl-btn { border: 1px solid var(--fl-line); background: var(--fl-panel2); border-radius: 8px; padding: 6px 14px; font-weight: 600; white-space: nowrap; }
+    .fl-btn:hover { border-color: var(--fl-accent); }
+    .fl-btn:disabled { opacity: .5; cursor: default; }
+    .fl-btn.primary { background: var(--fl-accent); border-color: var(--fl-accent); color: var(--fl-bg); }
+    .fl-btn.ok { background: var(--fl-ok); border-color: var(--fl-ok); color: var(--fl-bg); }
+    .fl-btn.ghost-bad { color: var(--fl-bad); border-color: transparent; background: none; }
+    .fl-btn.ghost-bad:hover { border-color: var(--fl-bad); }
+    .fl-btn.bad { background: var(--fl-bad); border-color: var(--fl-bad); color: #fff; }
+    .fl-btn.sm { padding: 3px 10px; font-size: 13px; }
+    .fl-link { background: none; border: 0; color: var(--fl-accent); padding: 0; }
+
+    .fl-pending { border: 1px solid var(--fl-warn); background: var(--fl-warn-bg); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; display: grid; gap: 10px; }
+    .fl-pending h3 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+    .fl-pend-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; background: var(--fl-bg); border-radius: 10px; padding: 10px 12px; }
+    .fl-pend-row .grow { flex: 1; min-width: 200px; }
+    .fl-pend-row .acts { display: flex; gap: 8px; }
+
+    .fl-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+    .fl-search { flex: 1; min-width: 180px; max-width: 320px; background: var(--fl-bg); border: 1px solid var(--fl-line); border-radius: 8px; padding: 6px 10px; }
+    .fl-chipset { display: flex; flex-wrap: wrap; gap: 6px; }
+    .fl-chip { border: 1px solid var(--fl-line); background: var(--fl-panel); border-radius: 999px; padding: 3px 11px; font-size: 13px; color: var(--fl-muted); }
+    .fl-chip[aria-pressed="true"] { border-color: var(--fl-accent); color: var(--fl-fg); background: var(--fl-accent-bg); }
+
+    .fl-list { background: var(--fl-panel); border: 1px solid var(--fl-line); border-radius: 12px; overflow: hidden; }
+    .fl-lrow { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.4fr) minmax(0, 1.2fr) minmax(0, .9fr) minmax(0, 2fr) minmax(0, 1fr) 20px;
+               gap: 12px; align-items: center; padding: 11px 16px; border-bottom: 1px solid var(--fl-soft); }
+    .fl-lrow:last-child { border-bottom: 0; }
+    .fl-lrow.hd { font-size: 12px; color: var(--fl-faint); padding-block: 8px; background: var(--fl-panel2); }
+    button.fl-lrow { width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--fl-soft); }
+    button.fl-lrow:hover { background: var(--fl-accent-bg); }
+    .fl-nm { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .fl-nm b { font-weight: 600; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fl-nm .fl-mono { color: var(--fl-faint); font-size: 11.5px; }
+    .fl-zones { display: flex; flex-wrap: wrap; gap: 4px; }
+    .fl-z { font-family: var(--fl-mono); font-size: 11.5px; border: 1px solid var(--fl-line); border-radius: 5px; padding: 0 6px; color: var(--fl-muted); }
+    .fl-z.all { border-style: dashed; }
+    .fl-badge { font-size: 11.5px; border-radius: 5px; padding: 1px 7px; white-space: nowrap; }
+    .fl-badge.warn { background: var(--fl-warn-bg); color: var(--fl-warn); } .fl-badge.ok { background: var(--fl-ok-bg); color: var(--fl-ok); }
+    .fl-badge.info { background: var(--fl-accent-bg); color: var(--fl-accent); } .fl-badge.bad { background: var(--fl-bad-bg); color: var(--fl-bad); }
+    .fl-badge.plain { background: var(--fl-panel2); color: var(--fl-muted); border: 1px solid var(--fl-line); }
+    .fl-bars { display: inline-flex; align-items: end; gap: 2px; height: 14px; vertical-align: -2px; margin-right: 6px; }
+    .fl-bars i { width: 4px; background: var(--fl-line); border-radius: 1px; }
+    .fl-bars i.f { background: var(--fl-fg); }
+    .fl-bars i:nth-child(1) { height: 25%; } .fl-bars i:nth-child(2) { height: 50%; } .fl-bars i:nth-child(3) { height: 75%; } .fl-bars i:nth-child(4) { height: 100%; }
+    .fl-alarm { font-size: 13px; min-width: 0; overflow-wrap: anywhere; }
+    .fl-small { font-size: 12px; }
+    .fl-chev { color: var(--fl-faint); font-size: 18px; text-align: right; }
+    .fl-cl { display: none; }
+
+    .fl-panel { background: var(--fl-panel); border: 1px solid var(--fl-line); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+    .fl-panel h2 { margin: 0 0 4px; font-size: 17px; font-weight: 700; }
+    .fl-lead { margin: 0 0 16px; color: var(--fl-muted); max-width: 75ch; }
+    .fl-note { font-size: 13px; color: var(--fl-muted); }
+    .fl-warnbox { border: 1px solid var(--fl-line); border-radius: 10px; padding: 10px 14px; font-size: 13px; color: var(--fl-muted); margin-top: 14px; }
+    .fl-warnbox summary { cursor: pointer; color: var(--fl-warn); }
+
+    .fl-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 6px 20px; padding: 14px 0; border-top: 1px solid var(--fl-soft); align-items: start; }
+    .fl-fields > .fl-field:first-child { border-top: 0; }
+    .fl-field .fl-fl b { font-weight: 600; display: block; }
+    .fl-field .fl-fl span { font-size: 12.5px; color: var(--fl-muted); }
+    .fl-uses { font-size: 12px; color: var(--fl-faint); }
+    .fl-fctl { display: grid; gap: 8px; justify-items: start; }
+    .fl-seg { display: inline-flex; border: 1px solid var(--fl-line); border-radius: 8px; overflow: hidden; }
+    .fl-seg button { border: 0; background: var(--fl-panel2); padding: 5px 12px; font-size: 13px; color: var(--fl-muted); }
+    .fl-seg button + button { border-left: 1px solid var(--fl-line); }
+    .fl-seg button[aria-pressed="true"] { background: var(--fl-accent-bg); color: var(--fl-fg); font-weight: 600; }
+    .fl-inp { display: inline-flex; align-items: center; gap: 8px; }
+    .fl-inp input, .fl-inp select, .fl-finput { background: var(--fl-bg); border: 1px solid var(--fl-line); border-radius: 8px; padding: 6px 10px; width: 110px; }
+    .fl-inp select { width: auto; }
+    .fl-finput { width: 100%; max-width: 300px; }
+    .fl-inp .unit { color: var(--fl-muted); font-size: 13px; }
+    .fl-zpick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .fl-zpick button { font-family: var(--fl-mono); font-size: 12.5px; border: 1px solid var(--fl-line); background: var(--fl-panel2); border-radius: 6px; padding: 3px 10px; color: var(--fl-muted); }
+    .fl-zpick button[aria-pressed="true"] { border-color: var(--fl-accent); background: var(--fl-accent-bg); color: var(--fl-fg); }
+    .fl-zpick input { width: 90px; font-family: var(--fl-mono); font-size: 12.5px; background: var(--fl-bg); border: 1px dashed var(--fl-line); border-radius: 6px; padding: 3px 8px; text-transform: uppercase; }
+    details.fl-adv > summary { cursor: pointer; color: var(--fl-accent); padding: 10px 0; font-size: 13.5px; }
+
+    .fl-scrim { position: fixed; inset: 0; background: rgba(3,7,16,.6); z-index: 1040; }
+    .fl-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100%); background: #0f172a; border-left: 1px solid rgba(148,163,184,.2);
+                 z-index: 1041; display: flex; flex-direction: column; box-shadow: -20px 0 40px rgba(0,0,0,.35); color: #e6ecf8; font-size: 14px; line-height: 1.55;
+                 --fl-panel: rgba(15,23,42,.78); --fl-panel2: rgba(30,41,59,.55); --fl-line: rgba(148,163,184,.2); --fl-soft: rgba(148,163,184,.09);
+                 --fl-fg: #e6ecf8; --fl-muted: #94a3b8; --fl-faint: #64748b; --fl-bg: #0b1220;
+                 --fl-accent: #5cb8f0; --fl-accent-bg: rgba(92,184,240,.13);
+                 --fl-ok: #3fcf7f; --fl-ok-bg: rgba(63,207,127,.14); --fl-warn: #f2b33d; --fl-warn-bg: rgba(242,179,61,.14);
+                 --fl-bad: #f06a6a; --fl-bad-bg: rgba(240,106,106,.13); --fl-mono: ui-monospace, Consolas, monospace; }
+    .fl-dr-head { padding: 16px 20px; border-bottom: 1px solid var(--fl-line); display: flex; gap: 12px; align-items: start; }
+    .fl-dr-head h2 { margin: 0; font-size: 18px; font-weight: 700; }
+    .fl-dr-head .x { margin-left: auto; background: none; border: 0; font-size: 24px; color: var(--fl-muted); line-height: 1; }
+    .fl-dr-body { overflow-y: auto; padding: 4px 20px 20px; flex: 1; }
+    .fl-dr-sec { padding: 16px 0; border-bottom: 1px solid var(--fl-soft); }
+    .fl-dr-sec:last-child { border-bottom: 0; }
+    .fl-dr-sec h3 { margin: 0 0 10px; font-size: 13px; color: var(--fl-muted); font-weight: 700; letter-spacing: .03em; }
+    .fl-kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 18px; font-size: 13.5px; margin: 0; }
+    .fl-kv dt { color: var(--fl-muted); font-weight: 400; } .fl-kv dd { margin: 0; }
+    .fl-dr-foot { border-top: 1px solid var(--fl-line); padding: 12px 20px; display: flex; align-items: center; gap: 10px; background: rgba(30,41,59,.6); }
+    .fl-dr-foot .grow { flex: 1; font-size: 13px; color: var(--fl-muted); }
+    .fl-danger { border: 1px solid var(--fl-bad-bg); border-radius: 10px; padding: 4px 14px; }
+    .fl-danger-row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 10px 0; }
+    .fl-danger-row + .fl-danger-row { border-top: 1px solid var(--fl-soft); }
+    .fl-danger-row .grow { flex: 1; min-width: 200px; font-size: 13px; color: var(--fl-muted); }
+    .fl-danger-row .grow b { display: block; font-size: 14px; color: var(--fl-fg); }
+    .fl-confirm { width: 100%; background: var(--fl-bad-bg); border-radius: 8px; padding: 10px 12px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .fl-confirm > span { flex: 1; min-width: 180px; }
+
+    .fl-flow { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr); gap: 10px; align-items: stretch; margin-bottom: 14px; }
+    .fl-step { border: 1px solid var(--fl-line); border-radius: 12px; padding: 14px; background: var(--fl-panel2); display: grid; gap: 4px; align-content: start; }
+    .fl-step.now { border-color: var(--fl-ok); }
+    .fl-step.off { opacity: .6; }
+    .fl-step .k { font-size: 12px; color: var(--fl-muted); }
+    .fl-step .v { font-weight: 600; font-size: 15px; overflow-wrap: anywhere; }
+    .fl-arrow { align-self: center; color: var(--fl-faint); font-size: 18px; }
+    .fl-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; margin-top: 8px; }
+    .fl-form label { display: grid; gap: 4px; font-size: 13px; color: var(--fl-muted); }
+    .fl-form label b { color: var(--fl-fg); font-weight: 600; }
+
+    .fl-stages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .fl-stage { border: 1px solid var(--fl-line); border-radius: 12px; padding: 12px 14px; background: var(--fl-panel2); }
+    .fl-stage .k { font-size: 12px; color: var(--fl-muted); display: flex; gap: 6px; align-items: center; }
+    .fl-stage .v { font-family: var(--fl-mono); font-size: 18px; font-weight: 500; margin: 2px 0; }
+    .fl-stage .s { font-size: 12.5px; color: var(--fl-muted); }
+    .fl-stepn { width: 20px; height: 20px; border-radius: 50%; background: var(--fl-line); font-size: 11px; display: inline-grid; place-items: center; font-weight: 700; }
+    .fl-fwrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--fl-soft); }
+    .fl-fwrow .ver { font-family: var(--fl-mono); font-size: 15px; font-weight: 500; }
+    .fl-fwrow .acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: end; align-items: center; }
+    .fl-drop { border: 1.5px dashed var(--fl-line); border-radius: 12px; padding: 16px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin-bottom: 8px; }
+    .fl-drop .grow { flex: 1; min-width: 220px; }
+
+    .fl-log { background: var(--fl-panel); border: 1px solid var(--fl-line); border-radius: 12px; }
+    .fl-ev { display: grid; grid-template-columns: 150px minmax(0, 1.3fr) 110px minmax(0, 3fr); gap: 12px; padding: 9px 16px; border-bottom: 1px solid var(--fl-soft); align-items: baseline; font-size: 13.5px; }
+    .fl-ev:last-child { border-bottom: 0; }
+    .fl-ev .t { font-variant-numeric: tabular-nums; color: var(--fl-muted); font-size: 12.5px; }
+    .fl-ev .tx { overflow-wrap: anywhere; }
+
+    .fl-toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 22px; background: #e6ecf8; color: #0b1220; padding: 9px 16px; border-radius: 10px;
+                font-size: 13.5px; z-index: 1050; max-width: calc(100% - 32px); box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+    .fl-toast.err { background: #f06a6a; color: #fff; }
+
+    @@media (max-width: 860px) {
+        .fl-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .fl-lrow.hd { display: none; }
+        button.fl-lrow { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 6px 12px; padding: 12px 14px; }
+        button.fl-lrow .fl-nm { grid-column: 1 / -1; }
+        button.fl-lrow .fl-chev { display: none; }
+        .fl-cl { display: block; font-size: 11px; color: var(--fl-faint); }
+        .fl-field { grid-template-columns: 1fr; }
+        .fl-flow { grid-template-columns: 1fr; } .fl-arrow { transform: rotate(90deg); justify-self: center; }
+        .fl-stages { grid-template-columns: 1fr; }
+        .fl-fwrow { grid-template-columns: 1fr; } .fl-fwrow .acts { justify-content: start; }
+        .fl-form { grid-template-columns: 1fr; }
+        .fl-ev { grid-template-columns: 1fr; gap: 2px; }
+    }
 </style>
 }
 
@@ -53,105 +212,36 @@
 <div class="fl-wrap">
     <div class="fl-head">
         <div>
-            <h1 class="fl-title">Annunciator Fleet</h1>
-            <div class="fl-sub">อุปกรณ์แจ้งเตือน · อนุมัติเครื่องใหม่ · zone/ค่าตั้ง · WiFi รหัสถัดไป · firmware OTA · log จากเครื่อง</div>
+            <h1>อุปกรณ์แจ้งเตือน</h1>
+            <p>ลำโพง/จอ annunciator ที่ดัง alarm ตาม zone</p>
         </div>
-        <div class="fl-chips">
-            <span class="fl-chip" id="chipOnline">online: –</span>
-            <span class="fl-chip" id="chipPending">pending: –</span>
-            <span class="fl-chip" id="chipFw">stable: –</span>
-        </div>
+        <span class="sp"></span>
+        <span class="fl-note" id="updated"></span>
+        <button class="fl-btn sm" id="reload" type="button">รีเฟรช</button>
     </div>
 
-    <div class="fl-msg" id="msg"></div>
+    <div class="fl-msg" id="msg" hidden></div>
 
-    <div class="fl-card">
-        <h2>Devices <span class="sp"></span><button class="fl-btn" id="reload" type="button">รีเฟรช</button></h2>
-        <div class="fl-table-wrap">
-            <table class="fl">
-                <thead><tr>
-                    <th>device</th><th>สถานะ</th><th>ชื่อ</th><th>zones</th><th>channel</th><th>poll/remind/vol/lab/scn</th>
-                    <th>fw</th><th>ip</th><th>wifi</th><th>เล่นล่าสุด</th><th>ack ล่าสุด</th><th>last seen</th><th></th>
-                </tr></thead>
-                <tbody id="rows"></tbody>
-            </table>
-        </div>
-        <p class="fl-note" style="padding:0 16px 12px">
-            เครื่องใหม่จะขึ้นเป็น <b>pending</b> เมื่อรายงานครั้งแรก (ยืนยันตัวด้วย key ประจำเครื่อง) — ต้องกด <b>อนุมัติ</b> ก่อนเครื่องจะได้รหัส WiFi ·
-            ช่องว่าง = ใช้ค่ากลาง · "reset key" ใช้เมื่อเปลี่ยนบอร์ด/ล้าง NVS (เครื่องใหม่ต้องอนุมัติอีกครั้ง)
-        </p>
+    <div class="fl-strip" id="strip"></div>
+
+    <div class="fl-tabs" role="tablist">
+        <button class="fl-tab" role="tab" type="button" data-tab="devices">อุปกรณ์</button>
+        <button class="fl-tab" role="tab" type="button" data-tab="defaults">ค่าตั้งกลาง</button>
+        <button class="fl-tab" role="tab" type="button" data-tab="wifi">รหัส WiFi</button>
+        <button class="fl-tab" role="tab" type="button" data-tab="firmware">อัปเดต Firmware</button>
+        <button class="fl-tab" role="tab" type="button" data-tab="log">บันทึกเหตุการณ์</button>
     </div>
 
-    <div class="fl-card">
-        <h2>ค่ากลาง (ใช้กับทุกเครื่องที่ไม่ได้ตั้งเอง)</h2>
-        <div class="fl-body">
-            <div class="fl-row">
-                <label>zones</label><input class="fl-in w-l" id="dZones" placeholder="ว่าง = ทุก zone · เช่น RWS,DPS" />
-                <label>poll (s)</label><input class="fl-in w-s" id="dPoll" type="number" min="1" max="60" />
-                <label>remind (s)</label><input class="fl-in w-s" id="dRemind" type="number" min="0" max="3600" />
-                <label title="รอบดึงผลแล็บของจอ (นอกจากนี้ดึงทันทีเมื่อมี alarm แล็บใหม่ / สถานการณ์เปลี่ยน)">lab (s)</label><input class="fl-in w-s" id="dLab" type="number" min="60" max="3600" />
-                <label title="รอบเช็กสถานการณ์/โรคระบาดจาก LabVenture">scn (s)</label><input class="fl-in w-s" id="dScn" type="number" min="10" max="600" />
-                <label>volume</label><input class="fl-in w-s" id="dVol" type="number" min="0" max="100" placeholder="-" />
-                <label>channel</label><select class="fl-in" id="dChannel"><option>stable</option><option>beta</option><option>none</option></select>
-                <button class="fl-btn" id="saveDefaults" type="button">บันทึก</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="fl-card">
-        <h2>WiFi (KNOWN tier — pre-emptive rotation)</h2>
-        <div class="fl-body">
-            <div class="fl-row">
-                <label>SSID</label><input class="fl-in w-m" id="wSsid" />
-                <label>identity</label><input class="fl-in w-m" id="wIdentity" />
-                <label>รหัสปัจจุบัน</label><input class="fl-in w-m" id="wCurrent" type="password" autocomplete="new-password" />
-                <label>รหัสถัดไป</label><input class="fl-in w-m" id="wNext" type="password" autocomplete="new-password" />
-                <label>ใช้รหัสถัดไปตั้งแต่</label><input class="fl-in" id="wFrom" type="datetime-local" />
-                <button class="fl-btn" id="saveWifi" type="button">บันทึก</button>
-                <button class="fl-btn del" id="clearWifi" type="button">ลบ</button>
-            </div>
-            <div class="fl-muted" id="wifiNow">–</div>
-            <p class="fl-note">
-                ส่งให้เฉพาะเครื่องที่อนุมัติแล้ว · เครื่องลอง: รหัสปัจจุบัน → รหัสถัดไป → bootstrap (ฝังใน firmware, recovery ถาวร) ·
-                ⚠️ BellBeast ไม่มี TLS — รหัสวิ่งเป็น plaintext ใน LAN โรงงาน ควรย้ายไป dedicated IoT SSID / EAP-TLS ในระยะยาว (Overview §3.4)
-            </p>
-        </div>
-    </div>
-
-    <div class="fl-card">
-        <h2>Firmware OTA</h2>
-        <div class="fl-body">
-            <div class="fl-row">
-                <label>version</label><input class="fl-in w-m" id="fwVersion" placeholder="ว่าง = อ่านจากไฟล์" />
-                <label>note</label><input class="fl-in w-l" id="fwNote" />
-                <input class="fl-in" id="fwFile" type="file" accept=".bin" />
-                <button class="fl-btn" id="fwUpload" type="button">อัปโหลด</button>
-            </div>
-            <div class="fl-table-wrap">
-                <table class="fl">
-                    <thead><tr><th>version</th><th>size</th><th>sha256</th><th>uploaded</th><th>note</th><th>channel</th><th></th></tr></thead>
-                    <tbody id="fwRows"></tbody>
-                </table>
-            </div>
-            <p class="fl-note">
-                ไฟล์ = <code>build/xiaozhi.bin</code> (app image) · version ต้องตรงกับ <code>PROJECT_VER</code> ในไฟล์ (เว้นว่างได้ ระบบอ่านให้) · ตั้ง <b>beta</b> ให้ 1–2 เครื่องก่อน แล้วค่อยเลื่อน <b>stable</b> ·
-                เครื่องจะไม่อัปเดตระหว่างมี alarm ที่ยังไม่ ack · firmware ใหม่ต้องดึง alarm feed สำเร็จภายใน 5 นาที ไม่งั้นย้อนกลับเอง (A/B rollback)
-            </p>
-        </div>
-    </div>
-
-    <div class="fl-card">
-        <h2>Log จากเครื่อง <span class="sp"></span>
-            <select class="fl-in" id="evDevice"><option value="">ทุกเครื่อง</option></select>
-        </h2>
-        <div class="fl-table-wrap">
-            <table class="fl">
-                <thead><tr><th>รับเมื่อ</th><th>เวลาเครื่อง</th><th>device</th><th>type</th><th>alarm</th><th>detail</th></tr></thead>
-                <tbody id="evRows"></tbody>
-            </table>
-        </div>
-    </div>
+    <section id="v-devices"></section>
+    <section id="v-defaults" hidden></section>
+    <section id="v-wifi" hidden></section>
+    <section id="v-firmware" hidden></section>
+    <section id="v-log" hidden></section>
 </div>
+
+<div class="fl-scrim" id="scrim" hidden></div>
+<aside class="fl-drawer" id="drawer" hidden aria-label="รายละเอียดเครื่อง"></aside>
+<div class="fl-toast" id="toast" hidden></div>
 
 @section Scripts {
 <script src="~/js/fleet.js" asp-append-version="true"></script>
