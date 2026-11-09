@@ -95,7 +95,7 @@
 
     section.event-block .chem-line {
         display: grid;
-        grid-template-columns: 54px minmax(0, 1fr) auto;
+        grid-template-columns: minmax(54px, max-content) minmax(0, 1fr) auto;
         column-gap: 8px;
         align-items: baseline;
         line-height: 1.15;
@@ -426,7 +426,7 @@
                         </div>
                     </div>
 
-                    <div class="chem-row">
+                    <div class="chem-row" style="grid-template-columns: 90px 1fr;">
                         <div class="chem-left" style="flex-direction:column; gap:4px; align-items:flex-start; width:90px; min-width:90px;">
                             <div class="chem-tag chlorine">CHLORINE</div>
                             <div style="display:flex; align-items:baseline; gap:4px; white-space:nowrap;">
