@@ -91,6 +91,9 @@ The IoT room (`/api/iot/room/*`) is public on purpose: it is the broadcast alarm
 - `/Admin/*` - protected admin area
 - `/IotRoom` - browser UI for connected devices and room state
 - `/LedDemo` and `/WebPM` - supporting feature/demo pages
+- `/Admin/Tester` - admin tab "Tester": embeds BellBeast Tester (separate Next.js app in `BellBeast_Tester`, started with its `start.bat`). It listens on `127.0.0.1:8890` only and BellBeast reverse-proxies `/tester/*` to it (admin login required; the admin cookie is not forwarded). Upstream address: `Tester:BaseUrl` (default `http://127.0.0.1:8890`).
+
+Unhandled exceptions on `/api/*` return JSON instead of the `/Error` page: `502 upstream_unavailable` when Uroboros / another upstream is unreachable or times out, otherwise `500 internal_error`.
 
 ## Configuration
 
