@@ -67,11 +67,11 @@ public static class AlarmEndpoints
             await ctx.Response.WriteAsync(json, ctx.RequestAborted);
         });
 
-        // Monitor page → z-score table / chart data, forwarded to Uroboros (same-origin for the browser)
-        pub.MapGet("/api/alarm/monitor", async (HttpContext ctx, SummaryProxyService svc) =>
+        // Monitor page (admin tab) → z-score table / chart data, forwarded to Uroboros (same-origin for the browser)
+        admin.MapGet("/api/alarm/monitor", async (HttpContext ctx, SummaryProxyService svc) =>
             await ProxyUroborosGetAsync(app, ctx, svc, "/api/alarm/monitor"));
 
-        pub.MapGet("/api/metrics/history", async (HttpContext ctx, SummaryProxyService svc) =>
+        admin.MapGet("/api/metrics/history", async (HttpContext ctx, SummaryProxyService svc) =>
             await ProxyUroborosGetAsync(app, ctx, svc, "/api/metrics/history"));
     }
 }

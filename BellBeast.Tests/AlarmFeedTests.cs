@@ -89,11 +89,12 @@ public sealed class AlarmFeedServiceTests
     }
 }
 
-public sealed class AlarmEndpointTests : IClassFixture<BellBeastBaseFactory>
+public sealed class AlarmEndpointTests : IClassFixture<BellBeastBaseFactory>, IClassFixture<BellBeastAdminFactory>
 {
     private readonly BellBeastBaseFactory _factory;
+    private readonly BellBeastAdminFactory _admin;
 
-    public AlarmEndpointTests(BellBeastBaseFactory factory) => _factory = factory;
+    public AlarmEndpointTests(BellBeastBaseFactory factory, BellBeastAdminFactory admin) { _factory = factory; _admin = admin; }
 
     private static StringContent Json(string s) => new(s, Encoding.UTF8, "application/json");
 
@@ -149,7 +150,7 @@ public sealed class AlarmEndpointTests : IClassFixture<BellBeastBaseFactory>
     public async Task Monitor_And_History_Are_Forwarded_To_Uroboros_With_Query_String()
     {
         var seen = new List<string>();
-        _factory.EngineHandler.RequestHandler = req =>
+        _admin.EngineHandler.RequestHandler = req =>
         {
             seen.Add(req.RequestUri!.ToString());
             return new HttpResponseMessage(HttpStatusCode.OK)
@@ -159,7 +160,7 @@ public sealed class AlarmEndpointTests : IClassFixture<BellBeastBaseFactory>
         };
         try
         {
-            var c = _factory.CreateClient();
+            var c = _admin.CreateClient();
 
             var m = await c.GetAsync("/api/alarm/monitor");
             Assert.Equal(HttpStatusCode.OK, m.StatusCode);
@@ -171,16 +172,16 @@ public sealed class AlarmEndpointTests : IClassFixture<BellBeastBaseFactory>
             Assert.Contains("http://localhost:8888/api/alarm/monitor", seen);
             Assert.Contains("http://localhost:8888/api/metrics/history?stream=RWP1&param=rwp1_flowp1&n=60", seen);
         }
-        finally { _factory.EngineHandler.RequestHandler = null; }
+        finally { _admin.EngineHandler.RequestHandler = null; }
     }
 
     [Fact]
     public async Task Monitor_Returns_502_Json_When_Uroboros_Is_Down()
     {
-        _factory.EngineHandler.RequestHandler = _ => throw new HttpRequestException("connection refused");
+        _admin.EngineHandler.RequestHandler = _ => throw new HttpRequestException("connection refused");
         try
         {
-            var c = _factory.CreateClient();
+            var c = _admin.CreateClient();
             var resp = await c.GetAsync("/api/alarm/monitor");
 
             Assert.Equal(HttpStatusCode.BadGateway, resp.StatusCode);
@@ -188,18 +189,27 @@ public sealed class AlarmEndpointTests : IClassFixture<BellBeastBaseFactory>
             Assert.False(doc.RootElement.GetProperty("ok").GetBoolean());
             Assert.Contains("unreachable", doc.RootElement.GetProperty("error").GetString());
         }
-        finally { _factory.EngineHandler.RequestHandler = null; }
+        finally { _admin.EngineHandler.RequestHandler = null; }
     }
 
     [Fact]
-    public async Task Alarm_Monitor_Page_Is_Reachable_Without_Login()
+    public async Task Alarm_Monitor_Page_Needs_Admin_Login()
     {
-        var c = _factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
-        var resp = await c.GetAsync("/AlarmMonitor");
+        var anon = _factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var r = await anon.GetAsync("/AlarmMonitor");
+        Assert.Equal(HttpStatusCode.Redirect, r.StatusCode);
+        Assert.Contains("/Admin/Login", r.Headers.Location?.ToString() ?? "", StringComparison.OrdinalIgnoreCase);
 
+        var resp = await _admin.CreateClient().GetAsync("/AlarmMonitor");
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         var html = await resp.Content.ReadAsStringAsync();
         Assert.Contains("Alarm Monitor", html);
         Assert.Contains("alarmmonitor.js", html);
     }
+
+    [Theory]
+    [InlineData("/api/alarm/monitor")]
+    [InlineData("/api/metrics/history")]
+    public async Task Monitor_Apis_Need_Admin(string path)
+        => Assert.Equal(HttpStatusCode.Unauthorized, (await _factory.CreateClient().GetAsync(path)).StatusCode);
 }

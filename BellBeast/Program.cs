@@ -41,7 +41,6 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AllowAnonymousToPage("/CHEM_report");
     options.Conventions.AllowAnonymousToPage("/DailyReport");
     options.Conventions.AllowAnonymousToPage("/IotRoom");
-    options.Conventions.AllowAnonymousToPage("/AlarmMonitor");
     options.Conventions.AllowAnonymousToPage("/LedDemo");
 
     // ✅ Admin: ให้ /Admin/Login เข้าได้โดยไม่ต้อง auth
@@ -50,6 +49,8 @@ builder.Services.AddRazorPages(options =>
 
     // ✅ Admin: บังคับทั้งโฟลเดอร์ /Admin ด้วย policy แยก
     options.Conventions.AuthorizeFolder("/Admin", "AdminOnly");
+    // AlarmMonitor lives at /AlarmMonitor (old links keep working) but is an admin tab
+    options.Conventions.AuthorizePage("/AlarmMonitor", "AdminOnly");
 });
 
 builder.Services.AddResponseCompression(o =>

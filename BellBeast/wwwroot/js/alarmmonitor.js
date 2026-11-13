@@ -29,6 +29,7 @@
 
     function getJson(url) {
         return fetch(url, { cache: 'no-store' }).then(function (r) {
+            if (r.status === 401 || r.status === 403) { window.location.href = '/Admin/Login'; throw new Error('admin login required'); }
             return r.json().catch(function () { return null; }).then(function (j) {
                 if (!r.ok) throw new Error((j && (j.error || j.detail)) || ('HTTP ' + r.status));
                 return j;
