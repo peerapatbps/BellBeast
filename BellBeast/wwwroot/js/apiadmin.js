@@ -28,7 +28,7 @@
         bad_max_history: "ย้อนหลังสูงสุดต้องอยู่ระหว่าง 1–1440", bad_fields: "รายการ field ไม่ถูกต้อง", bad_field_count: "ต้องมี 1–40 field",
         bad_field_name: "ชื่อ field ต้องขึ้นต้นด้วย a-z และใช้ได้แค่ a-z 0-9 _", duplicate_field: "ชื่อ field ซ้ำ", unknown_metric: "Uroboros ไม่มี metric นี้",
         bad_field_text: "หน่วย/คำอธิบายยาวเกินไป", upstream_unavailable: "ติดต่อ Uroboros ไม่ได้", unknown_dataset: "ไม่พบ dataset นี้แล้ว",
-        bad_duration: "ระยะเวลาไม่ถูกต้อง", reason_too_long: "เหตุผลยาวเกิน 200 ตัว", not_banned: "IP นี้ไม่ได้ถูกแบนแล้ว",
+        unknown_rejection: "IP นี้ไม่อยู่ในรายการถูกปฏิเสธแล้ว", bad_duration: "ระยะเวลาไม่ถูกต้อง", reason_too_long: "เหตุผลยาวเกิน 200 ตัว", not_banned: "IP นี้ไม่ได้ถูกแบนแล้ว",
         no_routes: "เลือก API อย่างน้อย 1 ตัว", bad_routes: "รายการ API ไม่ถูกต้อง", not_page_api: "ให้ตั๋วได้เฉพาะ API ของหน้าเว็บ (hash)",
         too_many_passes: "ตั๋วผ่านเต็มแล้ว (200 IP)", unknown_pass: "ไม่พบตั๋วของ IP นี้แล้ว",
     };
@@ -443,7 +443,9 @@
         </form>`;
     }
 
-    const banButton = (ip) => ipInfo.bans.some((b) => b.ip === ip) ? '<span class="ap-badge off">แบนอยู่</span>'
+    // banned → "ปลดแบน" right there; otherwise "แบน…" (never for the admin's own IP)
+    const banButton = (ip) => ipInfo.bans.some((b) => b.ip === ip)
+        ? `<button class="ap-btn sm" type="button" data-unban="${esc(ip)}">ปลดแบน</button>`
         : ip === ipInfo.your_ip ? "" : `<button class="ap-btn sm ghost-bad" type="button" data-ban="${esc(ip)}">แบน…</button>`;
 
     function renderIp() {
@@ -465,7 +467,8 @@
                     <tr><td class="ap-mono">${esc(r.ip)}${r.ip === ipInfo.your_ip ? ' <span class="ap-badge user">คุณ</span>' : ""}</td>
                         <td>${esc(r.count)}</td><td>${esc(ts(r.last_at))}</td><td>${esc(REASON[r.last_reason] || r.last_reason)}</td>
                         <td class="ap-mono ap-muted">${esc(r.last_path)}</td>
-                        <td style="white-space:nowrap">${passButton(r.ip, r.last_path)} ${banButton(r.ip)}</td></tr>`).join("")}
+                        <td style="white-space:nowrap">${passButton(r.ip, r.last_path)} ${banButton(r.ip)}
+                            <button class="ap-btn sm" type="button" data-clear="${esc(r.ip)}" title="ลบแถวนี้ออกจากรายการ (ถ้าถูกปฏิเสธอีกจะกลับมา)">ล้าง</button></td></tr>`).join("")}
                 </tbody></table>` : `<div class="ap-card ap-empty">ยังไม่มีใครถูกปฏิเสธ</div>`;
 
         const bans = ipInfo.bans.length ? `
@@ -484,7 +487,7 @@
                     <tr class="${a.banned ? "off" : ""}"><td class="ap-mono">${esc(a.ip)}${a.ip === ipInfo.your_ip ? ' <span class="ap-badge user">คุณ</span>' : ""}</td>
                         <td>${esc(ts(a.last_seen))}</td><td>${esc(a.count)}</td><td class="ap-mono ap-muted">${esc(a.last_action)}</td>
                         <td><div class="ap-devs">${(a.devices || []).map((d) => `<span>${esc(d)}</span>`).join("")}</div></td>
-                        <td>${a.banned ? '<span class="ap-badge off">แบนอยู่</span>' : a.ip === ipInfo.your_ip ? "" : `<button class="ap-btn sm ghost-bad" type="button" data-ban="${esc(a.ip)}">แบน…</button>`}</td></tr>`).join("")}
+                        <td>${banButton(a.ip)}</td></tr>`).join("")}
                 </tbody></table>` : `<div class="ap-card ap-empty">ยังไม่มีใครเขียนเข้า IoT room ตั้งแต่ BellBeast เริ่มทำงาน</div>`;
 
         $("#v-ip").innerHTML = banForm() +
@@ -499,6 +502,7 @@
 
         $("#ban-form").addEventListener("submit", banIp);
         $$("#v-ip [data-unban]").forEach((b) => b.addEventListener("click", () => unbanIp(b.dataset.unban)));
+        $$("#v-ip [data-clear]").forEach((b) => b.addEventListener("click", () => clearRejected(b.dataset.clear)));
         $$("#v-ip [data-ban]").forEach((b) => b.addEventListener("click", () => {
             const f = $("#ban-form");
             f.querySelector('[name="ip"]').value = b.dataset.ban;
@@ -646,6 +650,15 @@
             ipInfo.activity = ipInfo.activity.map((a) => Object.assign({}, a, { banned: a.banned || a.ip === ip }));
             render();
             toast("แบน " + ip + " แล้ว");
+        } catch (e) { showError(e); }
+    }
+
+    async function clearRejected(ip) {
+        try {
+            const r = await send("/api/admin/ip/rejected/" + encodeURIComponent(ip), "DELETE");
+            ipInfo.rejected = r.rejected || [];
+            render();
+            toast("ล้าง " + ip + " ออกจากรายการแล้ว");
         } catch (e) { showError(e); }
     }
 

@@ -131,6 +131,9 @@ public sealed class ViewTokenService
                 _rejections.TryRemove(old.Key, out _);
     }
 
+    /// <summary>Admin "ล้าง": forget the rejection record of one IP (it reappears if the IP is rejected again).</summary>
+    public bool ClearRejection(string ip) => _rejections.TryRemove(ip, out _);
+
     public IReadOnlyList<Viewer> ListViewers()
     {
         Sweep();

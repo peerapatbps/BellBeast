@@ -127,7 +127,11 @@ public static class ApiAdminEndpoints
                 rejected = views.ListRejections(),
             }, json));
 
-        admin.MapGet("/api/admin/ip/bans", (HttpContext ctx, IpAccessService ips) =>
+        admin.MapDelete("/api/admin/ip/rejected/{ip}", (string ip, ViewTokenService views) =>
+            IpAccessService.Parse(ip) is { } canon && views.ClearRejection(canon)
+                ? Results.Json(new { ok = true, rejected = views.ListRejections() }, json) : Error("unknown_rejection", 404));
+
+        admin.MapGet("/api/admin/ip/bans",(HttpContext ctx, IpAccessService ips) =>
             Results.Json(new { ok = true, your_ip = IpAccessService.ClientIp(ctx), bans = ips.ListBans() }, json));
 
         admin.MapPost("/api/admin/ip/bans", async (HttpContext ctx, IpAccessService ips) =>

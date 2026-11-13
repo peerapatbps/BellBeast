@@ -184,6 +184,18 @@ public sealed class IpPassTests : IClassFixture<IpPassFactory>, IClassFixture<Be
     }
 
     [Fact]
+    public async Task Admin_Can_Clear_A_Rejected_Row()
+    {
+        var views = _admin.Services.GetRequiredService<ViewTokenService>();
+        views.RecordRejection("10.67.0.1", ChemApi, "view_token_missing");
+        var c = _admin.CreateClient();
+        Assert.Equal(HttpStatusCode.OK, (await c.DeleteAsync("/api/admin/ip/rejected/10.67.0.1")).StatusCode);
+        Assert.DoesNotContain(views.ListRejections(), r => r.Ip == "10.67.0.1");
+        Assert.Equal(HttpStatusCode.NotFound, (await c.DeleteAsync("/api/admin/ip/rejected/10.67.0.1")).StatusCode);
+        Assert.NotEqual(HttpStatusCode.OK, (await Client("10.67.0.2").DeleteAsync("/api/admin/ip/rejected/10.67.0.1")).StatusCode);
+    }
+
+    [Fact]
     public async Task Pass_Admin_Api_Needs_Admin()
     {
         var c = Client("10.66.0.1");
