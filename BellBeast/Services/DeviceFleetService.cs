@@ -69,7 +69,9 @@ public sealed class DeviceFleetService
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset? LastSeen { get; set; }
         public string? Fw { get; set; }
-        public string? Ip { get; set; }
+        public string? Ip { get; set; }               // as the device reports it (display only)
+        public string? SeenIp { get; set; }           // connection IP of the last request whose key checked out
+        public DateTimeOffset? SeenAt { get; set; }
         public string? Partition { get; set; }
         public string? WifiTier { get; set; }         // known | bootstrap
         public int? Rssi { get; set; }
@@ -170,7 +172,7 @@ public sealed class DeviceFleetService
             var now = DateTimeOffset.UtcNow;
             if (!_state.Devices.TryGetValue(id, out var d))
             {
-                d = new DeviceRecord { Id = id, KeySha256 = keySha, CreatedAt = now, LastSeen = now, Ip = ip };
+                d = new DeviceRecord { Id = id, KeySha256 = keySha, CreatedAt = now, LastSeen = now, Ip = ip, SeenIp = ip, SeenAt = ip is null ? null : now };
                 _state.Devices[id] = d;
                 Save();
                 AppendEvents(id, [new ReportEvent { Type = "registered", Detail = "pending approval" }]);
@@ -180,10 +182,31 @@ public sealed class DeviceFleetService
             else if (!CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(d.KeySha256), Encoding.ASCII.GetBytes(keySha)))
                 return (AuthStatus.KeyMismatch, null);
             d.LastSeen = now;
-            if (ip is not null) d.Ip = ip;
+            if (ip is not null) { d.Ip = ip; d.SeenIp = ip; d.SeenAt = now; }
             Save();
             return (AuthStatus.Ok, Clone(d));
         }
+    }
+
+    /// <summary>
+    /// The approved device whose key last checked out from this connection IP within <paramref name="window"/>,
+    /// or null. Used for IP passes: the IP comes from the connection, never from what the device reports.
+    /// </summary>
+    public string? ApprovedDeviceAt(string ip, TimeSpan window)
+    {
+        var since = DateTimeOffset.UtcNow - window;
+        lock (_lock)
+            return _state.Devices.Values.FirstOrDefault(d =>
+                d.Approved && d.KeySha256 is not null && d.SeenIp == ip && d.SeenAt is { } t && t > since)?.Id;
+    }
+
+    /// <summary>Approved devices with the connection IP they were last seen from (admin IP tab).</summary>
+    public IReadOnlyList<(string Id, string? Name, string? SeenIp, DateTimeOffset? SeenAt)> ApprovedDevices()
+    {
+        lock (_lock)
+            return _state.Devices.Values.Where(d => d.Approved && d.KeySha256 is not null)
+                .OrderBy(d => d.Id, StringComparer.Ordinal)
+                .Select(d => (d.Id, d.Name, d.SeenIp, d.SeenAt)).ToList();
     }
 
     public DeviceRecord ApplyReport(string id, ReportBody body)
@@ -286,7 +309,7 @@ public sealed class DeviceFleetService
                 devices = _state.Devices.Values.OrderBy(d => d.Id, StringComparer.Ordinal).Select(d => new
                 {
                     d.Id, d.Name, has_key = d.KeySha256 is not null, d.Approved, d.Zones, d.Channel, d.PollSec, d.RemindSec, d.LabSec, d.ScnSec, d.Volume,
-                    d.CreatedAt, d.LastSeen, d.Fw, d.Ip, d.Partition, d.WifiTier, d.Rssi, d.UptimeSec,
+                    d.CreatedAt, d.LastSeen, d.Fw, d.Ip, d.SeenIp, d.SeenAt, d.Partition, d.WifiTier, d.Rssi, d.UptimeSec,
                     d.LastPlayedAt, d.LastPlayedAlarm, d.LastAckAt, d.LastAckAlarm, d.LastFallbackAt, d.LastOta, d.Reports,
                 }),
             };

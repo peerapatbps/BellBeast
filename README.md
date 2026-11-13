@@ -70,7 +70,7 @@ Request pipeline for `/api/*`, in order:
 2. **Authentication** - user/admin cookie, or `X-Api-Key: bbk_...` / `Authorization: Bearer bbk_...`.
 3. **Rate limit** - per API client (its own per-minute limit), otherwise per client IP (`RateLimit:PerIpPerMinute`). `429 rate_limited` with `Retry-After`.
 4. **API gate** - `404 api_disabled` if the admin turned the API off; `401` for a bad/disabled/expired key; `403 api_not_granted` if a key calls a login-level API it was not granted.
-5. **View token** - pages get a token in `<meta name="bb-view-token">` (bound to the client IP) and an HttpOnly refresh cookie; `wwwroot/js/bb-viewtoken.js` wraps `fetch` to send it as `X-View-Token`. A `page` API without a live token answers `401 {"error":"unauthorized"}` with no reason (a URL opened in a browser tab gets a meme page instead; the real reason - missing / expired / wrong IP - is only shown to admins in the IP tab); the script renews silently via `POST /api/view/renew` (after sleep, server restart or IP change) without reloading the page. Signed-in users/admins and loopback (`ViewToken:ExemptLoopback`) need no token.
+5. **View token** - pages get a token in `<meta name="bb-view-token">` (bound to the client IP) and an HttpOnly refresh cookie; `wwwroot/js/bb-viewtoken.js` wraps `fetch` to send it as `X-View-Token`. A `page` API without a live token answers `401 {"error":"unauthorized"}` with no reason (a URL opened in a browser tab gets a meme page instead; the real reason - missing / expired / wrong IP - is only shown to admins in the IP tab); the script renews silently via `POST /api/view/renew` (after sleep, server restart or IP change) without reloading the page. Signed-in users/admins and loopback (`ViewToken:ExemptLoopback`) need no token. **IP passes** (`ApiAccess/IpPassService.cs`) let machines that cannot open our pages call only the `page` APIs granted to them: an IP entered by an admin (e.g. the TruckSidecar PC → `GET /api/chem/summary`), and every fleet device that is approved, from the connection IP its `X-Device-Key` last checked out from (never the IP it reports), for 10 minutes after that (the fleet routes default to `GET /api/cldetector/summary` for the annunciator chlorine page).
 6. **Authorization** - the group's policy.
 
 Behind the Cloudflare tunnel every request arrives from loopback, so the client IP is taken from `CF-Connecting-IP` - only when the TCP peer is loopback, so LAN clients cannot spoof it.
@@ -80,7 +80,7 @@ Admin page `/Admin/Api` (tab "API Access"):
 - **APIs** - every `/api` endpoint with its access level; switch any one off (the admin-API pages themselves are locked on).
 - **Datasets (v1)** - publish Uroboros realtime metrics under stable field names on `/api/v1` (see [docs/api-v1.md](docs/api-v1.md)).
 - **API Clients** - create a client, copy its key (shown once; only the SHA-256 is stored), grant datasets / login-level APIs, set a per-minute limit and expiry, rotate or disable the key.
-- **IP** - callers rejected for a missing/stale view token, live page viewers (IP, pages, requests), who wrote into the public IoT room (join / data / command) per IP since start-up, and site-wide IP bans (1 h / 1 day / 7 days / permanent). The admin's own IP and loopback cannot be banned.
+- **IP** - callers rejected for a missing/stale view token, live page viewers (IP, pages, requests), who wrote into the public IoT room (join / data / command) per IP since start-up, and site-wide IP bans (1 h / 1 day / 7 days / permanent). The admin's own IP and loopback cannot be banned. IP passes are managed here too (per IP + the fleet routes, with how often each pass was used since start-up); a rejected row has a "ให้ตั๋ว…" button that pre-fills the form.
 
 The IoT room (`/api/iot/room/*`) is public on purpose: it is the broadcast alarm room (Uroboros pushes the alarm state as device `uroboros-alarm`; MHxView, annunciators and AlarmMonitor read it through `/api/alarm/active`). The IP tab is how fake publishers are found and banned.
 
@@ -121,6 +121,7 @@ Runtime data written by the admin pages (gitignored, back them up with the deplo
 - `App_Data/api-clients.json` - API clients (key hashes, grants, limits)
 - `App_Data/api-datasets.json` - `/api/v1` datasets
 - `App_Data/ip-bans.json` - IP bans
+- `App_Data/ip-passes.json` - IP passes (per IP) + the page APIs approved fleet devices may call
 
 Important notes:
 

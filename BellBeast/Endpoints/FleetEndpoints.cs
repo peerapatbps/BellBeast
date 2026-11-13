@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using BellBeast.ApiAccess;
 using BellBeast.Services;
 using BellBeast.Wayfarer;
 using Microsoft.AspNetCore.Authentication;
@@ -153,7 +154,7 @@ public static class FleetEndpoints
         static IResult? FleetAuth(DeviceFleetService fleet, HttpContext ctx, string id)
         {
             var key = ctx.Request.Headers[DeviceFleetService.KeyHeader].FirstOrDefault()?.Trim().ToLowerInvariant();
-            var (status, _) = fleet.Authenticate(id, key, ctx.Connection.RemoteIpAddress?.ToString());
+            var (status, _) = fleet.Authenticate(id, key, IpAccessService.ClientIp(ctx));
             return status switch
             {
                 DeviceFleetService.AuthStatus.BadId => Results.BadRequest(new { ok = false, error = "bad_device_id", detail = "id must be [a-z0-9-]{3,32}" }),

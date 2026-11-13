@@ -14,6 +14,8 @@
     let access = "all";       // all | public | user | admin | off
     let freshKey = null;      // { id, key } — shown once after create / rotate
     let ipInfo = { your_ip: "", activity: [], bans: [], viewers: [], rejected: [] };
+    let passInfo = { passes: [], fleet_routes: [], fleet_devices: [], page_routes: [], fleet_window_min: 10 };
+    let ipDirty = false;      // admin is editing a form on the IP tab → the 15 s refresh must not wipe it
     let datasets = [];
 
     const ERR = {
@@ -27,6 +29,8 @@
         bad_field_name: "ชื่อ field ต้องขึ้นต้นด้วย a-z และใช้ได้แค่ a-z 0-9 _", duplicate_field: "ชื่อ field ซ้ำ", unknown_metric: "Uroboros ไม่มี metric นี้",
         bad_field_text: "หน่วย/คำอธิบายยาวเกินไป", upstream_unavailable: "ติดต่อ Uroboros ไม่ได้", unknown_dataset: "ไม่พบ dataset นี้แล้ว",
         bad_duration: "ระยะเวลาไม่ถูกต้อง", reason_too_long: "เหตุผลยาวเกิน 200 ตัว", not_banned: "IP นี้ไม่ได้ถูกแบนแล้ว",
+        no_routes: "เลือก API อย่างน้อย 1 ตัว", bad_routes: "รายการ API ไม่ถูกต้อง", not_page_api: "ให้ตั๋วได้เฉพาะ API ของหน้าเว็บ (hash)",
+        too_many_passes: "ตั๋วผ่านเต็มแล้ว (200 IP)", unknown_pass: "ไม่พบตั๋วของ IP นี้แล้ว",
     };
     function errText(code) {
         if (!code) return code;
@@ -61,8 +65,10 @@
             const [a, c, act, bans] = await Promise.all([call("/api/admin/api/catalog"), call("/api/admin/api/clients"),
                 call("/api/admin/ip/activity"), call("/api/admin/ip/bans")]);
             datasets = (await call("/api/admin/datasets")).datasets || [];
-            const vw = await call("/api/admin/ip/viewers");
-            ipInfo = { your_ip: act.your_ip, activity: act.activity || [], bans: bans.bans || [], viewers: vw.viewers || [], rejected: vw.rejected || [] };
+            const [vw, ps] = await Promise.all([call("/api/admin/ip/viewers"), call("/api/admin/ip/passes")]);
+            ipInfo = { your_ip: act.your_ip, activity: act.activity || [], bans: bans.bans || [], viewers: vw.viewers || [], rejected: vw.rejected || [], idle_sec: vw.idle_sec };
+            setPasses(ps);
+            ipDirty = false;
             apis = a.apis || [];
             clients = c.clients || [];
             clearError();
@@ -458,7 +464,8 @@
                 <tbody>${ipInfo.rejected.map((r) => `
                     <tr><td class="ap-mono">${esc(r.ip)}${r.ip === ipInfo.your_ip ? ' <span class="ap-badge user">คุณ</span>' : ""}</td>
                         <td>${esc(r.count)}</td><td>${esc(ts(r.last_at))}</td><td>${esc(REASON[r.last_reason] || r.last_reason)}</td>
-                        <td class="ap-mono ap-muted">${esc(r.last_path)}</td><td>${banButton(r.ip)}</td></tr>`).join("")}
+                        <td class="ap-mono ap-muted">${esc(r.last_path)}</td>
+                        <td style="white-space:nowrap">${passButton(r.ip, r.last_path)} ${banButton(r.ip)}</td></tr>`).join("")}
                 </tbody></table>` : `<div class="ap-card ap-empty">ยังไม่มีใครถูกปฏิเสธ</div>`;
 
         const bans = ipInfo.bans.length ? `
@@ -482,6 +489,7 @@
 
         $("#v-ip").innerHTML = banForm() +
             `<div class="ap-section-title">IP ที่ถูกแบน</div>${bans}` +
+            passSection() +
             `<div class="ap-section-title">ถูกปฏิเสธ — เรียก API ของหน้าเว็บโดยไม่มี hash หรือใช้ hash เก่า</div>
              <div class="ap-meta">นับตั้งแต่ BellBeast เริ่มทำงานรอบนี้ · แถวที่ตัวเลขเพิ่มเรื่อยๆ = มีคนยิง endpoint ตรง</div>${rejected}` +
             `<div class="ap-section-title">กำลังเปิดหน้าเว็บอยู่</div>
@@ -497,6 +505,133 @@
             f.scrollIntoView({ behavior: "smooth", block: "center" });
             f.querySelector('[name="reason"]').focus();
         }));
+        wirePasses();
+    }
+
+    // ── IP passes: page APIs without a hash for machines that cannot open our pages ──
+    function setPasses(ps) {
+        passInfo = {
+            passes: ps.passes || [], fleet_routes: ps.fleet_routes || [], fleet_devices: ps.fleet_devices || [],
+            page_routes: ps.page_routes || [], fleet_window_min: ps.fleet_window_min || 10,
+        };
+    }
+
+    const routeOfPath = (path) => passInfo.page_routes.find((id) => id.slice(id.indexOf(" ") + 1) === path);
+
+    const passButton = (ip, path) => ip === ipInfo.your_ip ? "" :
+        `<button class="ap-btn sm" type="button" data-pass="${esc(ip)}" data-pass-route="${esc(routeOfPath(path) || "")}">ให้ตั๋ว…</button>`;
+
+    function routeBoxes(name, selected) {
+        return passInfo.page_routes.map((id) =>
+            `<label><input type="checkbox" name="${name}" value="${esc(id)}" ${selected.includes(id) ? "checked" : ""}> ${esc(id)}</label>`).join("")
+            || '<span class="ap-faint">ไม่มี API ของหน้าเว็บ</span>';
+    }
+
+    const used = (hits, at) => hits ? `${esc(hits)} ครั้ง · ${esc(ts(at))}` : '<span class="ap-faint">ยังไม่ใช้</span>';
+
+    function passSection() {
+        const rows = passInfo.passes.length ? `
+            <table class="ap-table">
+                <thead><tr><th>IP</th><th>API ที่เรียกได้</th><th>หมายเหตุ</th><th>ใช้ตั๋ว (รอบนี้)</th><th>โดย</th><th></th></tr></thead>
+                <tbody>${passInfo.passes.map((p) => `
+                    <tr><td class="ap-mono">${esc(p.ip)}</td>
+                        <td><div class="ap-devs">${p.routes.map((r) => `<span>${esc(r)}</span>`).join("")}</div></td>
+                        <td>${esc(p.note || "–")}</td><td>${used(p.hits, p.last_used)}</td>
+                        <td class="ap-muted">${esc(p.created_by || "–")}<div class="ap-faint">${esc(ts(p.updated_at || p.created_at))}</div></td>
+                        <td style="white-space:nowrap"><button class="ap-btn sm" type="button" data-pass-edit="${esc(p.ip)}">แก้</button>
+                            <button class="ap-btn sm ghost-bad" type="button" data-pass-del="${esc(p.ip)}">ลบ</button></td></tr>`).join("")}
+                </tbody></table>` : `<div class="ap-card ap-empty">ยังไม่มี IP ที่ได้ตั๋ว</div>`;
+
+        const devs = passInfo.fleet_devices.length ? `
+            <table class="ap-table">
+                <thead><tr><th>อุปกรณ์</th><th>IP ล่าสุด (จาก connection)</th><th>report ล่าสุด</th><th>ตั๋ว</th><th>ใช้ตั๋ว (รอบนี้)</th></tr></thead>
+                <tbody>${passInfo.fleet_devices.map((d) => `
+                    <tr><td class="ap-mono">${esc(d.id)}${d.name ? ` <span class="ap-faint">${esc(d.name)}</span>` : ""}</td>
+                        <td class="ap-mono">${esc(d.seen_ip || "–")}</td><td>${esc(ts(d.seen_at))}</td>
+                        <td>${d.active ? '<span class="ap-badge public">ได้ตั๋ว</span>' : '<span class="ap-badge off">หมดเวลา</span>'}</td>
+                        <td>${used(d.hits, d.last_used)}</td></tr>`).join("")}
+                </tbody></table>` : `<div class="ap-empty ap-faint">ยังไม่มีอุปกรณ์ที่อนุมัติแล้ว</div>`;
+
+        return `<div class="ap-section-title">ตั๋วผ่าน — เรียก API ของหน้าเว็บได้โดยไม่ต้องมี hash</div>
+            <div class="ap-meta">สำหรับเครื่องที่เปิดหน้าเว็บไม่ได้ เช่น TruckSidecar ที่เครื่องชั่ง และ annunciator · ได้แค่ API ที่ติ๊กไว้ · IP ที่ถูกแบนยังโดนแบนเหมือนเดิม</div>
+            <form class="ap-card" id="pass-form">
+                <h3>ให้ตั๋วกับ IP</h3>
+                <div class="ap-form-row">
+                    <label class="ap-field">IP<input name="ip" required placeholder="เช่น 172.16.198.60" class="ap-mono"></label>
+                    <label class="ap-field" style="flex:1">หมายเหตุ<input name="note" maxlength="200" placeholder="เช่น TruckSidecar เครื่องชั่ง"></label>
+                    <button class="ap-btn primary" type="submit">บันทึก</button>
+                </div>
+                <div class="ap-faint" style="margin-top:8px">API ของหน้าเว็บที่ IP นี้เรียกได้</div>
+                <div class="ap-grants">${routeBoxes("pass-route", [])}</div>
+                <div class="ap-meta">ควรจอง IP นี้ใน DHCP ไว้ ถ้า IP เปลี่ยน เครื่องอื่นที่ได้ IP นี้ไปจะได้ตั๋วแทน · บันทึก IP เดิมซ้ำ = แก้รายการ API</div>
+            </form>
+            ${rows}
+            <form class="ap-card" id="fleet-form" style="margin-top:12px">
+                <h3>ตั๋วอัตโนมัติสำหรับอุปกรณ์ใน Fleet</h3>
+                <div class="ap-meta">อุปกรณ์ที่อนุมัติแล้วใน Fleet ได้ตั๋วจาก IP ที่ device key ตรวจผ่านครั้งล่าสุด (ไม่ใช่ IP ที่อุปกรณ์รายงานเอง) · ใช้ได้ ${esc(passInfo.fleet_window_min)} นาทีหลัง report ล่าสุด · ถอนการอนุมัติ = ตั๋วหายทันที</div>
+                <div class="ap-grants">${routeBoxes("fleet-route", passInfo.fleet_routes)}</div>
+                <button class="ap-btn primary" type="submit">บันทึก API ของ Fleet</button>
+                <div style="margin-top:10px">${devs}</div>
+            </form>`;
+    }
+
+    function wirePasses() {
+        const pf = $("#pass-form"), ff = $("#fleet-form");
+        [pf, ff].forEach((f) => ["input", "change"].forEach((t) => f.addEventListener(t, () => { ipDirty = true; })));
+        pf.addEventListener("submit", savePass);
+        ff.addEventListener("submit", saveFleetRoutes);
+        const fill = (ip, routes, note) => {
+            pf.querySelector('[name="ip"]').value = ip;
+            pf.querySelector('[name="note"]').value = note || "";
+            $$('[name="pass-route"]', pf).forEach((c) => { c.checked = routes.includes(c.value); });
+            ipDirty = true;
+            pf.scrollIntoView({ behavior: "smooth", block: "center" });
+            pf.querySelector('[name="note"]').focus();
+        };
+        $$("#v-ip [data-pass]").forEach((b) => b.addEventListener("click", () => {
+            const cur = passInfo.passes.find((p) => p.ip === b.dataset.pass);
+            const routes = cur ? cur.routes.slice() : [];
+            if (b.dataset.passRoute && !routes.includes(b.dataset.passRoute)) routes.push(b.dataset.passRoute);
+            fill(b.dataset.pass, routes, cur && cur.note);
+        }));
+        $$("#v-ip [data-pass-edit]").forEach((b) => b.addEventListener("click", () => {
+            const p = passInfo.passes.find((x) => x.ip === b.dataset.passEdit);
+            if (p) fill(p.ip, p.routes, p.note);
+        }));
+        $$("#v-ip [data-pass-del]").forEach((b) => b.addEventListener("click", () => removePass(b.dataset.passDel)));
+    }
+
+    const checked = (root, name) => $$(`[name="${name}"]:checked`, root).map((c) => c.value);
+
+    async function savePass(ev) {
+        ev.preventDefault();
+        const f = ev.currentTarget;
+        const ip = f.querySelector('[name="ip"]').value.trim();
+        try {
+            setPasses(await send("/api/admin/ip/passes", "POST", { ip, routes: checked(f, "pass-route"), note: f.querySelector('[name="note"]').value }));
+            ipDirty = false;
+            render();
+            toast("ให้ตั๋ว " + ip + " แล้ว");
+        } catch (e) { showError(e); }
+    }
+
+    async function removePass(ip) {
+        if (!confirm(`ลบตั๋วของ ${ip} ?\nเครื่องนี้จะเรียก API ของหน้าเว็บไม่ได้อีก`)) return;
+        try {
+            setPasses(await send("/api/admin/ip/passes/" + encodeURIComponent(ip), "DELETE"));
+            render();
+            toast("ลบตั๋วของ " + ip + " แล้ว");
+        } catch (e) { showError(e); }
+    }
+
+    async function saveFleetRoutes(ev) {
+        ev.preventDefault();
+        try {
+            setPasses(await send("/api/admin/ip/passes/fleet", "POST", { routes: checked(ev.currentTarget, "fleet-route") }));
+            ipDirty = false;
+            render();
+            toast("บันทึก API ของ Fleet แล้ว");
+        } catch (e) { showError(e); }
     }
 
     async function banIp(ev) {
@@ -524,15 +659,17 @@
         } catch (e) { showError(e); }
     }
 
-    // keep the IP tab fresh while it is open (not while the admin is typing in the ban form)
+    // keep the IP tab fresh while it is open (not while the admin is typing in a form there)
     setInterval(async () => {
-        if (view !== "ip" || document.hidden || (document.activeElement && document.activeElement.closest("#ban-form"))) return;
+        if (view !== "ip" || document.hidden || ipDirty || (document.activeElement && document.activeElement.closest("#ban-form"))) return;
         try {
-            const [act, vw] = await Promise.all([call("/api/admin/ip/activity"), call("/api/admin/ip/viewers")]);
+            const [act, vw, ps] = await Promise.all([call("/api/admin/ip/activity"), call("/api/admin/ip/viewers"), call("/api/admin/ip/passes")]);
+            if (ipDirty) return;
             ipInfo.activity = act.activity || [];
             ipInfo.viewers = vw.viewers || [];
             ipInfo.rejected = vw.rejected || [];
             ipInfo.idle_sec = vw.idle_sec;
+            setPasses(ps);
             renderIp();
         } catch { /* next tick */ }
     }, 15000);

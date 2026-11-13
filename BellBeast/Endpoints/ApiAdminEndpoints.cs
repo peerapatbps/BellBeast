@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BellBeast.ApiAccess;
+using BellBeast.Services;
 
 namespace BellBeast.Endpoints;
 
@@ -148,5 +149,63 @@ public static class ApiAdminEndpoints
 
         admin.MapDelete("/api/admin/ip/bans/{ip}", (string ip, HttpContext ctx, IpAccessService ips) =>
             ips.Unban(ip, Actor(ctx)) ? Results.Json(new { ok = true, bans = ips.ListBans() }, json) : Error("not_banned", 404));
+
+        // ── IP passes: page APIs without a view token for the truck scale / approved fleet devices ──
+
+        static Func<string, bool> PageRoutes(ApiCatalogService catalog)
+        {
+            var ids = catalog.List().Where(a => a.Access == ApiCatalogService.AccessPage).Select(a => a.Id).ToHashSet(StringComparer.Ordinal);
+            return ids.Contains;
+        }
+
+        static List<string>? Routes(JsonElement b) =>
+            b.ValueKind == JsonValueKind.Object && b.TryGetProperty("routes", out var r) && r.ValueKind == JsonValueKind.Array
+                ? r.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!).ToList()
+                : null;
+
+        object PassView(IpPassService passes, DeviceFleetService fleet, ApiCatalogService catalog)
+        {
+            var usage = passes.UsageByIp();
+            var since = DateTimeOffset.UtcNow - IpPassService.FleetWindow;
+            return new
+            {
+                ok = true,
+                passes = passes.List().Select(p =>
+                {
+                    usage.TryGetValue(p.Ip, out var u);
+                    return new { p.Ip, p.Routes, p.Note, p.CreatedAt, p.CreatedBy, p.UpdatedAt, hits = u?.Hits ?? 0, last_used = u?.LastUsed, last_route = u?.LastRoute };
+                }),
+                fleet_routes = passes.FleetRoutes(),
+                fleet_window_min = (int)IpPassService.FleetWindow.TotalMinutes,
+                fleet_devices = fleet.ApprovedDevices().Select(d =>
+                {
+                    var u = d.SeenIp is not null && usage.TryGetValue(d.SeenIp, out var x) && x.Via == "fleet:" + d.Id ? x : null;
+                    return new { id = d.Id, name = d.Name, seen_ip = d.SeenIp, seen_at = d.SeenAt, active = d.SeenIp is not null && d.SeenAt > since,
+                                 hits = u?.Hits ?? 0, last_used = u?.LastUsed };
+                }),
+                page_routes = catalog.List().Where(a => a.Access == ApiCatalogService.AccessPage).Select(a => a.Id),
+            };
+        }
+
+        admin.MapGet("/api/admin/ip/passes", (IpPassService passes, DeviceFleetService fleet, ApiCatalogService catalog) =>
+            Results.Json(PassView(passes, fleet, catalog), json));
+
+        admin.MapPost("/api/admin/ip/passes", async (HttpContext ctx, IpPassService passes, DeviceFleetService fleet, ApiCatalogService catalog) =>
+        {
+            var b = await Body(ctx);
+            if (b.ValueKind != JsonValueKind.Object) return Error("bad_json");
+            string? Str(string n) => b.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+            var err = passes.Upsert(Str("ip"), Routes(b), Str("note"), PageRoutes(catalog), Actor(ctx));
+            return err is null ? Results.Json(PassView(passes, fleet, catalog), json) : Error(err);
+        });
+
+        admin.MapDelete("/api/admin/ip/passes/{ip}", (string ip, HttpContext ctx, IpPassService passes, DeviceFleetService fleet, ApiCatalogService catalog) =>
+            passes.Remove(ip, Actor(ctx)) ? Results.Json(PassView(passes, fleet, catalog), json) : Error("unknown_pass", 404));
+
+        admin.MapPost("/api/admin/ip/passes/fleet", async (HttpContext ctx, IpPassService passes, DeviceFleetService fleet, ApiCatalogService catalog) =>
+        {
+            var err = passes.SetFleetRoutes(Routes(await Body(ctx)), PageRoutes(catalog), Actor(ctx));
+            return err is null ? Results.Json(PassView(passes, fleet, catalog), json) : Error(err);
+        });
     }
 }

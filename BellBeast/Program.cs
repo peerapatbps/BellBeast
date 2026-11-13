@@ -199,6 +199,7 @@ builder.Services.AddSingleton<BackendConfigProvider>();
 builder.Services.AddSingleton<ApiCatalogService>();
 builder.Services.AddSingleton<ApiClientService>();
 builder.Services.AddSingleton<IpAccessService>();
+builder.Services.AddSingleton<IpPassService>();
 builder.Services.AddSingleton<ViewTokenService>();
 builder.Services.AddSingleton<RejectMemes>();
 builder.Services.AddHostedService<ViewTrafficPublisher>();

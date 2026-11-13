@@ -20,8 +20,8 @@ public sealed class RequiresViewToken { }
 ///   (default 10 s = 2 × the 5 s alarm poll) and it is dead: old or missing token → 401.
 /// - The page script renews silently with the refresh cookie (after sleep / server restart / IP change)
 ///   and retries, so walls never reload (a reload would block alarm sound until someone taps the screen).
-/// Callers that are already trusted skip the check: signed-in users/admins, and loopback when
-/// ViewToken:ExemptLoopback is true (tools on the server itself, e.g. BellBeast Tester).
+/// Callers that are already trusted skip the check: signed-in users/admins, IPs with a pass for that API
+/// (IpPassService), and loopback when ViewToken:ExemptLoopback is true (e.g. BellBeast Tester).
 /// </summary>
 public sealed class ViewTokenService
 {
@@ -226,10 +226,15 @@ public sealed class ViewTokenMiddleware
         await _next(ctx);
     }
 
-    /// <summary>Signed-in staff (user or admin cookie) and, if allowed, the server itself need no view token.</summary>
+    /// <summary>
+    /// Signed-in staff (user or admin cookie), IPs holding a pass for this API (IpPassService: truck scale,
+    /// approved fleet devices) and, if allowed, the server itself need no view token.
+    /// </summary>
     private static async Task<bool> TrustedAsync(HttpContext ctx, ViewTokenService views, string ip)
     {
         if (views.ExemptLoopback && IPAddress.TryParse(ip, out var addr) && IPAddress.IsLoopback(addr)) return true;
+        if (ApiCatalogService.IdOf(ctx.GetEndpoint()) is { } routeId &&
+            ctx.RequestServices.GetRequiredService<IpPassService>().Allows(ip, routeId)) return true;
         if (ctx.User.Identity?.IsAuthenticated == true && ctx.User.ClientId() is null) return true;
         var admin = await ctx.AuthenticateAsync(AuthSchemes.Admin);
         return admin.Succeeded;
