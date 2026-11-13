@@ -203,18 +203,39 @@
         } catch { return null; }
     }
 
+    // Tunnel start/stop are admin-only: a 401/403 means "log in at /Admin/Login first".
+    function tunnelNeedsAdmin(r) {
+        if (r && (r.status === 401 || r.status === 403)) {
+            alert('ต้อง login เป็น admin ก่อน (/Admin/Login) จึงจะเปิด/ปิด tunnel ได้');
+            return true;
+        }
+        return false;
+    }
+
     async function startTunnel() {
         cfStartBtn.disabled = true;
         applyTunnelUI({ state: 'starting', publicUrl: publicUrl, uptimeSec: 0, logs: [] });
         try {
-            await fetch('/api/iot/tunnel/start', { method: 'POST' });
+            const r = await fetch('/api/iot/tunnel/start', { method: 'POST' });
+            if (tunnelNeedsAdmin(r)) {
+                const status = await fetchTunnelStatus();
+                if (status) applyTunnelUI(status);
+                return;
+            }
         } catch { }
         startStatusPolling();
     }
 
     async function stopTunnel() {
         cfStopBtn.disabled = true;
-        try { await fetch('/api/iot/tunnel/stop', { method: 'POST' }); } catch { }
+        try {
+            const r = await fetch('/api/iot/tunnel/stop', { method: 'POST' });
+            if (tunnelNeedsAdmin(r)) {
+                const status = await fetchTunnelStatus();
+                if (status) applyTunnelUI(status);
+                return;
+            }
+        } catch { }
         stopStatusPolling();
         const status = await fetchTunnelStatus();
         if (status) applyTunnelUI(status);

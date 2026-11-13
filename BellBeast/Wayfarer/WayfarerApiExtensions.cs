@@ -20,8 +20,10 @@ public static class WayfarerApiExtensions
 
     public static IEndpointRouteBuilder MapWayfarerApi(this IEndpointRouteBuilder app)
     {
+        // Public: used by the anonymous /WebPM page.
         var api = app.MapGroup("/api/wayfarer")
-            .WithTags("Wayfarer");
+            .WithTags("Wayfarer")
+            .AllowAnonymous();
 
         api.MapGet("/health", (WayfarerDb db) =>
         {

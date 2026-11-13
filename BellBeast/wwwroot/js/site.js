@@ -73,7 +73,7 @@ const STATIONS = ["TPS", "DPS", "RWS", "CDS", "CTS", "QWS", "FWS", "CWS"];
 
 // auth cache
 let authUser = "";
-let authToken = "";
+let authOk = false; // token stays server-side; /api/process injects it
 
 // backend config cache (debug)
 let backendBaseUrl = "";
@@ -122,7 +122,7 @@ function debounce(fn, ms) {
 // Auth + Backend config
 // --------------------------
 async function loadAuthMe(force = false) {
-    if (!force && authUser && authToken) return { username: authUser, token: authToken };
+    if (!force && authUser && authOk) return { username: authUser, authenticated: true };
 
     const res = await fetch("/api/auth/me", { cache: "no-store" });
 
@@ -138,8 +138,8 @@ async function loadAuthMe(force = false) {
     if (!data) return null;
 
     authUser = data.username || "";
-    authToken = data.token || "";
-    return { username: authUser, token: authToken };
+    authOk = data.authenticated === true;
+    return { username: authUser, authenticated: authOk };
 }
 
 
@@ -167,7 +167,7 @@ async function doLogout() {
         console.error(e);
     } finally {
         authUser = "";
-        authToken = "";
+        authOk = false;
         window.location.href = "/Login";
     }
 }
@@ -612,7 +612,7 @@ btnProceed?.addEventListener("click", async () => {
     if (selectedMap.size === 0) { alert("ยังไม่มีรายการที่เลือก"); return; }
 
     const me = await loadAuthMe();
-    if (!me || !me.username || !me.token) { alert("ยังไม่ login หรือ session หมดอายุ"); return; }
+    if (!me || !me.username || !me.authenticated) { alert("ยังไม่ login หรือ session หมดอายุ"); return; }
 
     const configs = Array.from(selectedMap.values()).map(r => ({
         configID: String(r.configID),                 // ✅ string
@@ -623,7 +623,6 @@ btnProceed?.addEventListener("click", async () => {
     const payload = {
         begin,
         end,
-        token: authToken,                             // หรือ me.token ก็ได้
         removeOddHour: false,
         opt: "",                                      // ✅ ต้องว่าง
         csvFilename: buildCsvFilename(),

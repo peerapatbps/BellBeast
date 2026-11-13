@@ -12,14 +12,14 @@ using Xunit;
 ///   POST /api/admin/enqueue
 ///   GET  /api/backend-config
 ///
-/// All tests use <see cref="BellBeastBaseFactory"/> which replaces IHttpClientFactory
+/// All tests use <see cref="BellBeastAdminFactory"/> (signed in as admin) which replaces IHttpClientFactory
 /// with a fake that returns configurable responses — no real Uroboros process needed.
 /// </summary>
-public sealed class AdminApiTests : IClassFixture<BellBeastBaseFactory>
+public sealed class AdminApiTests : IClassFixture<BellBeastAdminFactory>
 {
-    private readonly BellBeastBaseFactory _factory;
+    private readonly BellBeastAdminFactory _factory;
 
-    public AdminApiTests(BellBeastBaseFactory factory) => _factory = factory;
+    public AdminApiTests(BellBeastAdminFactory factory) => _factory = factory;
 
     // ── /api/backend-config ───────────────────────────────────────────────
 

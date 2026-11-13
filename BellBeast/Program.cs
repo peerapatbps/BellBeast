@@ -60,11 +60,14 @@ builder.Services.Configure<GzipCompressionProviderOptions>(o => o.Level = Compre
 
 builder.Services.AddCors(options =>
 {
+    // Cross-origin access only for origins listed in Cors:AllowedOrigins (empty = same-origin only).
+    // The web UI, devices and the LabVenture proxy are all same-origin and need no entry here.
+    var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
     options.AddPolicy("LAN", policy =>
     {
-        policy.AllowAnyHeader()
+        policy.WithOrigins(corsOrigins)
+              .AllowAnyHeader()
               .AllowAnyMethod()
-              .SetIsOriginAllowed(_ => true)
               .AllowCredentials();
     });
 });
@@ -164,6 +167,12 @@ builder.Services
 // ===============================
 builder.Services.AddAuthorization(options =>
 {
+    // Deny by default: any endpoint without [Authorize]/[AllowAnonymous] needs a signed-in
+    // user (user or admin cookie). Public endpoints must opt out explicitly with AllowAnonymous.
+    options.FallbackPolicy = new AuthorizationPolicyBuilder(UserScheme, AdminScheme)
+        .RequireAuthenticatedUser()
+        .Build();
+
     options.AddPolicy("AdminOnly", policy =>
     {
         policy.AddAuthenticationSchemes(AdminScheme);
@@ -301,12 +310,12 @@ ReadBackendConfig(WebApplication app)
 // =======================================================
 
 // logout: รองรับทั้ง POST/GET กันคนเรียกผิด method แล้ว 404
-app.MapPost("/api/admin/auth/logout", async (HttpContext ctx) =>
+app.MapPost("/api/admin/auth/logout", [AllowAnonymous] async (HttpContext ctx) =>
 {
     await ctx.SignOutAsync(AdminScheme);
     return Results.Ok(new { ok = true, redirect = "/Admin/Login" });
 });
-app.MapGet("/api/admin/auth/logout", async (HttpContext ctx) =>
+app.MapGet("/api/admin/auth/logout", [AllowAnonymous] async (HttpContext ctx) =>
 {
     await ctx.SignOutAsync(AdminScheme);
     return Results.Ok(new { ok = true, redirect = "/Admin/Login" });
@@ -347,7 +356,7 @@ static IReadOnlyList<string> ReadStatusGroups(IQueryCollection query)
     return values.Count == 0 ? new[] { "all" } : values;
 }
 
-app.MapGet("/api/wayfarer/map-summary", async (HttpContext ctx, WayfarerMapQueryService svc, CancellationToken ct) =>
+app.MapGet("/api/wayfarer/map-summary", [AllowAnonymous] async (HttpContext ctx, WayfarerMapQueryService svc, CancellationToken ct) =>
 {
     var req = ctx.Request.Query;
     var from = req["from"].ToString().Trim();
@@ -364,7 +373,7 @@ app.MapGet("/api/wayfarer/map-summary", async (HttpContext ctx, WayfarerMapQuery
     });
 });
 
-app.MapGet("/api/wayfarer/map-branch-workorders", async (HttpContext ctx, WayfarerMapQueryService svc, CancellationToken ct) =>
+app.MapGet("/api/wayfarer/map-branch-workorders", [AllowAnonymous] async (HttpContext ctx, WayfarerMapQueryService svc, CancellationToken ct) =>
 {
     var req = ctx.Request.Query;
     var puCode = req["puCode"].ToString().Trim();
@@ -381,7 +390,7 @@ app.MapGet("/api/wayfarer/map-branch-workorders", async (HttpContext ctx, Wayfar
 
 app.MapWayfarerApi();
 
-app.MapMethods("/api/wayfarer/{**path}", new[] { "GET", "POST" }, async (HttpContext ctx, IHttpClientFactory factory, string? path) =>
+app.MapMethods("/api/wayfarer/{**path}", new[] { "GET", "POST" }, [AllowAnonymous] async (HttpContext ctx, IHttpClientFactory factory, string? path) =>
 {
     var (baseUrl, _, _, _, _, _, _, _, _, _, _, _, wayfarerApiPath) = ReadBackendConfig(app);
     var targetPath = string.IsNullOrWhiteSpace(path)
@@ -527,22 +536,20 @@ app.MapPost("/api/bypass/clear", (HttpContext ctx) =>
 // ===============================
 // API : /api/auth/me (user mode เดิม)
 // ===============================
-app.MapGet("/api/auth/me", (HttpContext ctx) =>
+app.MapGet("/api/auth/me", [AllowAnonymous] (HttpContext ctx) =>
 {
     var isAuthenticated = ctx.User?.Identity?.IsAuthenticated ?? false;
     var username = isAuthenticated ? (ctx.User?.Identity?.Name ?? "") : "bypass";
-    var token = isAuthenticated
-        ? (ctx.User?.FindFirst("AquadatToken")?.Value ?? "")
-        : "bypass";
+    // The Aquadat token is never sent to the browser; /api/process injects it server-side.
     ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var bypassRole);
 
-    return Results.Ok(new { username, token, bypassRole = bypassRole ?? "" });
+    return Results.Ok(new { username, authenticated = isAuthenticated, bypassRole = bypassRole ?? "" });
 });
 
 // ===============================
 // API : Logout (user mode เดิม)
 // ===============================
-app.MapPost("/api/auth/logout", async (HttpContext ctx) =>
+app.MapPost("/api/auth/logout", [AllowAnonymous] async (HttpContext ctx) =>
 {
     await ctx.SignOutAsync(UserScheme);
     return Results.Ok(new { ok = true, redirect = "/Login" });
@@ -730,6 +737,21 @@ app.MapPost("/api/process", async (HttpContext ctx, IHttpClientFactory factory) 
     using var reader = new StreamReader(ctx.Request.Body);
     var rawBody = await reader.ReadToEndAsync();
 
+    // The Aquadat token stays server-side: inject it (and the user) from the session
+    // instead of trusting whatever the browser sent.
+    System.Text.Json.Nodes.JsonObject? payload;
+    try { payload = System.Text.Json.Nodes.JsonNode.Parse(rawBody) as System.Text.Json.Nodes.JsonObject; }
+    catch (JsonException) { payload = null; }
+    if (payload is null)
+    {
+        ctx.Response.StatusCode = StatusCodes.Status400BadRequest;
+        await ctx.Response.WriteAsJsonAsync(new { error = "bad_json" }, ctx.RequestAborted);
+        return;
+    }
+    payload["token"] = ctx.User.FindFirst("AquadatToken")?.Value ?? "";
+    payload["user"] = ctx.User.Identity?.Name ?? "";
+    rawBody = payload.ToJsonString();
+
     var client = factory.CreateClient();
     client.Timeout = TimeSpan.FromSeconds(300);
 
@@ -758,7 +780,7 @@ app.MapPost("/api/process", async (HttpContext ctx, IHttpClientFactory factory) 
     await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
 });
 
-app.MapGet("/api/ptc/series", async (HttpContext ctx, IHttpClientFactory factory) =>
+app.MapGet("/api/ptc/series", [AllowAnonymous] async (HttpContext ctx, IHttpClientFactory factory) =>
 {
     if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
     {
@@ -796,7 +818,7 @@ app.MapGet("/api/ptc/series", async (HttpContext ctx, IHttpClientFactory factory
     await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
 });
 
-app.MapPost("/api/online_lab", async (HttpContext ctx, IHttpClientFactory factory) =>
+app.MapPost("/api/online_lab", [AllowAnonymous] async (HttpContext ctx, IHttpClientFactory factory) =>
 {
     if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
     {
@@ -881,7 +903,7 @@ app.MapPost("/api/template/save", (TemplateSaveRequest req) =>
 // ===============================
 // PROXY: /api/dailyreport
 // ===============================
-app.MapPost("/api/dailyreport", async (HttpContext ctx, IHttpClientFactory factory) =>
+app.MapPost("/api/dailyreport", [AllowAnonymous] async (HttpContext ctx, IHttpClientFactory factory) =>
 {
     if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
     {
@@ -926,7 +948,7 @@ app.MapPost("/api/dailyreport", async (HttpContext ctx, IHttpClientFactory facto
 // ===============================
 // PROXY: /api/chem_report
 // ===============================
-app.MapPost("/api/chem_report", async (HttpContext ctx, IHttpClientFactory factory) =>
+app.MapPost("/api/chem_report", [AllowAnonymous] async (HttpContext ctx, IHttpClientFactory factory) =>
 {
     if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
     {
@@ -968,7 +990,7 @@ app.MapPost("/api/chem_report", async (HttpContext ctx, IHttpClientFactory facto
 // ===============================
 // PROXY: /api/chem_report/export
 // ===============================
-app.MapPost("/api/chem_report/export", async (HttpContext ctx, IHttpClientFactory factory) =>
+app.MapPost("/api/chem_report/export", [AllowAnonymous] async (HttpContext ctx, IHttpClientFactory factory) =>
 {
     if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
     {
@@ -1013,25 +1035,25 @@ app.MapPost("/api/chem_report/export", async (HttpContext ctx, IHttpClientFactor
     await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
 });
 
-app.MapPost("/api/admin/pause", async (EngineAdminService svc) =>
+app.MapPost("/api/admin/pause", [Authorize(Policy = "AdminOnly")] async (EngineAdminService svc) =>
 {
     await svc.PauseAsync();
     return Results.Ok();
 });
 
-app.MapPost("/api/admin/resume", async (EngineAdminService svc) =>
+app.MapPost("/api/admin/resume", [Authorize(Policy = "AdminOnly")] async (EngineAdminService svc) =>
 {
     await svc.ResumeAsync();
     return Results.Ok();
 });
 
-app.MapPost("/api/admin/cancelall", async (EngineAdminService svc) =>
+app.MapPost("/api/admin/cancelall", [Authorize(Policy = "AdminOnly")] async (EngineAdminService svc) =>
 {
     await svc.CancelAllAsync();
     return Results.Ok();
 });
 
-app.MapPost("/api/admin/enqueue", async (EngineAdminService svc, HttpContext ctx) =>
+app.MapPost("/api/admin/enqueue", [Authorize(Policy = "AdminOnly")] async (EngineAdminService svc, HttpContext ctx) =>
 {
     var dto = await ctx.Request.ReadFromJsonAsync<Dictionary<string, string>>();
     if (dto == null || !dto.TryGetValue("name", out var name))
@@ -1044,7 +1066,7 @@ app.MapPost("/api/admin/enqueue", async (EngineAdminService svc, HttpContext ctx
 // Proxy: forward GET admin/tasks/status to Uroboros and relay the response.
 // Lets the browser call /api/admin/tasks/status (BellBeast) instead of calling
 // Uroboros directly — avoids cross-origin / firewall issues from the browser.
-app.MapGet("/api/admin/tasks/status", async (EngineAdminService svc) =>
+app.MapGet("/api/admin/tasks/status", [Authorize(Policy = "AdminOnly")] async (EngineAdminService svc) =>
 {
     try
     {
@@ -1111,7 +1133,7 @@ static async Task<IResult> RelayEngineAsync(Func<Task<(int Status, string Body)>
     }
 }
 
-app.MapPost("/api/engine/sequence/start", async (HttpContext ctx, EngineAdminService svc, EnginePinGuard guard) =>
+app.MapPost("/api/engine/sequence/start", [AllowAnonymous] async (HttpContext ctx, EngineAdminService svc, EnginePinGuard guard) =>
 {
     var pin = await ReadEnginePinAsync(ctx);
 
@@ -1121,10 +1143,10 @@ app.MapPost("/api/engine/sequence/start", async (HttpContext ctx, EngineAdminSer
     return await RelayEngineAsync(() => svc.StartSequenceAsync("mhxview"));
 });
 
-app.MapGet("/api/engine/sequence/status", (EngineAdminService svc) =>
+app.MapGet("/api/engine/sequence/status", [AllowAnonymous] (EngineAdminService svc) =>
     RelayEngineAsync(() => svc.GetSequenceStatusAsync()));
 
-app.MapPost("/api/engine/sequence/cancel", async (HttpContext ctx, EngineAdminService svc, EnginePinGuard guard) =>
+app.MapPost("/api/engine/sequence/cancel", [AllowAnonymous] async (HttpContext ctx, EngineAdminService svc, EnginePinGuard guard) =>
 {
     var pin = await ReadEnginePinAsync(ctx);
 
@@ -1167,34 +1189,34 @@ static string? ConfigArg(JsonElement body, string name) =>
     body.ValueKind == JsonValueKind.Object && body.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String
         ? v.GetString() : null;
 
-app.MapGet("/api/config/files", (ConfigEditorService svc) => Results.Json(svc.List()));
+app.MapGet("/api/config/files", [AllowAnonymous] (ConfigEditorService svc) => Results.Json(svc.List()));
 
-app.MapPost("/api/config/read", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
+app.MapPost("/api/config/read", [AllowAnonymous] (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
     ConfigCallAsync(ctx, guard, b =>
     {
         var (text, sha) = svc.Read(ConfigArg(b, "id"));
         return new { ok = true, text, sha };
     }));
 
-app.MapPost("/api/config/save", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
+app.MapPost("/api/config/save", [AllowAnonymous] (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
     ConfigCallAsync(ctx, guard, b =>
         new { ok = true, sha = svc.Save(ConfigArg(b, "id"), ConfigArg(b, "text"), ConfigArg(b, "baseSha")) }));
 
-app.MapPost("/api/config/links", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
+app.MapPost("/api/config/links", [AllowAnonymous] (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
     ConfigCallAsync(ctx, guard, _ => svc.Links()));
 
-app.MapPost("/api/config/links/apply", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
+app.MapPost("/api/config/links/apply", [AllowAnonymous] (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
     ConfigCallAsync(ctx, guard, b =>
         new { ok = true, sha = svc.ApplyLink(ConfigArg(b, "id"), ConfigArg(b, "key"), ConfigArg(b, "value"), ConfigArg(b, "baseSha")) }));
 
-app.MapPost("/api/config/backups", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
+app.MapPost("/api/config/backups", [AllowAnonymous] (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
     ConfigCallAsync(ctx, guard, b => svc.Backups(ConfigArg(b, "id"))));
 
-app.MapPost("/api/config/restore", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
+app.MapPost("/api/config/restore", [AllowAnonymous] (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
     ConfigCallAsync(ctx, guard, b =>
         new { ok = true, sha = svc.Restore(ConfigArg(b, "id"), ConfigArg(b, "name"), ConfigArg(b, "baseSha")) }));
 
-app.MapGet("/api/smartmap", async (HttpContext hc) =>
+app.MapGet("/api/smartmap", [AllowAnonymous] async (HttpContext hc) =>
 {
     // รับ keys เป็น optional (ถ้าส่งมาก็ filter ให้)
     // รูปแบบที่รับ: P019,P021 (base key)
@@ -1266,7 +1288,7 @@ var smartmapHttp = new HttpClient(new HttpClientHandler { UseProxy = false })
     Timeout = TimeSpan.FromSeconds(10)
 };
 
-app.MapGet("/api/smartmap/latest", async (HttpContext hc) =>
+app.MapGet("/api/smartmap/latest", [AllowAnonymous] async (HttpContext hc) =>
 {
     var keysRaw = (hc.Request.Query["keys"].ToString() ?? "").Trim().ToUpperInvariant();
     if (string.IsNullOrWhiteSpace(keysRaw)) return Results.BadRequest("keys required");
@@ -1397,25 +1419,25 @@ static double? SmartmapNumber(JsonElement e)
     return null;
 }
 
-app.MapGet("/api/dps/summary", async (HttpContext ctx, SummaryProxyService svc) =>
+app.MapGet("/api/dps/summary", [AllowAnonymous] async (HttpContext ctx, SummaryProxyService svc) =>
 {
     var (baseUrl, _, _, _, _, dpsSummaryPath, _, _, _, _, _, _, _) = ReadBackendConfig(app);
     await ProxySummaryAsync(ctx, await svc.GetDpsSummaryAsync($"{baseUrl}{dpsSummaryPath}", ctx.RequestAborted));
 });
 
-app.MapGet("/api/tps/summary", async (HttpContext ctx, SummaryProxyService svc) =>
+app.MapGet("/api/tps/summary", [AllowAnonymous] async (HttpContext ctx, SummaryProxyService svc) =>
 {
     var (baseUrl, _, _, _, _, _, tpsSummaryPath, _, _, _, _, _, _) = ReadBackendConfig(app);
     await ProxySummaryAsync(ctx, await svc.GetTpsSummaryAsync($"{baseUrl}{tpsSummaryPath}", ctx.RequestAborted));
 });
 
-app.MapGet("/api/rws/summary", async (HttpContext ctx, SummaryProxyService svc) =>
+app.MapGet("/api/rws/summary", [AllowAnonymous] async (HttpContext ctx, SummaryProxyService svc) =>
 {
     var (baseUrl, _, _, _, _, _, _, rwsSummaryPath, _, _, _, _, _) = ReadBackendConfig(app);
     await ProxySummaryAsync(ctx, await svc.GetRwsSummaryAsync($"{baseUrl}{rwsSummaryPath}", ctx.RequestAborted));
 });
 
-app.MapGet("/api/chem/summary", async (HttpContext ctx, SummaryProxyService svc) =>
+app.MapGet("/api/chem/summary", [AllowAnonymous] async (HttpContext ctx, SummaryProxyService svc) =>
 {
     if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
     {
@@ -1427,7 +1449,7 @@ app.MapGet("/api/chem/summary", async (HttpContext ctx, SummaryProxyService svc)
     await ProxySummaryAsync(ctx, await svc.GetChemSummaryAsync($"{baseUrl}{chemSummaryPath}", ctx.RequestAborted));
 });
 
-app.MapGet("/api/event/summary", async (HttpContext ctx, SummaryProxyService svc) =>
+app.MapGet("/api/event/summary", [AllowAnonymous] async (HttpContext ctx, SummaryProxyService svc) =>
 {
     if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
     {
@@ -1439,13 +1461,13 @@ app.MapGet("/api/event/summary", async (HttpContext ctx, SummaryProxyService svc
     await ProxySummaryAsync(ctx, await svc.GetEventSummaryAsync($"{baseUrl}{eventSummaryPath}", ctx.RequestAborted));
 });
 
-app.MapGet("/api/cldetector/summary", async (HttpContext ctx, SummaryProxyService svc) =>
+app.MapGet("/api/cldetector/summary", [AllowAnonymous] async (HttpContext ctx, SummaryProxyService svc) =>
 {
     var (baseUrl, _, _, _, _, _, _, _, _, _, _, cldetectorPath, _) = ReadBackendConfig(app);
     await ProxySummaryAsync(ctx, await svc.GetClDetectorSummaryAsync($"{baseUrl}{cldetectorPath}", ctx.RequestAborted));
 });
 
-app.MapPost("/api/lab/summary", async (HttpContext ctx, SummaryProxyService svc) =>
+app.MapPost("/api/lab/summary", [AllowAnonymous] async (HttpContext ctx, SummaryProxyService svc) =>
 {
     var (baseUrl, _, _, _, _, _, _, _, _, _, labSummaryPath, _, _) = ReadBackendConfig(app);
     using var reader = new StreamReader(ctx.Request.Body);
@@ -1456,10 +1478,10 @@ app.MapPost("/api/lab/summary", async (HttpContext ctx, SummaryProxyService svc)
 
 // Clarifier card (MHxViewer) — CW A/B, pH/Alk, jar curve, daily dosage per phase.
 // 502 while Uroboros does not serve it yet → the card falls back to its MOCK payload.
-app.MapGet("/api/clarifier/summary", async (HttpContext ctx, SummaryProxyService svc) =>
+app.MapGet("/api/clarifier/summary", [AllowAnonymous] async (HttpContext ctx, SummaryProxyService svc) =>
     await ProxyUroborosGetAsync(app, ctx, svc, SummaryProxyService.DefaultClarifierPath));
 
-app.MapGet("/api/admin/test/run", async (EngineAdminService svc) =>
+app.MapGet("/api/admin/test/run", [Authorize(Policy = "AdminOnly")] async (EngineAdminService svc) =>
 {
     try
     {
@@ -1473,7 +1495,7 @@ app.MapGet("/api/admin/test/run", async (EngineAdminService svc) =>
 });
 
 // BellBeast-side self-tests (EngineAdminService + BackendConfig + AdminApi + AdminAuth)
-app.MapGet("/api/admin/test/run-local", (HttpContext httpCtx, IWebHostEnvironment env) =>
+app.MapGet("/api/admin/test/run-local", [Authorize(Policy = "AdminOnly")] (HttpContext httpCtx, IWebHostEnvironment env) =>
 {
     try
     {
@@ -1508,13 +1530,13 @@ app.MapGet("/api/iot/tunnel/status", [AllowAnonymous] (CloudflareTunnelService c
     });
 });
 
-app.MapPost("/api/iot/tunnel/start", [AllowAnonymous] (CloudflareTunnelService cf) =>
+app.MapPost("/api/iot/tunnel/start", [Authorize(Policy = "AdminOnly")] (CloudflareTunnelService cf) =>
 {
     var started = cf.Start();
     return Results.Ok(new { ok = started, state = cf.State.ToString().ToLowerInvariant() });
 });
 
-app.MapPost("/api/iot/tunnel/stop", [AllowAnonymous] (CloudflareTunnelService cf) =>
+app.MapPost("/api/iot/tunnel/stop", [Authorize(Policy = "AdminOnly")] (CloudflareTunnelService cf) =>
 {
     cf.Stop();
     return Results.Ok(new { ok = true, state = "stopped" });
