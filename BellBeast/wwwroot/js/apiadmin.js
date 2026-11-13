@@ -14,6 +14,7 @@
     let access = "all";       // all | public | user | admin | off
     let freshKey = null;      // { id, key } — shown once after create / rotate
     let ipInfo = { your_ip: "", activity: [], bans: [] };
+    let datasets = [];
 
     const ERR = {
         bad_name: "ต้องใส่ชื่อ (ไม่เกิน 60 ตัว)", bad_rate: "จำนวนครั้งต่อนาทีต้องอยู่ระหว่าง 1–6000",
@@ -21,9 +22,18 @@
         note_too_long: "หมายเหตุยาวเกิน 200 ตัว", api_locked: "API ของหน้านี้ปิดไม่ได้", unknown_api: "ไม่พบ API นี้แล้ว",
         unknown_client: "ไม่พบ client นี้แล้ว",
         bad_ip: "IP ไม่ถูกต้อง", cannot_ban_self: "แบน IP ที่คุณใช้อยู่ไม่ได้", cannot_ban_loopback: "แบน 127.0.0.1 / ::1 ไม่ได้ (ตัวเครื่องเองและ Cloudflare tunnel)",
+        bad_id: "ID ต้องเป็น a-z, 0-9, - ยาว 2–40 ตัว", bad_title: "ต้องใส่ชื่อ (ไม่เกิน 80 ตัว)", description_too_long: "คำอธิบายยาวเกิน 500 ตัว",
+        bad_max_history: "ย้อนหลังสูงสุดต้องอยู่ระหว่าง 1–1440", bad_fields: "รายการ field ไม่ถูกต้อง", bad_field_count: "ต้องมี 1–40 field",
+        bad_field_name: "ชื่อ field ต้องขึ้นต้นด้วย a-z และใช้ได้แค่ a-z 0-9 _", duplicate_field: "ชื่อ field ซ้ำ", unknown_metric: "Uroboros ไม่มี metric นี้",
+        bad_field_text: "หน่วย/คำอธิบายยาวเกินไป", upstream_unavailable: "ติดต่อ Uroboros ไม่ได้", unknown_dataset: "ไม่พบ dataset นี้แล้ว",
         bad_duration: "ระยะเวลาไม่ถูกต้อง", reason_too_long: "เหตุผลยาวเกิน 200 ตัว", not_banned: "IP นี้ไม่ได้ถูกแบนแล้ว",
     };
-    const errText = (code) => code && code.startsWith("not_grantable:") ? "ให้สิทธิ์ API นี้ไม่ได้: " + code.slice(14) : (ERR[code] || code);
+    function errText(code) {
+        if (!code) return code;
+        if (code.startsWith("not_grantable:")) return "ให้สิทธิ์ API นี้ไม่ได้: " + code.slice(14);
+        const i = code.indexOf(":");
+        return i > 0 && ERR[code.slice(0, i)] ? ERR[code.slice(0, i)] + ": " + code.slice(i + 1) : (ERR[code] || code);
+    }
 
     async function call(url, opts) {
         const r = await fetch(url, Object.assign({ credentials: "same-origin", cache: "no-store" }, opts || {}));
@@ -50,6 +60,7 @@
         try {
             const [a, c, act, bans] = await Promise.all([call("/api/admin/api/catalog"), call("/api/admin/api/clients"),
                 call("/api/admin/ip/activity"), call("/api/admin/ip/bans")]);
+            datasets = (await call("/api/admin/datasets")).datasets || [];
             ipInfo = { your_ip: act.your_ip, activity: act.activity || [], bans: bans.bans || [] };
             apis = a.apis || [];
             clients = c.clients || [];
@@ -62,7 +73,7 @@
     function setView(v) {
         view = v;
         $$(".ap-tab").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === v)));
-        ["apis", "clients", "ip"].forEach((k) => { $("#v-" + k).hidden = v !== k; });
+        ["apis", "datasets", "clients", "ip"].forEach((k) => { $("#v-" + k).hidden = v !== k; });
         render();
     }
 
@@ -71,7 +82,10 @@
         $('.ap-tab[data-tab="apis"]').innerHTML = "APIs" + (off ? ` <span class="cnt">ปิด ${off}</span>` : "");
         const banned = ipInfo.bans.length;
         $('.ap-tab[data-tab="ip"]').innerHTML = "IP" + (banned ? ` <span class="cnt">แบน ${banned}</span>` : "");
-        if (view === "apis") renderApis(); else if (view === "clients") renderClients(); else renderIp();
+        if (view === "apis") renderApis();
+        else if (view === "datasets") renderDatasets();
+        else if (view === "clients") renderClients();
+        else renderIp();
     }
 
     // ── APIs tab ──
@@ -126,13 +140,16 @@
     }
 
     // ── Clients tab ──
-    const grantable = () => apis.filter((a) => a.access === "user");
+    const grantable = () => apis.filter((a) => a.access === "user" && !a.route.startsWith("/api/v1/"));
 
     function grantBoxes(selected, name) {
-        const list = grantable();
-        if (!list.length) return `<div class="ap-faint">ยังไม่มี API ระดับ "ต้อง login" ให้เลือก</div>`;
-        return `<div class="ap-grants">${list.map((a) => `
-            <label><input type="checkbox" name="${name}" value="${esc(a.id)}" ${selected.includes(a.id) ? "checked" : ""}> ${esc(a.id)}</label>`).join("")}</div>`;
+        const box = (value, label) => `<label><input type="checkbox" name="${name}" value="${esc(value)}" ${selected.includes(value) ? "checked" : ""}> ${label}</label>`;
+        const ds = datasets.map((d) => box("dataset:" + d.id, `dataset: ${esc(d.id)} <span class="ap-faint">(${esc(d.title)})</span>`));
+        const routes = grantable().map((a) => box(a.id, esc(a.id)));
+        return `<div class="ap-faint" style="margin-top:6px">Datasets (/api/v1)</div>
+            <div class="ap-grants">${ds.join("") || '<span class="ap-faint">ยังไม่มี dataset</span>'}</div>
+            <div class="ap-faint">API ภายในที่ต้อง login</div>
+            <div class="ap-grants">${routes.join("") || '<span class="ap-faint">ไม่มี</span>'}</div>`;
     }
 
     function keyBox(id) {
@@ -257,6 +274,150 @@
     async function copyKey() {
         try { await navigator.clipboard.writeText($("#fresh-key").textContent); toast("คัดลอก key แล้ว"); }
         catch { toast("คัดลอกไม่ได้ — เลือกข้อความแล้วกด Ctrl+C"); }
+    }
+
+    // ── Datasets tab (/api/v1) ──
+    let metrics = null;        // Uroboros realtime metrics [{stream, param, unit, last_ts}]
+    let editing = null;        // dataset being edited (object) or null
+    let preview = {};          // id -> JSON text
+
+    async function loadMetrics(refresh) {
+        try {
+            const r = await call("/api/admin/datasets/metrics" + (refresh ? "?refresh=1" : ""));
+            metrics = r.realtime || [];
+        } catch (e) { metrics = []; showError(e); }
+    }
+
+    const streams = () => Array.from(new Set((metrics || []).map((m) => m.stream))).sort();
+    const paramsOf = (stream) => (metrics || []).filter((m) => m.stream === stream);
+    const unitOf = (stream, param) => ((metrics || []).find((m) => m.stream === stream && m.param === param) || {}).unit || "";
+
+    function fieldRow(f, i) {
+        const st = f.stream || streams()[0] || "";
+        return `<tr data-row="${i}">
+            <td><select name="stream">${streams().map((s) => `<option ${s === st ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></td>
+            <td><select name="param">${paramsOf(st).map((m) => `<option ${m.param === f.param ? "selected" : ""}>${esc(m.param)}</option>`).join("")}</select></td>
+            <td><input name="name" value="${esc(f.name || "")}" placeholder="ชื่อที่เปิดออกไป เช่น raw_water_flow" class="ap-mono"></td>
+            <td><input name="unit" value="${esc(f.unit || "")}" maxlength="20"></td>
+            <td><input name="label" value="${esc(f.label || "")}" maxlength="80"></td>
+            <td><button class="ap-btn sm ghost-bad" type="button" data-del-row>ลบ</button></td></tr>`;
+    }
+
+    function editorHtml(d) {
+        const isNew = !d.id;
+        return `<form class="ap-card" id="ds-form">
+            <h3>${isNew ? "สร้าง dataset ใหม่" : "แก้ไข " + esc(d.id)}</h3>
+            <div class="ap-grid">
+                <label class="ap-field">ID (ใช้ใน URL)<input name="id" value="${esc(d.id || "")}" ${isNew ? "" : "readonly"} placeholder="เช่น raw-water" class="ap-mono"></label>
+                <label class="ap-field">ชื่อ<input name="title" value="${esc(d.title || "")}" maxlength="80"></label>
+                <label class="ap-field">ย้อนหลังสูงสุด (จุด, 60 วิ/จุด)<input name="max_history" type="number" min="1" max="1440" value="${esc(d.max_history || 60)}"></label>
+                <label class="ap-field">สถานะ<select name="enabled"><option value="true" ${d.enabled !== false ? "selected" : ""}>เปิด</option><option value="false" ${d.enabled === false ? "selected" : ""}>ปิด</option></select></label>
+            </div>
+            <label class="ap-field" style="margin-bottom:8px">คำอธิบาย<input name="description" value="${esc(d.description || "")}" maxlength="500"></label>
+            <table class="ap-fields"><thead><tr><th>Stream</th><th>Param (Uroboros)</th><th>ชื่อ field ที่เปิดออกไป</th><th>หน่วย</th><th>คำอธิบาย</th><th></th></tr></thead>
+                <tbody id="ds-rows">${(d.fields && d.fields.length ? d.fields : [{}]).map(fieldRow).join("")}</tbody></table>
+            <div class="ap-row">
+                <button class="ap-btn sm" type="button" id="ds-add">+ เพิ่ม field</button>
+                <span class="grow"></span>
+                <button class="ap-btn sm" type="button" id="ds-cancel">ยกเลิก</button>
+                <button class="ap-btn primary" type="submit">บันทึก</button>
+            </div>
+            <div class="ap-meta">ระบบภายนอกจะเห็นแค่ชื่อ field ไม่เห็นชื่อ tag ของ Uroboros · เปลี่ยน field เมื่อไหร่ version จะเพิ่มขึ้นเอง</div>
+        </form>`;
+    }
+
+    function renderDatasets() {
+        const root = $("#v-datasets");
+        if (metrics === null) { root.innerHTML = `<div class="ap-card ap-empty">กำลังโหลดรายการ metric จาก Uroboros…</div>`; loadMetrics().then(renderDatasets); return; }
+
+        const list = datasets.map((d) => `
+            <div class="ap-card" data-ds="${esc(d.id)}">
+                <div class="ap-row">
+                    <strong>${esc(d.title)}</strong><span class="ap-mono ap-muted">${esc(d.id)} · v${esc(d.version)}</span>
+                    ${d.enabled ? "" : '<span class="ap-badge off">ปิดอยู่</span>'}
+                    <span class="grow"></span>
+                    <button class="ap-btn sm" type="button" data-act="try">ลองเรียก</button>
+                    <button class="ap-btn sm" type="button" data-act="edit">แก้ไข</button>
+                    <button class="ap-btn sm ghost-bad" type="button" data-act="delete">ลบ</button>
+                </div>
+                ${d.description ? `<div class="ap-muted">${esc(d.description)}</div>` : ""}
+                <div class="ap-ds-fields">${d.fields.map((f) => `<span><b>${esc(f.name)}</b> ← ${esc(f.stream)}.${esc(f.param)}${f.unit ? " [" + esc(f.unit) + "]" : ""}</span>`).join("")}</div>
+                <div class="ap-meta"><span class="ap-mono">GET /api/v1/datasets/${esc(d.id)}</span><span class="ap-mono">GET /api/v1/datasets/${esc(d.id)}/history?n=60</span><span>ย้อนหลังสูงสุด ${esc(d.max_history)} จุด</span><span>แก้ไขล่าสุด ${esc(ts(d.updated_at))}</span></div>
+                ${preview[d.id] ? `<div class="ap-pre">${esc(preview[d.id])}</div>` : ""}
+            </div>`).join("");
+
+        root.innerHTML = (editing ? editorHtml(editing) : `<div class="ap-row" style="margin-bottom:12px"><button class="ap-btn primary" type="button" id="ds-new">+ สร้าง dataset</button>
+                <span class="ap-muted">เอกสาร API: <a href="/api/v1/openapi.json" target="_blank" rel="noopener" class="ap-mono" style="color:var(--ap-accent)">/api/v1/openapi.json</a></span></div>`)
+            + (list || `<div class="ap-card ap-empty">ยังไม่มี dataset — /api/v1 ยังไม่เปิดข้อมูลอะไรออกไป</div>`);
+
+        if (editing) wireEditor();
+        else $("#ds-new").addEventListener("click", () => { editing = { fields: [{}] }; renderDatasets(); });
+
+        $$("#v-datasets [data-ds]").forEach((card) => {
+            const id = card.dataset.ds;
+            card.querySelector('[data-act="edit"]').addEventListener("click", () => { editing = JSON.parse(JSON.stringify(datasets.find((d) => d.id === id))); renderDatasets(); window.scrollTo({ top: 0, behavior: "smooth" }); });
+            card.querySelector('[data-act="delete"]').addEventListener("click", () => deleteDataset(id));
+            card.querySelector('[data-act="try"]').addEventListener("click", () => tryDataset(id));
+        });
+    }
+
+    function readRows() {
+        return $$("#ds-rows tr").map((tr) => ({
+            stream: tr.querySelector('[name="stream"]').value, param: tr.querySelector('[name="param"]').value,
+            name: tr.querySelector('[name="name"]').value.trim(), unit: tr.querySelector('[name="unit"]').value.trim(),
+            label: tr.querySelector('[name="label"]').value.trim(),
+        }));
+    }
+
+    function wireEditor() {
+        const form = $("#ds-form");
+        const rerenderRows = (rows) => { $("#ds-rows").innerHTML = rows.map(fieldRow).join(""); wireRows(); };
+        function wireRows() {
+            $$("#ds-rows tr").forEach((tr, i) => {
+                const st = tr.querySelector('[name="stream"]'), pa = tr.querySelector('[name="param"]');
+                const autofill = () => {
+                    const name = tr.querySelector('[name="name"]'), unit = tr.querySelector('[name="unit"]');
+                    if (!name.value) name.value = pa.value.toLowerCase().replace(/[^a-z0-9_]/g, "_");
+                    if (!unit.value) unit.value = unitOf(st.value, pa.value);
+                };
+                st.addEventListener("change", () => { const rows = readRows(); rows[i] = { stream: st.value }; rerenderRows(rows); });
+                pa.addEventListener("change", autofill);
+                tr.querySelector("[data-del-row]").addEventListener("click", () => { const rows = readRows(); rows.splice(i, 1); rerenderRows(rows.length ? rows : [{}]); });
+            });
+        }
+        wireRows();
+        $("#ds-add").addEventListener("click", () => rerenderRows(readRows().concat([{}])));
+        $("#ds-cancel").addEventListener("click", () => { editing = null; renderDatasets(); });
+        form.addEventListener("submit", async (ev) => {
+            ev.preventDefault();
+            const v = (n) => form.querySelector(`[name="${n}"]`).value.trim();
+            const body = { id: v("id"), title: v("title"), description: v("description"), max_history: Number(v("max_history")) || 60, enabled: v("enabled") === "true", fields: readRows() };
+            try {
+                const r = await send("/api/admin/datasets", "POST", body);
+                datasets = datasets.filter((d) => d.id !== r.dataset.id).concat([r.dataset]).sort((a, b) => a.id.localeCompare(b.id));
+                editing = null;
+                render();
+                toast(`บันทึก ${r.dataset.id} (v${r.dataset.version}) แล้ว`);
+            } catch (e) { showError(e); }
+        });
+    }
+
+    async function deleteDataset(id) {
+        if (!confirm(`ลบ dataset ${id}?\nระบบภายนอกที่เรียก /api/v1/datasets/${id} จะได้ 404 ทันที`)) return;
+        try {
+            await send("/api/admin/datasets/" + encodeURIComponent(id), "DELETE");
+            datasets = datasets.filter((d) => d.id !== id);
+            delete preview[id];
+            render();
+            toast("ลบ " + id + " แล้ว");
+        } catch (e) { showError(e); }
+    }
+
+    async function tryDataset(id) {
+        const r = await fetch("/api/v1/datasets/" + encodeURIComponent(id), { credentials: "same-origin", cache: "no-store" });
+        const text = await r.text();
+        try { preview[id] = `HTTP ${r.status}\n` + JSON.stringify(JSON.parse(text), null, 2); } catch { preview[id] = `HTTP ${r.status}\n` + text; }
+        renderDatasets();
     }
 
     // ── IP tab ──

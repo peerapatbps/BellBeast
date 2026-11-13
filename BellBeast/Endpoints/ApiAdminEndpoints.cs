@@ -21,10 +21,15 @@ public static class ApiAdminEndpoints
 
         IResult Error(string code, int status = 400) => Results.Json(new { ok = false, error = code }, json, statusCode: status);
 
-        // grantable = non-public, non-admin APIs (public ones need no key, admin ones only accept the admin cookie)
-        static Func<string, bool> Grantable(ApiCatalogService catalog)
+        // grantable = login-level APIs (public ones need no key, admin ones only accept the admin cookie)
+        // + one "dataset:<id>" per /api/v1 dataset (the v1 routes themselves are granted per dataset)
+        Func<string, bool> Grantable(ApiCatalogService catalog)
         {
-            var ids = catalog.List().Where(a => a.Access == ApiCatalogService.AccessUser).Select(a => a.Id).ToHashSet(StringComparer.Ordinal);
+            var ids = catalog.List()
+                .Where(a => a.Access == ApiCatalogService.AccessUser && !a.Route.StartsWith("/api/v1/", StringComparison.Ordinal))
+                .Select(a => a.Id)
+                .Concat(app.Services.GetRequiredService<DatasetService>().List().Select(d => DatasetService.GrantId(d.Id)))
+                .ToHashSet(StringComparer.Ordinal);
             return ids.Contains;
         }
 
@@ -73,6 +78,38 @@ public static class ApiAdminEndpoints
 
         admin.MapDelete("/api/admin/api/clients/{id}", (string id, HttpContext ctx, ApiClientService clients) =>
             clients.Delete(id, Actor(ctx)) ? Results.Json(new { ok = true }, json) : Error("unknown_client", 404));
+
+        // ── Datasets for /api/v1 ────────────────────────────────────────────────
+
+        admin.MapGet("/api/admin/datasets", (DatasetService sets) =>
+            Results.Json(new { ok = true, datasets = sets.List() }, json));
+
+        // Uroboros realtime metrics for the field picker
+        admin.MapGet("/api/admin/datasets/metrics", async (HttpContext ctx, UroborosMetricsClient uro) =>
+        {
+            try
+            {
+                var (_, realtime) = await uro.SchemaAsync(ctx.RequestAborted, refresh: ctx.Request.Query.ContainsKey("refresh"));
+                return Results.Json(new { ok = true, realtime }, json);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
+            {
+                return Error("upstream_unavailable", 502);
+            }
+        });
+
+        admin.MapPost("/api/admin/datasets", async (HttpContext ctx, DatasetService sets, UroborosMetricsClient uro) =>
+        {
+            HashSet<string> known;
+            try { (known, _) = await uro.SchemaAsync(ctx.RequestAborted); }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException) { return Error("upstream_unavailable", 502); }
+
+            var (saved, err) = sets.Save(await Body(ctx), known, Actor(ctx));
+            return err is null ? Results.Json(new { ok = true, dataset = saved }, json) : Error(err);
+        });
+
+        admin.MapDelete("/api/admin/datasets/{id}", (string id, HttpContext ctx, DatasetService sets) =>
+            sets.Delete(id, Actor(ctx)) ? Results.Json(new { ok = true }, json) : Error("unknown_dataset", 404));
 
         // ── IP: who writes into the public IoT room + site-wide IP bans ─────────
 

@@ -39,6 +39,7 @@ public sealed class ApiGateMiddleware
             }
 
             if (ApiCatalogService.AccessOf(endpoint!) == ApiCatalogService.AccessUser &&
+                endpoint!.Metadata.GetMetadata<PerResourceGrants>() is null &&
                 !ctx.User.HasClaim(ApiKeyAuthenticationHandler.ClaimGrant, id))
             {
                 await Reject(ctx, StatusCodes.Status403Forbidden, "api_not_granted", id);
@@ -56,6 +57,9 @@ public sealed class ApiGateMiddleware
         return ctx.Response.WriteAsJsonAsync(new { ok = false, error, api });
     }
 }
+
+/// <summary>Endpoint metadata: grants are per resource (e.g. "dataset:raw-water") and checked by the handler, not per route.</summary>
+public sealed class PerResourceGrants { }
 
 /// <summary>
 /// Fixed-window limits on /api: API-key clients by their own per-minute limit,

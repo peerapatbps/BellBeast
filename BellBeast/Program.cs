@@ -196,6 +196,8 @@ builder.Services.AddSingleton<BackendConfigProvider>();
 builder.Services.AddSingleton<ApiCatalogService>();
 builder.Services.AddSingleton<ApiClientService>();
 builder.Services.AddSingleton<IpAccessService>();
+builder.Services.AddSingleton<DatasetService>();
+builder.Services.AddSingleton<UroborosMetricsClient>();
 builder.Services.AddApiRateLimiting(builder.Configuration);
 builder.Services.AddScoped<EngineAdminService>();
 builder.Services.AddSingleton<EnginePinGuard>();
@@ -272,6 +274,7 @@ app.MapAlarmEndpoints(api);
 app.MapAudioEndpoints(api);
 app.MapFleetEndpoints(api);
 app.MapApiAdminEndpoints(api);
+app.MapV1Endpoints(api);
 
 app.Run();
 

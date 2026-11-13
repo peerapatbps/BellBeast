@@ -91,6 +91,14 @@
     .ap-devs { display: flex; flex-wrap: wrap; gap: 4px; }
     .ap-devs span { font-family: var(--ap-mono); font-size: 12px; background: var(--ap-panel2); border-radius: 6px; padding: 0 6px; }
 
+    .ap-fields { width: 100%; border-collapse: collapse; margin: 6px 0 10px; }
+    .ap-fields th { text-align: left; font-size: 12px; color: var(--ap-muted); font-weight: 600; padding: 4px 6px; }
+    .ap-fields td { padding: 3px 6px; }
+    .ap-fields input, .ap-fields select { width: 100%; background: var(--ap-bg); border: 1px solid var(--ap-line); border-radius: 6px; padding: 4px 8px; color: var(--ap-fg); font-size: 13px; }
+    .ap-pre { background: var(--ap-bg); border: 1px solid var(--ap-line); border-radius: 10px; padding: 10px 12px; font-family: var(--ap-mono); font-size: 12px; max-height: 320px; overflow: auto; white-space: pre; margin-top: 10px; }
+    .ap-ds-fields { display: flex; flex-wrap: wrap; gap: 4px 10px; font-family: var(--ap-mono); font-size: 12.5px; color: var(--ap-muted); margin: 6px 0 10px; }
+    .ap-ds-fields b { color: var(--ap-fg); font-weight: 600; }
+
     .ap-toast { position: fixed; right: 20px; bottom: 20px; background: #1e293b; border: 1px solid var(--ap-line); color: var(--ap-fg); padding: 10px 16px; border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.4); z-index: 50; }
     .ap-toast[hidden] { display: none; }
 </style>
@@ -102,7 +110,7 @@
     <div class="ap-head">
         <div>
             <h1>API Access</h1>
-            <p>เปิด/ปิด API ทีละตัว, ออก API key ให้ระบบอื่น และแบน IP</p>
+            <p>เปิด/ปิด API ทีละตัว, กำหนดข้อมูลที่เปิดให้ระบบอื่น (/api/v1), ออก API key และแบน IP</p>
         </div>
         <span class="sp"></span>
         <button class="ap-btn sm" id="reload" type="button">รีเฟรช</button>
@@ -112,11 +120,13 @@
 
     <div class="ap-tabs" role="tablist">
         <button class="ap-tab" role="tab" type="button" data-tab="apis">APIs</button>
+        <button class="ap-tab" role="tab" type="button" data-tab="datasets">Datasets (v1)</button>
         <button class="ap-tab" role="tab" type="button" data-tab="clients">API Clients</button>
         <button class="ap-tab" role="tab" type="button" data-tab="ip">IP</button>
     </div>
 
     <section id="v-apis"></section>
+    <section id="v-datasets" hidden></section>
     <section id="v-clients" hidden></section>
     <section id="v-ip" hidden></section>
 </div>

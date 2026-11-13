@@ -20,3 +20,4 @@ tts_sample/
 BellBeast/App_Data/api-clients.json
 BellBeast/App_Data/api-catalog.json
 BellBeast/App_Data/ip-bans.json
+BellBeast/App_Data/api-datasets.json
