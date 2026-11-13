@@ -19,3 +19,4 @@ tts_sample/
 # API access: client registry (key hashes) + per-API overrides (runtime data, never commit)
 BellBeast/App_Data/api-clients.json
 BellBeast/App_Data/api-catalog.json
+BellBeast/App_Data/ip-bans.json

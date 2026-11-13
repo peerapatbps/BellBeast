@@ -73,5 +73,33 @@ public static class ApiAdminEndpoints
 
         admin.MapDelete("/api/admin/api/clients/{id}", (string id, HttpContext ctx, ApiClientService clients) =>
             clients.Delete(id, Actor(ctx)) ? Results.Json(new { ok = true }, json) : Error("unknown_client", 404));
+
+        // ── IP: who writes into the public IoT room + site-wide IP bans ─────────
+
+        admin.MapGet("/api/admin/ip/activity", (HttpContext ctx, IpAccessService ips) =>
+            Results.Json(new { ok = true, your_ip = IpAccessService.ClientIp(ctx), activity = ips.ListActivity() }, json));
+
+        admin.MapGet("/api/admin/ip/bans", (HttpContext ctx, IpAccessService ips) =>
+            Results.Json(new { ok = true, your_ip = IpAccessService.ClientIp(ctx), bans = ips.ListBans() }, json));
+
+        admin.MapPost("/api/admin/ip/bans", async (HttpContext ctx, IpAccessService ips) =>
+        {
+            var b = await Body(ctx);
+            if (b.ValueKind != JsonValueKind.Object) return Error("bad_json");
+            string? Str(string n) => b.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+            int? minutes = null;   // absent / null = permanent
+            if (b.TryGetProperty("minutes", out var m) && m.ValueKind != JsonValueKind.Null)
+            {
+                if (!m.TryGetInt32(out var mm)) return Error("bad_duration");
+                minutes = mm;
+            }
+
+            var err = ips.Ban(Str("ip"), Str("reason"), minutes, Actor(ctx), IpAccessService.ClientIp(ctx));
+            return err is null ? Results.Json(new { ok = true, bans = ips.ListBans() }, json) : Error(err);
+        });
+
+        admin.MapDelete("/api/admin/ip/bans/{ip}", (string ip, HttpContext ctx, IpAccessService ips) =>
+            ips.Unban(ip, Actor(ctx)) ? Results.Json(new { ok = true, bans = ips.ListBans() }, json) : Error("not_banned", 404));
     }
 }

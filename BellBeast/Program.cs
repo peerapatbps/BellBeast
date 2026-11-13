@@ -195,6 +195,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton<BackendConfigProvider>();
 builder.Services.AddSingleton<ApiCatalogService>();
 builder.Services.AddSingleton<ApiClientService>();
+builder.Services.AddSingleton<IpAccessService>();
 builder.Services.AddApiRateLimiting(builder.Configuration);
 builder.Services.AddScoped<EngineAdminService>();
 builder.Services.AddSingleton<EnginePinGuard>();
@@ -219,6 +220,8 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error");
     app.UseHsts();
 }
+
+app.UseMiddleware<IpBanMiddleware>();  // banned IPs get 403 for everything
 
 app.UseResponseCompression();
 

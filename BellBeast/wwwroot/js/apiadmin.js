@@ -13,12 +13,15 @@
     let query = "";
     let access = "all";       // all | public | user | admin | off
     let freshKey = null;      // { id, key } — shown once after create / rotate
+    let ipInfo = { your_ip: "", activity: [], bans: [] };
 
     const ERR = {
         bad_name: "ต้องใส่ชื่อ (ไม่เกิน 60 ตัว)", bad_rate: "จำนวนครั้งต่อนาทีต้องอยู่ระหว่าง 1–6000",
         bad_expires_at: "วันหมดอายุไม่ถูกต้อง",
         note_too_long: "หมายเหตุยาวเกิน 200 ตัว", api_locked: "API ของหน้านี้ปิดไม่ได้", unknown_api: "ไม่พบ API นี้แล้ว",
         unknown_client: "ไม่พบ client นี้แล้ว",
+        bad_ip: "IP ไม่ถูกต้อง", cannot_ban_self: "แบน IP ที่คุณใช้อยู่ไม่ได้", cannot_ban_loopback: "แบน 127.0.0.1 / ::1 ไม่ได้ (ตัวเครื่องเองและ Cloudflare tunnel)",
+        bad_duration: "ระยะเวลาไม่ถูกต้อง", reason_too_long: "เหตุผลยาวเกิน 200 ตัว", not_banned: "IP นี้ไม่ได้ถูกแบนแล้ว",
     };
     const errText = (code) => code && code.startsWith("not_grantable:") ? "ให้สิทธิ์ API นี้ไม่ได้: " + code.slice(14) : (ERR[code] || code);
 
@@ -28,6 +31,7 @@
         try { j = await r.json(); } catch { /* non-JSON */ }
         if (r.status === 401 || r.status === 403) throw new Error("ต้อง login admin ใหม่ (session หมดอายุ)");
         if (!r.ok || (j && j.ok === false)) throw new Error(errText((j && j.error) || ("HTTP " + r.status)));
+        clearError();   // a successful call clears the previous error banner
         return j;
     }
     const send = (url, method, body) => call(url, { method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -44,7 +48,9 @@
 
     async function load() {
         try {
-            const [a, c] = await Promise.all([call("/api/admin/api/catalog"), call("/api/admin/api/clients")]);
+            const [a, c, act, bans] = await Promise.all([call("/api/admin/api/catalog"), call("/api/admin/api/clients"),
+                call("/api/admin/ip/activity"), call("/api/admin/ip/bans")]);
+            ipInfo = { your_ip: act.your_ip, activity: act.activity || [], bans: bans.bans || [] };
             apis = a.apis || [];
             clients = c.clients || [];
             clearError();
@@ -56,15 +62,16 @@
     function setView(v) {
         view = v;
         $$(".ap-tab").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === v)));
-        $("#v-apis").hidden = v !== "apis";
-        $("#v-clients").hidden = v !== "clients";
+        ["apis", "clients", "ip"].forEach((k) => { $("#v-" + k).hidden = v !== k; });
         render();
     }
 
     function render() {
         const off = apis.filter((a) => !a.enabled).length;
         $('.ap-tab[data-tab="apis"]').innerHTML = "APIs" + (off ? ` <span class="cnt">ปิด ${off}</span>` : "");
-        if (view === "apis") renderApis(); else renderClients();
+        const banned = ipInfo.bans.length;
+        $('.ap-tab[data-tab="ip"]').innerHTML = "IP" + (banned ? ` <span class="cnt">แบน ${banned}</span>` : "");
+        if (view === "apis") renderApis(); else if (view === "clients") renderClients(); else renderIp();
     }
 
     // ── APIs tab ──
@@ -251,6 +258,92 @@
         try { await navigator.clipboard.writeText($("#fresh-key").textContent); toast("คัดลอก key แล้ว"); }
         catch { toast("คัดลอกไม่ได้ — เลือกข้อความแล้วกด Ctrl+C"); }
     }
+
+    // ── IP tab ──
+    const DURATIONS = [["60", "1 ชั่วโมง"], ["1440", "1 วัน"], ["10080", "7 วัน"], ["", "ถาวร"]];
+
+    function banForm() {
+        return `<form class="ap-card" id="ban-form">
+            <h3>แบน IP</h3>
+            <div class="ap-form-row">
+                <label class="ap-field">IP<input name="ip" required placeholder="เช่น 192.168.1.50" class="ap-mono"></label>
+                <label class="ap-field">ระยะเวลา<select name="minutes">${DURATIONS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select></label>
+                <label class="ap-field" style="flex:1">เหตุผล<input name="reason" maxlength="200" placeholder="เช่น ส่ง alarm ปลอมในชื่อ uroboros-alarm"></label>
+                <button class="ap-btn primary" type="submit">แบน</button>
+            </div>
+            <div class="ap-meta">IP ของคุณ: <span class="ap-mono">${esc(ipInfo.your_ip)}</span> (แบนตัวเองไม่ได้) · IP ที่ถูกแบนจะได้ 403 ทั้งเว็บ ทั้งหน้าเว็บและ API</div>
+        </form>`;
+    }
+
+    function renderIp() {
+        const bans = ipInfo.bans.length ? `
+            <table class="ap-table">
+                <thead><tr><th>IP</th><th>เหตุผล</th><th>แบนเมื่อ</th><th>หมดเวลา</th><th>โดย</th><th></th></tr></thead>
+                <tbody>${ipInfo.bans.map((b) => `
+                    <tr><td class="ap-mono">${esc(b.ip)}</td><td>${esc(b.reason || "–")}</td><td>${esc(ts(b.created_at))}</td>
+                        <td>${b.expires_at ? esc(ts(b.expires_at)) : '<span class="ap-badge off">ถาวร</span>'}</td><td class="ap-muted">${esc(b.created_by || "–")}</td>
+                        <td><button class="ap-btn sm" type="button" data-unban="${esc(b.ip)}">ยกเลิกแบน</button></td></tr>`).join("")}
+                </tbody></table>` : `<div class="ap-card ap-empty">ยังไม่มี IP ที่ถูกแบน</div>`;
+
+        const act = ipInfo.activity.length ? `
+            <table class="ap-table">
+                <thead><tr><th>IP</th><th>ล่าสุด</th><th>ครั้ง</th><th>ทำล่าสุด</th><th>ชื่ออุปกรณ์ที่ใช้</th><th></th></tr></thead>
+                <tbody>${ipInfo.activity.map((a) => `
+                    <tr class="${a.banned ? "off" : ""}"><td class="ap-mono">${esc(a.ip)}${a.ip === ipInfo.your_ip ? ' <span class="ap-badge user">คุณ</span>' : ""}</td>
+                        <td>${esc(ts(a.last_seen))}</td><td>${esc(a.count)}</td><td class="ap-mono ap-muted">${esc(a.last_action)}</td>
+                        <td><div class="ap-devs">${(a.devices || []).map((d) => `<span>${esc(d)}</span>`).join("")}</div></td>
+                        <td>${a.banned ? '<span class="ap-badge off">แบนอยู่</span>' : a.ip === ipInfo.your_ip ? "" : `<button class="ap-btn sm ghost-bad" type="button" data-ban="${esc(a.ip)}">แบน…</button>`}</td></tr>`).join("")}
+                </tbody></table>` : `<div class="ap-card ap-empty">ยังไม่มีใครเขียนเข้า IoT room ตั้งแต่ BellBeast เริ่มทำงาน</div>`;
+
+        $("#v-ip").innerHTML = banForm() +
+            `<div class="ap-section-title">IP ที่ถูกแบน</div>${bans}` +
+            `<div class="ap-section-title">ใครเขียนเข้า IoT room (join / data / command)</div>
+             <div class="ap-meta">นับตั้งแต่ BellBeast เริ่มทำงานรอบนี้ · ถ้าชื่อ uroboros-alarm มาจาก IP ที่ไม่ใช่เครื่อง Uroboros แปลว่ามีคนส่ง alarm ปลอม</div>${act}`;
+
+        $("#ban-form").addEventListener("submit", banIp);
+        $$("#v-ip [data-unban]").forEach((b) => b.addEventListener("click", () => unbanIp(b.dataset.unban)));
+        $$("#v-ip [data-ban]").forEach((b) => b.addEventListener("click", () => {
+            const f = $("#ban-form");
+            f.querySelector('[name="ip"]').value = b.dataset.ban;
+            f.scrollIntoView({ behavior: "smooth", block: "center" });
+            f.querySelector('[name="reason"]').focus();
+        }));
+    }
+
+    async function banIp(ev) {
+        ev.preventDefault();
+        const f = ev.currentTarget;
+        const ip = f.querySelector('[name="ip"]').value.trim();
+        const minutes = f.querySelector('[name="minutes"]').value;
+        if (!confirm(`แบน ${ip} ?\nIP นี้จะเข้าเว็บและเรียก API ไม่ได้ทั้งหมด`)) return;
+        try {
+            const r = await send("/api/admin/ip/bans", "POST", { ip, minutes: minutes ? Number(minutes) : null, reason: f.querySelector('[name="reason"]').value });
+            ipInfo.bans = r.bans || [];
+            ipInfo.activity = ipInfo.activity.map((a) => Object.assign({}, a, { banned: a.banned || a.ip === ip }));
+            render();
+            toast("แบน " + ip + " แล้ว");
+        } catch (e) { showError(e); }
+    }
+
+    async function unbanIp(ip) {
+        try {
+            const r = await send("/api/admin/ip/bans/" + encodeURIComponent(ip), "DELETE");
+            ipInfo.bans = r.bans || [];
+            ipInfo.activity = ipInfo.activity.map((a) => a.ip === ip ? Object.assign({}, a, { banned: false }) : a);
+            render();
+            toast("ยกเลิกแบน " + ip + " แล้ว");
+        } catch (e) { showError(e); }
+    }
+
+    // keep the IP tab fresh while it is open (not while the admin is typing in the ban form)
+    setInterval(async () => {
+        if (view !== "ip" || document.hidden || (document.activeElement && document.activeElement.closest("#ban-form"))) return;
+        try {
+            const act = await call("/api/admin/ip/activity");
+            ipInfo.activity = act.activity || [];
+            renderIp();
+        } catch { /* next tick */ }
+    }, 15000);
 
     $$(".ap-tab").forEach((b) => b.addEventListener("click", () => setView(b.dataset.tab)));
     $("#reload").addEventListener("click", load);

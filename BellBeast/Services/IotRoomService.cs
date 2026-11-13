@@ -128,6 +128,9 @@ public sealed class IotRoomService
             .ToList();
     }
 
+    /// <summary>Device name behind a room key (null if unknown / expired).</summary>
+    public string? NameForKey(string key) => _devices.Values.FirstOrDefault(d => d.Key == key)?.DeviceName;
+
     // Device posts its own telemetry; replaces state entirely
     public (bool ok, string? error) PostData(string key, Dictionary<string, JsonElement> data)
     {

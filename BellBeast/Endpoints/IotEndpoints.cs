@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
 using System.Text.RegularExpressions;
+using BellBeast.ApiAccess;
 using static BellBeast.Endpoints.EndpointHelpers;
 
 namespace BellBeast.Endpoints;
@@ -65,7 +66,7 @@ public static class IotEndpoints
         // ===============================
 
         // Device → join room (first time or after reconnect)
-        pub.MapPost("/api/iot/room/join", (IotRoomService iotRoom, HttpContext ctx) =>
+        pub.MapPost("/api/iot/room/join", (IotRoomService iotRoom, IpAccessService ips, HttpContext ctx) =>
         {
             IotJoinRequest? body;
             try { body = ctx.Request.ReadFromJsonAsync<IotJoinRequest>().GetAwaiter().GetResult(); }
@@ -74,6 +75,8 @@ public static class IotEndpoints
             if (body is null || string.IsNullOrWhiteSpace(body.DeviceName) || string.IsNullOrWhiteSpace(body.DeviceType))
                 return Results.BadRequest(new { ok = false, error = "deviceName and deviceType are required" });
 
+            // the room is public on purpose (broadcast alarm); who writes into it is recorded for the admin IP tab
+            ips.RecordRoomWrite(IpAccessService.ClientIp(ctx), "join", body.DeviceName);
             var (key, isNew) = iotRoom.JoinOrRejoin(body.DeviceName.Trim(), body.DeviceType.Trim());
             return Results.Ok(new { ok = true, key, isNew });
         });
@@ -115,7 +118,7 @@ public static class IotEndpoints
         });
 
         // Host → send command to a device
-        pub.MapPost("/api/iot/room/command", (IotRoomService iotRoom, HttpContext ctx) =>
+        pub.MapPost("/api/iot/room/command", (IotRoomService iotRoom, IpAccessService ips, HttpContext ctx) =>
         {
             IotCommandRequest? body;
             try { body = ctx.Request.ReadFromJsonAsync<IotCommandRequest>().GetAwaiter().GetResult(); }
@@ -130,6 +133,7 @@ public static class IotEndpoints
                 return Results.BadRequest(new { ok = false, error = "Cannot parse command. Expected: {\"DeviceName\", \"Type\", \"Value\"}" });
 
             var (deviceName, commandType, value) = parsed.Value;
+            ips.RecordRoomWrite(IpAccessService.ClientIp(ctx), "command:" + commandType, deviceName);
             var ok = iotRoom.SendCommand(deviceName, commandType, value);
             if (!ok)
                 return Results.Ok(new { ok = false, error = $"Device '{deviceName}' not found or offline" });
@@ -138,7 +142,7 @@ public static class IotEndpoints
         });
 
         // Device → post telemetry / state
-        pub.MapPost("/api/iot/room/data", async (IotRoomService iotRoom, HttpContext ctx) =>
+        pub.MapPost("/api/iot/room/data", async (IotRoomService iotRoom, IpAccessService ips, HttpContext ctx) =>
         {
             IotDataRequest? body;
             try { body = await ctx.Request.ReadFromJsonAsync<IotDataRequest>(); }
@@ -150,6 +154,7 @@ public static class IotEndpoints
             if (body.Data is null || body.Data.Count == 0)
                 return Results.BadRequest(new { ok = false, error = "data must be a non-empty object" });
 
+            ips.RecordRoomWrite(IpAccessService.ClientIp(ctx), "data", iotRoom.NameForKey(body.Key.Trim()) ?? "(unknown key)");
             var (ok, error) = iotRoom.PostData(body.Key.Trim(), body.Data);
             return ok ? Results.Ok(new { ok = true }) : Results.Ok(new { ok = false, error });
         });

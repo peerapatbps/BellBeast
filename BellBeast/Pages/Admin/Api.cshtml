@@ -84,6 +84,13 @@
     .ap-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--ap-faint); margin: 2px 0 10px; }
     .ap-empty { color: var(--ap-muted); padding: 18px; text-align: center; }
 
+    .ap-form-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+    .ap-form-row .ap-field { min-width: 160px; }
+    .ap-field select { background: var(--ap-bg); border: 1px solid var(--ap-line); border-radius: 8px; padding: 6px 10px; font-size: 14px; color: var(--ap-fg); }
+    .ap-section-title { margin: 18px 0 8px; font-size: 15px; font-weight: 700; }
+    .ap-devs { display: flex; flex-wrap: wrap; gap: 4px; }
+    .ap-devs span { font-family: var(--ap-mono); font-size: 12px; background: var(--ap-panel2); border-radius: 6px; padding: 0 6px; }
+
     .ap-toast { position: fixed; right: 20px; bottom: 20px; background: #1e293b; border: 1px solid var(--ap-line); color: var(--ap-fg); padding: 10px 16px; border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.4); z-index: 50; }
     .ap-toast[hidden] { display: none; }
 </style>
@@ -95,7 +102,7 @@
     <div class="ap-head">
         <div>
             <h1>API Access</h1>
-            <p>เปิด/ปิด API ทีละตัว และออก API key ให้ระบบอื่นที่เรียก BellBeast</p>
+            <p>เปิด/ปิด API ทีละตัว, ออก API key ให้ระบบอื่น และแบน IP</p>
         </div>
         <span class="sp"></span>
         <button class="ap-btn sm" id="reload" type="button">รีเฟรช</button>
@@ -106,10 +113,12 @@
     <div class="ap-tabs" role="tablist">
         <button class="ap-tab" role="tab" type="button" data-tab="apis">APIs</button>
         <button class="ap-tab" role="tab" type="button" data-tab="clients">API Clients</button>
+        <button class="ap-tab" role="tab" type="button" data-tab="ip">IP</button>
     </div>
 
     <section id="v-apis"></section>
     <section id="v-clients" hidden></section>
+    <section id="v-ip" hidden></section>
 </div>
 
 <div class="ap-toast" id="toast" hidden></div>

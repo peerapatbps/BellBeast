@@ -1,4 +1,3 @@
-using System.Net;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.RateLimiting;
@@ -61,7 +60,7 @@ public sealed class ApiGateMiddleware
 /// <summary>
 /// Fixed-window limits on /api: API-key clients by their own per-minute limit,
 /// everyone else per client IP (RateLimit:PerIpPerMinute, 0 = off).
-/// Behind the Cloudflare tunnel every request arrives from loopback, so CF-Connecting-IP is used there.
+/// The client IP comes from IpAccessService.ClientIp (CF-Connecting-IP behind the Cloudflare tunnel).
 /// </summary>
 public static class ApiRateLimiting
 {
@@ -91,7 +90,7 @@ public static class ApiRateLimiting
                 }
 
                 var perIp = config.GetValue("RateLimit:PerIpPerMinute", DefaultPerIpPerMinute);
-                return perIp <= 0 ? RateLimitPartition.GetNoLimiter("_") : Window("ip:" + ClientIp(http), perIp);
+                return perIp <= 0 ? RateLimitPartition.GetNoLimiter("_") : Window("ip:" + IpAccessService.ClientIp(http), perIp);
             });
         });
         return services;
@@ -104,13 +103,4 @@ public static class ApiRateLimiting
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0,
         });
-
-    public static string ClientIp(HttpContext http)
-    {
-        var remote = http.Connection.RemoteIpAddress;
-        if (remote is not null && IPAddress.IsLoopback(remote) &&
-            http.Request.Headers["CF-Connecting-IP"].FirstOrDefault() is { Length: > 0 } cf)
-            return cf.Trim();
-        return remote?.ToString() ?? "?";
-    }
 }
