@@ -4,20 +4,9 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 namespace BellBeast.Pages.Admin
 {
     [Authorize(AuthenticationSchemes = "AdminCookie", Policy = "AdminOnly")]
+    // Task status is loaded client-side via /api/admin/tasks/status, so the page
+    // renders even when Uroboros is down (it is the post-login landing page).
     public class AdminPageModel : PageModel
     {
-        private readonly EngineAdminService _svc;
-
-        public AdminPageModel(EngineAdminService svc)
-        {
-            _svc = svc;
-        }
-
-        public object? Status { get; private set; }
-
-        public async Task OnGetAsync()
-        {
-            Status = await _svc.GetStatusAsync();
-        }
     }
 }
