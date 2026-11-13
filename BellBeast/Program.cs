@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using BellBeast.ApiAccess;
 using BellBeast.Endpoints;
 using BellBeast.Services;
 using BellBeast.Wayfarer;
@@ -75,7 +76,7 @@ builder.Services.AddCors(options =>
 });
 
 // ===============================
-// Authentication: 2 cookie schemes
+// Authentication: 2 cookie schemes + API key (other systems)
 // ===============================
 const string UserScheme = AuthSchemes.User;   // "Cookies"
 const string AdminScheme = AuthSchemes.Admin; // "AdminCookie"
@@ -83,10 +84,14 @@ const string AdminScheme = AuthSchemes.Admin; // "AdminCookie"
 builder.Services
     .AddAuthentication(options =>
     {
-        // default เป็น user scheme
+        // default เป็น user scheme; requests carrying an API key authenticate as that API client instead
         options.DefaultScheme = UserScheme;
         options.DefaultChallengeScheme = UserScheme;
+        options.DefaultAuthenticateScheme = "CookieOrApiKey";
     })
+    .AddPolicyScheme("CookieOrApiKey", "User cookie or API key", o =>
+        o.ForwardDefaultSelector = ctx => ApiKeyAuthenticationHandler.HasKey(ctx) ? ApiKeyAuthenticationHandler.SchemeName : UserScheme)
+    .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyAuthenticationHandler.SchemeName, null)
     .AddCookie(UserScheme, o =>
     {
         o.LoginPath = "/Login";
@@ -170,8 +175,9 @@ builder.Services
 builder.Services.AddAuthorization(options =>
 {
     // Deny by default: any endpoint without [Authorize]/[AllowAnonymous] needs a signed-in
-    // user (user or admin cookie). Public endpoints must opt out explicitly with AllowAnonymous.
-    options.FallbackPolicy = new AuthorizationPolicyBuilder(UserScheme, AdminScheme)
+    // user (user/admin cookie, or an API key — the API gate then checks that key's grants).
+    // Public endpoints must opt out explicitly with AllowAnonymous.
+    options.FallbackPolicy = new AuthorizationPolicyBuilder(UserScheme, AdminScheme, ApiKeyAuthenticationHandler.SchemeName)
         .RequireAuthenticatedUser()
         .Build();
 
@@ -187,6 +193,9 @@ builder.Services.AddAuthorization(options =>
 });
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<BackendConfigProvider>();
+builder.Services.AddSingleton<ApiCatalogService>();
+builder.Services.AddSingleton<ApiClientService>();
+builder.Services.AddApiRateLimiting(builder.Configuration);
 builder.Services.AddScoped<EngineAdminService>();
 builder.Services.AddSingleton<EnginePinGuard>();
 builder.Services.AddSingleton<ConfigEditorService>();
@@ -234,6 +243,8 @@ app.Use(async (ctx, next) =>
 });
 
 app.UseAuthentication();
+app.UseRateLimiter();                   // /api only: per API client, else per IP
+app.UseMiddleware<ApiGateMiddleware>(); // /api only: disabled APIs, bad keys, ungranted APIs
 app.UseAuthorization();
 
 // Razor pages
@@ -257,6 +268,7 @@ app.MapIotEndpoints(api);
 app.MapAlarmEndpoints(api);
 app.MapAudioEndpoints(api);
 app.MapFleetEndpoints(api);
+app.MapApiAdminEndpoints(api);
 
 app.Run();
 

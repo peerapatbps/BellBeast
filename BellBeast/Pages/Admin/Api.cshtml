@@ -1,0 +1,119 @@
+@page
+@model BellBeast.Pages.Admin.ApiModel
+@{
+    ViewData["Title"] = "API Access";
+    ViewData["ContentClass"] = "content content-admin";
+}
+
+@section Styles {
+<style>
+    .ap-wrap {
+        --ap-panel: rgba(15,23,42,.78); --ap-panel2: rgba(30,41,59,.55); --ap-line: rgba(148,163,184,.2);
+        --ap-fg: #e6ecf8; --ap-muted: #94a3b8; --ap-faint: #64748b; --ap-bg: #0b1220;
+        --ap-accent: #5cb8f0; --ap-accent-bg: rgba(92,184,240,.13);
+        --ap-ok: #3fcf7f; --ap-ok-bg: rgba(63,207,127,.14); --ap-warn: #f2b33d; --ap-warn-bg: rgba(242,179,61,.14);
+        --ap-bad: #f06a6a; --ap-bad-bg: rgba(240,106,106,.13);
+        --ap-mono: ui-monospace, Consolas, "IBM Plex Mono", monospace;
+        width: 90%; margin: 0 auto; padding: 0 0 40px; color: var(--ap-fg); font-size: 14px; line-height: 1.55;
+    }
+    .ap-wrap * { box-sizing: border-box; }
+    .ap-wrap [hidden] { display: none !important; }
+    .ap-wrap button, .ap-wrap input, .ap-wrap select { font: inherit; color: inherit; }
+    .ap-wrap button { cursor: pointer; }
+    .ap-mono { font-family: var(--ap-mono); font-size: 12.5px; }
+    .ap-muted { color: var(--ap-muted); } .ap-faint { color: var(--ap-faint); }
+
+    .ap-head { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 16px; margin-bottom: 16px; }
+    .ap-head h1 { margin: 0; font-size: clamp(22px, 2.2vw, 28px); font-weight: 800; }
+    .ap-head p { margin: 0; color: var(--ap-muted); font-size: 13px; }
+    .ap-head .sp { flex: 1; }
+    .ap-msg { padding: 9px 14px; border-radius: 10px; margin-bottom: 12px; font-size: 13px; background: var(--ap-bad-bg); color: #fca5a5; }
+
+    .ap-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--ap-line); margin-bottom: 16px; }
+    .ap-tab { background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 14px; color: var(--ap-muted); font-weight: 600; }
+    .ap-tab:hover { color: var(--ap-fg); }
+    .ap-tab[aria-selected="true"] { color: var(--ap-fg); border-bottom-color: var(--ap-accent); }
+    .ap-tab .cnt { font-size: 11px; background: var(--ap-bad-bg); color: var(--ap-bad); border-radius: 999px; padding: 0 7px; margin-left: 4px; }
+
+    .ap-btn { border: 1px solid var(--ap-line); background: var(--ap-panel2); border-radius: 8px; padding: 6px 14px; font-weight: 600; white-space: nowrap; }
+    .ap-btn:hover { border-color: var(--ap-accent); }
+    .ap-btn:disabled { opacity: .5; cursor: default; }
+    .ap-btn.primary { background: var(--ap-accent); border-color: var(--ap-accent); color: var(--ap-bg); }
+    .ap-btn.ghost-bad { color: var(--ap-bad); border-color: transparent; background: none; }
+    .ap-btn.ghost-bad:hover { border-color: var(--ap-bad); }
+    .ap-btn.sm { padding: 3px 10px; font-size: 13px; }
+
+    .ap-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+    .ap-search { flex: 1; min-width: 180px; max-width: 340px; background: var(--ap-bg); border: 1px solid var(--ap-line); border-radius: 8px; padding: 6px 10px; }
+    .ap-chip { border: 1px solid var(--ap-line); background: var(--ap-panel); border-radius: 999px; padding: 3px 11px; font-size: 13px; color: var(--ap-muted); }
+    .ap-chip[aria-pressed="true"] { border-color: var(--ap-accent); color: var(--ap-fg); background: var(--ap-accent-bg); }
+
+    .ap-table { width: 100%; border-collapse: collapse; background: var(--ap-panel); border: 1px solid var(--ap-line); border-radius: 12px; overflow: hidden; }
+    .ap-table th { text-align: left; font-size: 12px; color: var(--ap-muted); font-weight: 600; padding: 8px 12px; border-bottom: 1px solid var(--ap-line); }
+    .ap-table td { padding: 7px 12px; border-bottom: 1px solid rgba(148,163,184,.08); vertical-align: middle; }
+    .ap-table tr.off td { opacity: .55; }
+    .ap-table tr.off td:first-child { opacity: 1; }
+    .ap-note { width: 100%; min-width: 140px; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 3px 6px; color: var(--ap-muted); }
+    .ap-note:hover, .ap-note:focus { border-color: var(--ap-line); background: var(--ap-bg); color: var(--ap-fg); }
+
+    .ap-badge { display: inline-block; border-radius: 999px; padding: 0 9px; font-size: 12px; font-weight: 600; }
+    .ap-badge.public { background: var(--ap-ok-bg); color: var(--ap-ok); }
+    .ap-badge.user { background: var(--ap-accent-bg); color: var(--ap-accent); }
+    .ap-badge.admin { background: var(--ap-warn-bg); color: var(--ap-warn); }
+    .ap-badge.off { background: var(--ap-bad-bg); color: var(--ap-bad); }
+
+    .ap-switch { position: relative; width: 38px; height: 22px; border-radius: 999px; border: 0; background: rgba(148,163,184,.35); padding: 0; flex: none; }
+    .ap-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; }
+    .ap-switch[aria-checked="true"] { background: var(--ap-ok); }
+    .ap-switch[aria-checked="true"]::after { left: 19px; }
+    .ap-switch:disabled { opacity: .45; cursor: not-allowed; }
+
+    .ap-card { background: var(--ap-panel); border: 1px solid var(--ap-line); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+    .ap-card h3 { margin: 0 0 10px; font-size: 15px; }
+    .ap-card.warn { border-color: var(--ap-warn); background: var(--ap-warn-bg); }
+    .ap-card.ok { border-color: rgba(63,207,127,.4); }
+    .ap-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 14px; margin-bottom: 10px; }
+    .ap-field { display: grid; gap: 3px; font-size: 12px; color: var(--ap-muted); }
+    .ap-field input { background: var(--ap-bg); border: 1px solid var(--ap-line); border-radius: 8px; padding: 6px 10px; font-size: 14px; color: var(--ap-fg); }
+    .ap-grants { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 14px; margin: 6px 0 10px; }
+    .ap-grants label { display: flex; gap: 8px; align-items: center; font-family: var(--ap-mono); font-size: 12.5px; }
+    .ap-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+    .ap-row .grow { flex: 1; }
+    .ap-key { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; background: var(--ap-bg); border: 1px dashed var(--ap-ok); border-radius: 10px; padding: 10px 12px; margin-top: 10px; }
+    .ap-key code { font-family: var(--ap-mono); font-size: 14px; color: var(--ap-ok); word-break: break-all; flex: 1; }
+    .ap-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--ap-faint); margin: 2px 0 10px; }
+    .ap-empty { color: var(--ap-muted); padding: 18px; text-align: center; }
+
+    .ap-toast { position: fixed; right: 20px; bottom: 20px; background: #1e293b; border: 1px solid var(--ap-line); color: var(--ap-fg); padding: 10px 16px; border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.4); z-index: 50; }
+    .ap-toast[hidden] { display: none; }
+</style>
+}
+
+<partial name="_AdminTabs" model='"api"' />
+
+<div class="ap-wrap">
+    <div class="ap-head">
+        <div>
+            <h1>API Access</h1>
+            <p>เปิด/ปิด API ทีละตัว และออก API key ให้ระบบอื่นที่เรียก BellBeast</p>
+        </div>
+        <span class="sp"></span>
+        <button class="ap-btn sm" id="reload" type="button">รีเฟรช</button>
+    </div>
+
+    <div class="ap-msg" id="msg" hidden></div>
+
+    <div class="ap-tabs" role="tablist">
+        <button class="ap-tab" role="tab" type="button" data-tab="apis">APIs</button>
+        <button class="ap-tab" role="tab" type="button" data-tab="clients">API Clients</button>
+    </div>
+
+    <section id="v-apis"></section>
+    <section id="v-clients" hidden></section>
+</div>
+
+<div class="ap-toast" id="toast" hidden></div>
+
+@section Scripts {
+<script src="~/js/apiadmin.js" asp-append-version="true"></script>
+}

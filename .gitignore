@@ -16,3 +16,6 @@ BellBeast/App_Data/audio/
 # annunciator fleet: registry + device log + firmware + WiFi credentials (data, never commit)
 BellBeast/App_Data/fleet/
 tts_sample/
+# API access: client registry (key hashes) + per-API overrides (runtime data, never commit)
+BellBeast/App_Data/api-clients.json
+BellBeast/App_Data/api-catalog.json
