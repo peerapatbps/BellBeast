@@ -15,7 +15,18 @@
     let freshKey = null;      // { id, key } — shown once after create / rotate
     let ipInfo = { your_ip: "", activity: [], bans: [], viewers: [], rejected: [] };
     let passInfo = { passes: [], fleet_routes: [], fleet_devices: [], page_routes: [], fleet_window_min: 10 };
-    let ipDirty = false;      // admin is editing a form on the IP tab → the 15 s refresh must not wipe it
+    // the IP tab refreshes itself every 15 s, but not while the admin is editing a form there:
+    // typing in a text field, or any edit in the last minute (a forgotten tick must not stop it for good)
+    const IP_REFRESH_MS = 15000, EDIT_HOLD_MS = 60000;
+    let ipEditAt = 0;
+    let ipRefreshedAt = null;
+    const markEdit = () => { ipEditAt = Date.now(); updateLive(); };
+    function ipEditing() {
+        if (Date.now() - ipEditAt < EDIT_HOLD_MS) return true;
+        const a = document.activeElement;
+        return !!(a && a.closest("#ban-form, #pass-form, #fleet-form") && a.matches('input:not([type="checkbox"]), select, textarea'));
+    }
+    const VIEWS = ["apis", "datasets", "clients", "ip"];
     let datasets = [];
 
     const ERR = {
@@ -68,7 +79,8 @@
             const [vw, ps] = await Promise.all([call("/api/admin/ip/viewers"), call("/api/admin/ip/passes")]);
             ipInfo = { your_ip: act.your_ip, activity: act.activity || [], bans: bans.bans || [], viewers: vw.viewers || [], rejected: vw.rejected || [], idle_sec: vw.idle_sec };
             setPasses(ps);
-            ipDirty = false;
+            ipEditAt = 0;
+            ipRefreshedAt = new Date();
             apis = a.apis || [];
             clients = c.clients || [];
             clearError();
@@ -77,10 +89,12 @@
     }
 
     // ── tabs ──
+    // the open tab lives in the URL (#ip …) so F5 / a shared link opens the same tab
     function setView(v) {
-        view = v;
-        $$(".ap-tab").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === v)));
-        ["apis", "datasets", "clients", "ip"].forEach((k) => { $("#v-" + k).hidden = v !== k; });
+        view = VIEWS.includes(v) ? v : "apis";
+        $$(".ap-tab").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === view)));
+        VIEWS.forEach((k) => { $("#v-" + k).hidden = view !== k; });
+        if (location.hash.slice(1) !== view) history.replaceState(null, "", "#" + view);
         render();
     }
 
@@ -490,7 +504,7 @@
                         <td>${banButton(a.ip)}</td></tr>`).join("")}
                 </tbody></table>` : `<div class="ap-card ap-empty">ยังไม่มีใครเขียนเข้า IoT room ตั้งแต่ BellBeast เริ่มทำงาน</div>`;
 
-        $("#v-ip").innerHTML = banForm() +
+        $("#v-ip").innerHTML = `<div class="ap-meta" id="ip-live"></div>` + banForm() +
             `<div class="ap-section-title">IP ที่ถูกแบน</div>${bans}` +
             passSection() +
             `<div class="ap-section-title">ถูกปฏิเสธ — เรียก API ของหน้าเว็บโดยไม่มี hash หรือใช้ hash เก่า</div>
@@ -581,14 +595,15 @@
 
     function wirePasses() {
         const pf = $("#pass-form"), ff = $("#fleet-form");
-        [pf, ff].forEach((f) => ["input", "change"].forEach((t) => f.addEventListener(t, () => { ipDirty = true; })));
+        [pf, ff, $("#ban-form")].forEach((f) => ["input", "change"].forEach((t) => f.addEventListener(t, markEdit)));
+        updateLive();
         pf.addEventListener("submit", savePass);
         ff.addEventListener("submit", saveFleetRoutes);
         const fill = (ip, routes, note) => {
             pf.querySelector('[name="ip"]').value = ip;
             pf.querySelector('[name="note"]').value = note || "";
             $$('[name="pass-route"]', pf).forEach((c) => { c.checked = routes.includes(c.value); });
-            ipDirty = true;
+            markEdit();
             pf.scrollIntoView({ behavior: "smooth", block: "center" });
             pf.querySelector('[name="note"]').focus();
         };
@@ -613,7 +628,7 @@
         const ip = f.querySelector('[name="ip"]').value.trim();
         try {
             setPasses(await send("/api/admin/ip/passes", "POST", { ip, routes: checked(f, "pass-route"), note: f.querySelector('[name="note"]').value }));
-            ipDirty = false;
+            ipEditAt = 0;
             render();
             toast("ให้ตั๋ว " + ip + " แล้ว");
         } catch (e) { showError(e); }
@@ -632,7 +647,7 @@
         ev.preventDefault();
         try {
             setPasses(await send("/api/admin/ip/passes/fleet", "POST", { routes: checked(ev.currentTarget, "fleet-route") }));
-            ipDirty = false;
+            ipEditAt = 0;
             render();
             toast("บันทึก API ของ Fleet แล้ว");
         } catch (e) { showError(e); }
@@ -672,23 +687,40 @@
         } catch (e) { showError(e); }
     }
 
-    // keep the IP tab fresh while it is open (not while the admin is typing in a form there)
-    setInterval(async () => {
-        if (view !== "ip" || document.hidden || ipDirty || (document.activeElement && document.activeElement.closest("#ban-form"))) return;
+    const clock = (d) => d ? d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "–";
+
+    function updateLive() {
+        const el = $("#ip-live");
+        if (!el) return;
+        el.textContent = ipEditing()
+            ? `⏸ หยุดอัปเดตอัตโนมัติชั่วคราวระหว่างแก้ฟอร์ม (กลับมาเองหลังไม่ได้แก้ 1 นาที) · ข้อมูลเมื่อ ${clock(ipRefreshedAt)}`
+            : `⟳ อัปเดตอัตโนมัติทุก ${IP_REFRESH_MS / 1000} วิ · ข้อมูลเมื่อ ${clock(ipRefreshedAt)}`;
+    }
+
+    // keep the IP tab fresh while it is open (paused while a form there is being edited)
+    async function refreshIp() {
+        if (view !== "ip" || document.hidden) return;
+        if (ipEditing()) { updateLive(); return; }
         try {
-            const [act, vw, ps] = await Promise.all([call("/api/admin/ip/activity"), call("/api/admin/ip/viewers"), call("/api/admin/ip/passes")]);
-            if (ipDirty) return;
+            const [act, vw, ps, bans] = await Promise.all([call("/api/admin/ip/activity"), call("/api/admin/ip/viewers"),
+                call("/api/admin/ip/passes"), call("/api/admin/ip/bans")]);
+            if (ipEditing() || view !== "ip") { updateLive(); return; }
             ipInfo.activity = act.activity || [];
             ipInfo.viewers = vw.viewers || [];
             ipInfo.rejected = vw.rejected || [];
             ipInfo.idle_sec = vw.idle_sec;
+            ipInfo.bans = bans.bans || [];
             setPasses(ps);
-            renderIp();
+            ipRefreshedAt = new Date();
+            render();   // also the tab badge (ban count)
         } catch { /* next tick */ }
-    }, 15000);
+    }
+    setInterval(refreshIp, IP_REFRESH_MS);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshIp(); });
 
     $$(".ap-tab").forEach((b) => b.addEventListener("click", () => setView(b.dataset.tab)));
+    window.addEventListener("hashchange", () => setView(location.hash.slice(1)));
     $("#reload").addEventListener("click", load);
-    setView("apis");
+    setView(location.hash.slice(1));
     load();
 })();
