@@ -199,6 +199,9 @@ builder.Services.AddSingleton<BackendConfigProvider>();
 builder.Services.AddSingleton<ApiCatalogService>();
 builder.Services.AddSingleton<ApiClientService>();
 builder.Services.AddSingleton<IpAccessService>();
+builder.Services.AddSingleton<ViewTokenService>();
+builder.Services.AddSingleton<RejectMemes>();
+builder.Services.AddHostedService<ViewTrafficPublisher>();
 builder.Services.AddSingleton<DatasetService>();
 builder.Services.AddSingleton<UroborosMetricsClient>();
 builder.Services.AddApiRateLimiting(builder.Configuration);
@@ -255,6 +258,7 @@ app.Use(async (ctx, next) =>
 app.UseAuthentication();
 app.UseRateLimiter();                   // /api only: per API client, else per IP
 app.UseMiddleware<ApiGateMiddleware>(); // /api only: disabled APIs, bad keys, ungranted APIs
+app.UseMiddleware<ViewTokenMiddleware>(); // pages get a view token; page APIs require a live one
 app.UseAuthorization();
 
 // Razor pages
@@ -266,7 +270,8 @@ app.MapRazorPages();
 var api = new ApiGroups(
     Public: app.MapGroup("").AllowAnonymous(),
     User: app.MapGroup(""),                                // deny-by-default fallback policy
-    Admin: app.MapGroup("").RequireAuthorization("AdminOnly"));
+    Admin: app.MapGroup("").RequireAuthorization("AdminOnly"),
+    Page: app.MapGroup("").AllowAnonymous().RequireViewToken());  // APIs behind our public pages
 
 app.MapSessionEndpoints(api);
 app.MapProxyEndpoints(api);
@@ -280,6 +285,7 @@ app.MapAudioEndpoints(api);
 app.MapFleetEndpoints(api);
 app.MapApiAdminEndpoints(api);
 app.MapV1Endpoints(api);
+app.MapViewEndpoints(api);
 app.MapTesterEndpoints(api);
 
 app.Run();

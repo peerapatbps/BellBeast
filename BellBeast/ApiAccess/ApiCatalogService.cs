@@ -11,7 +11,7 @@ public sealed record ApiEntry(
     string Methods,
     string Route,
     string Area,      // second path segment: /api/{area}/...
-    string Access,    // public | user | admin
+    string Access,    // public | page (anonymous + view token) | user | admin
     bool Enabled,
     bool Locked,      // cannot be disabled (would lock the admin out of this page)
     string? Note,
@@ -24,7 +24,7 @@ public sealed record ApiEntry(
 /// </summary>
 public sealed class ApiCatalogService
 {
-    public const string AccessPublic = "public", AccessUser = "user", AccessAdmin = "admin";
+    public const string AccessPublic = "public", AccessPage = "page", AccessUser = "user", AccessAdmin = "admin";
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -62,7 +62,8 @@ public sealed class ApiCatalogService
 
     public static string AccessOf(Endpoint endpoint)
     {
-        if (endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null) return AccessPublic;
+        if (endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null)
+            return endpoint.Metadata.GetMetadata<RequiresViewToken>() is not null ? AccessPage : AccessPublic;
         return endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Any(a => a.Policy == "AdminOnly")
             ? AccessAdmin : AccessUser;
     }

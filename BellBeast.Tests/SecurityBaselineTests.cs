@@ -47,11 +47,11 @@ public sealed class SecurityBaselineTests : IClassFixture<BellBeastAdminFactory>
     }
 
     [Theory]
-    // used by anonymous pages (MHxView, reports, WebPM, IotRoom) — must stay reachable
-    [InlineData("GET", "/api/dps/summary")]
-    [InlineData("GET", "/api/engine/sequence/status")]
-    [InlineData("GET", "/api/config/files")]
-    [InlineData("GET", "/api/iot/tunnel/status")]
+    // used by devices / login flow without a page — must stay reachable with no view token
+    [InlineData("GET", "/api/alarm/active")]
+    [InlineData("GET", "/api/iot/room/snapshot")]
+    [InlineData("GET", "/api/ota/manifest")]
+    [InlineData("GET", "/api/audio/clips")]
     [InlineData("GET", "/api/auth/me")]
     [InlineData("POST", "/api/admin/auth/logout")]
     public async Task Public_Endpoints_Stay_Open(string method, string path)

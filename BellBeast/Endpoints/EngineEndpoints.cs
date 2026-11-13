@@ -26,6 +26,7 @@ public static class EngineEndpoints
     public static void MapEngineEndpoints(this WebApplication app, ApiGroups api)
     {
         var (pub, user, admin) = (api.Public, api.User, api.Admin);
+        var page = api.Page;   // public pages' APIs: anonymous + live view token
 
         admin.MapPost("/api/admin/pause", async (EngineAdminService svc) =>
         {
@@ -125,7 +126,7 @@ public static class EngineEndpoints
             }
         }
 
-        pub.MapPost("/api/engine/sequence/start", async (HttpContext ctx, EngineAdminService svc, EnginePinGuard guard) =>
+        page.MapPost("/api/engine/sequence/start", async (HttpContext ctx, EngineAdminService svc, EnginePinGuard guard) =>
         {
             var pin = await ReadEnginePinAsync(ctx);
 
@@ -135,10 +136,10 @@ public static class EngineEndpoints
             return await RelayEngineAsync(() => svc.StartSequenceAsync("mhxview"));
         });
 
-        pub.MapGet("/api/engine/sequence/status", (EngineAdminService svc) =>
+        page.MapGet("/api/engine/sequence/status", (EngineAdminService svc) =>
             RelayEngineAsync(() => svc.GetSequenceStatusAsync()));
 
-        pub.MapPost("/api/engine/sequence/cancel", async (HttpContext ctx, EngineAdminService svc, EnginePinGuard guard) =>
+        page.MapPost("/api/engine/sequence/cancel", async (HttpContext ctx, EngineAdminService svc, EnginePinGuard guard) =>
         {
             var pin = await ReadEnginePinAsync(ctx);
 
@@ -178,30 +179,30 @@ public static class EngineEndpoints
         }
 
 
-        pub.MapGet("/api/config/files", (ConfigEditorService svc) => Results.Json(svc.List()));
+        page.MapGet("/api/config/files", (ConfigEditorService svc) => Results.Json(svc.List()));
 
-        pub.MapPost("/api/config/read", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
+        page.MapPost("/api/config/read", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
             ConfigCallAsync(ctx, guard, b =>
             {
                 var (text, sha) = svc.Read(ConfigArg(b, "id"));
                 return new { ok = true, text, sha };
             }));
 
-        pub.MapPost("/api/config/save", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
+        page.MapPost("/api/config/save", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
             ConfigCallAsync(ctx, guard, b =>
                 new { ok = true, sha = svc.Save(ConfigArg(b, "id"), ConfigArg(b, "text"), ConfigArg(b, "baseSha")) }));
 
-        pub.MapPost("/api/config/links", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
+        page.MapPost("/api/config/links", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
             ConfigCallAsync(ctx, guard, _ => svc.Links()));
 
-        pub.MapPost("/api/config/links/apply", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
+        page.MapPost("/api/config/links/apply", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
             ConfigCallAsync(ctx, guard, b =>
                 new { ok = true, sha = svc.ApplyLink(ConfigArg(b, "id"), ConfigArg(b, "key"), ConfigArg(b, "value"), ConfigArg(b, "baseSha")) }));
 
-        pub.MapPost("/api/config/backups", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
+        page.MapPost("/api/config/backups", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
             ConfigCallAsync(ctx, guard, b => svc.Backups(ConfigArg(b, "id"))));
 
-        pub.MapPost("/api/config/restore", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
+        page.MapPost("/api/config/restore", (HttpContext ctx, EnginePinGuard guard, ConfigEditorService svc) =>
             ConfigCallAsync(ctx, guard, b =>
                 new { ok = true, sha = svc.Restore(ConfigArg(b, "id"), ConfigArg(b, "name"), ConfigArg(b, "baseSha")) }));
 

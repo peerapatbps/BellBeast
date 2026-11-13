@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
+using BellBeast.ApiAccess;
 
 namespace BellBeast.Wayfarer;
 
@@ -23,7 +24,8 @@ public static class WayfarerApiExtensions
         // Public: used by the anonymous /WebPM page.
         var api = app.MapGroup("/api/wayfarer")
             .WithTags("Wayfarer")
-            .AllowAnonymous();
+            .AllowAnonymous()
+            .RequireViewToken();   // only via the WebPM page
 
         api.MapGet("/health", (WayfarerDb db) =>
         {

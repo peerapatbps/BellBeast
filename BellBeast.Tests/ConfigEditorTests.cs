@@ -250,7 +250,7 @@ public sealed class ConfigEditorTests : IDisposable
             b.UseSetting("ConfigEditor:FullscaleRoot", _root);
             b.UseSetting("EngineControl:PinPbkdf2", EnginePinGuard.Hash("1234", 1000));
         });
-        var client = factory.CreateClient();
+        var client = await factory.CreateClient().WithViewTokenAsync();   // MHxView ⚙️ APIs need a view token
 
         var files = await client.GetFromJsonAsync<JsonElement>("/api/config/files");
         Assert.Equal(5, files.GetProperty("files").GetArrayLength());

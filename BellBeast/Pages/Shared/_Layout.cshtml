@@ -4,6 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - BellBeast</title>
+    <meta name="bb-view-token" content="@(Context.Items["bb.viewToken"] as string)" />
+    <script src="~/js/bb-viewtoken.js" asp-append-version="true"></script>
 
     <!-- ✅ ใช้ site.css ของเรา -->
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />

@@ -26,11 +26,12 @@ public static class ReportEndpoints
     public static void MapReportEndpoints(this WebApplication app, ApiGroups api)
     {
         var (pub, user, admin) = (api.Public, api.User, api.Admin);
+        var page = api.Page;   // public pages' APIs: anonymous + live view token
 
         // ===============================
         // PROXY: /api/dailyreport
         // ===============================
-        pub.MapPost("/api/dailyreport", async (HttpContext ctx, IHttpClientFactory factory) =>
+        page.MapPost("/api/dailyreport", async (HttpContext ctx, IHttpClientFactory factory) =>
         {
             if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
             {
@@ -77,7 +78,7 @@ public static class ReportEndpoints
         // ===============================
         // PROXY: /api/chem_report
         // ===============================
-        pub.MapPost("/api/chem_report", async (HttpContext ctx, IHttpClientFactory factory) =>
+        page.MapPost("/api/chem_report", async (HttpContext ctx, IHttpClientFactory factory) =>
         {
             if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
             {
@@ -121,7 +122,7 @@ public static class ReportEndpoints
         // ===============================
         // PROXY: /api/chem_report/export
         // ===============================
-        pub.MapPost("/api/chem_report/export", async (HttpContext ctx, IHttpClientFactory factory) =>
+        page.MapPost("/api/chem_report/export", async (HttpContext ctx, IHttpClientFactory factory) =>
         {
             if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
             {

@@ -149,6 +149,17 @@ public sealed class IotRoomService
         return (true, null);
     }
 
+    /// <summary>BellBeast's own status device (e.g. page traffic): upsert + replace state, logged only on first appearance.</summary>
+    public void PublishSystemState(string deviceName, string deviceType, Dictionary<string, JsonElement> data)
+    {
+        var (key, isNew) = JoinOrRejoin(deviceName, deviceType);
+        var device = _devices.Values.FirstOrDefault(d => d.Key == key);
+        if (device is null) return;
+        device.State = data;
+        device.StateUpdatedAt = DateTimeOffset.UtcNow;
+        device.LastSeen = DateTimeOffset.UtcNow;
+    }
+
     // Returns all devices with their state; optionally filtered by key or name
     public IReadOnlyList<object> GetDeviceData(string? key = null, string? deviceName = null)
     {

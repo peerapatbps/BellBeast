@@ -24,7 +24,13 @@ public sealed class ApiErrorTests : IClassFixture<BellBeastProductionFactory>
     private readonly BellBeastProductionFactory _f;
     public ApiErrorTests(BellBeastProductionFactory f) => _f = f;
 
-    private HttpClient Client() => _f.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+    // the dashboard APIs need a view token, as from a real MHxView page
+    private HttpClient Client()
+    {
+        var c = _f.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        c.DefaultRequestHeaders.Add(ViewTokenTestHelper.Header, c.PageTokenAsync().GetAwaiter().GetResult());
+        return c;
+    }
 
     [Theory]
     [InlineData("GET", "/api/tps/summary")]

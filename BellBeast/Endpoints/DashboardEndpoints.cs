@@ -26,8 +26,9 @@ public static class DashboardEndpoints
     public static void MapDashboardEndpoints(this WebApplication app, ApiGroups api)
     {
         var (pub, user, admin) = (api.Public, api.User, api.Admin);
+        var page = api.Page;   // public pages' APIs: anonymous + live view token
 
-        pub.MapGet("/api/ptc/series", async (HttpContext ctx, IHttpClientFactory factory) =>
+        page.MapGet("/api/ptc/series", async (HttpContext ctx, IHttpClientFactory factory) =>
         {
             if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
             {
@@ -66,7 +67,7 @@ public static class DashboardEndpoints
             await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
         });
 
-        pub.MapPost("/api/online_lab", async (HttpContext ctx, IHttpClientFactory factory) =>
+        page.MapPost("/api/online_lab", async (HttpContext ctx, IHttpClientFactory factory) =>
         {
             if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
             {
@@ -106,7 +107,7 @@ public static class DashboardEndpoints
             await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
         });
 
-        pub.MapGet("/api/smartmap", async (HttpContext hc) =>
+        page.MapGet("/api/smartmap", async (HttpContext hc) =>
         {
             // รับ keys เป็น optional (ถ้าส่งมาก็ filter ให้)
             // รูปแบบที่รับ: P019,P021 (base key)
@@ -178,7 +179,7 @@ public static class DashboardEndpoints
             Timeout = TimeSpan.FromSeconds(10)
         };
 
-        pub.MapGet("/api/smartmap/latest", async (HttpContext hc) =>
+        page.MapGet("/api/smartmap/latest", async (HttpContext hc) =>
         {
             var keysRaw = (hc.Request.Query["keys"].ToString() ?? "").Trim().ToUpperInvariant();
             if (string.IsNullOrWhiteSpace(keysRaw)) return Results.BadRequest("keys required");
@@ -309,7 +310,7 @@ public static class DashboardEndpoints
             return null;
         }
 
-        pub.MapGet("/api/dps/summary", async (HttpContext ctx, SummaryProxyService svc) =>
+        page.MapGet("/api/dps/summary", async (HttpContext ctx, SummaryProxyService svc) =>
         {
             var backendCfg = Backend(app);
             var baseUrl = backendCfg.BaseUrl;
@@ -317,7 +318,7 @@ public static class DashboardEndpoints
             await ProxySummaryAsync(ctx, await svc.GetDpsSummaryAsync($"{baseUrl}{dpsSummaryPath}", ctx.RequestAborted));
         });
 
-        pub.MapGet("/api/tps/summary", async (HttpContext ctx, SummaryProxyService svc) =>
+        page.MapGet("/api/tps/summary", async (HttpContext ctx, SummaryProxyService svc) =>
         {
             var backendCfg = Backend(app);
             var baseUrl = backendCfg.BaseUrl;
@@ -325,7 +326,7 @@ public static class DashboardEndpoints
             await ProxySummaryAsync(ctx, await svc.GetTpsSummaryAsync($"{baseUrl}{tpsSummaryPath}", ctx.RequestAborted));
         });
 
-        pub.MapGet("/api/rws/summary", async (HttpContext ctx, SummaryProxyService svc) =>
+        page.MapGet("/api/rws/summary", async (HttpContext ctx, SummaryProxyService svc) =>
         {
             var backendCfg = Backend(app);
             var baseUrl = backendCfg.BaseUrl;
@@ -333,7 +334,7 @@ public static class DashboardEndpoints
             await ProxySummaryAsync(ctx, await svc.GetRwsSummaryAsync($"{baseUrl}{rwsSummaryPath}", ctx.RequestAborted));
         });
 
-        pub.MapGet("/api/chem/summary", async (HttpContext ctx, SummaryProxyService svc) =>
+        page.MapGet("/api/chem/summary", async (HttpContext ctx, SummaryProxyService svc) =>
         {
             if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
             {
@@ -347,7 +348,7 @@ public static class DashboardEndpoints
             await ProxySummaryAsync(ctx, await svc.GetChemSummaryAsync($"{baseUrl}{chemSummaryPath}", ctx.RequestAborted));
         });
 
-        pub.MapGet("/api/event/summary", async (HttpContext ctx, SummaryProxyService svc) =>
+        page.MapGet("/api/event/summary", async (HttpContext ctx, SummaryProxyService svc) =>
         {
             if (ctx.Request.Cookies.TryGetValue("bb_bypass_role", out var _bypass) && !string.IsNullOrEmpty(_bypass))
             {
@@ -361,7 +362,7 @@ public static class DashboardEndpoints
             await ProxySummaryAsync(ctx, await svc.GetEventSummaryAsync($"{baseUrl}{eventSummaryPath}", ctx.RequestAborted));
         });
 
-        pub.MapGet("/api/cldetector/summary", async (HttpContext ctx, SummaryProxyService svc) =>
+        page.MapGet("/api/cldetector/summary", async (HttpContext ctx, SummaryProxyService svc) =>
         {
             var backendCfg = Backend(app);
             var baseUrl = backendCfg.BaseUrl;
@@ -369,7 +370,7 @@ public static class DashboardEndpoints
             await ProxySummaryAsync(ctx, await svc.GetClDetectorSummaryAsync($"{baseUrl}{cldetectorPath}", ctx.RequestAborted));
         });
 
-        pub.MapPost("/api/lab/summary", async (HttpContext ctx, SummaryProxyService svc) =>
+        page.MapPost("/api/lab/summary", async (HttpContext ctx, SummaryProxyService svc) =>
         {
             var backendCfg = Backend(app);
             var baseUrl = backendCfg.BaseUrl;
@@ -382,7 +383,7 @@ public static class DashboardEndpoints
 
         // Clarifier card (MHxViewer) — CW A/B, pH/Alk, jar curve, daily dosage per phase.
         // 502 while Uroboros does not serve it yet → the card falls back to its MOCK payload.
-        pub.MapGet("/api/clarifier/summary", async (HttpContext ctx, SummaryProxyService svc) =>
+        page.MapGet("/api/clarifier/summary", async (HttpContext ctx, SummaryProxyService svc) =>
             await ProxyUroborosGetAsync(app, ctx, svc, SummaryProxyService.DefaultClarifierPath));
     }
 }

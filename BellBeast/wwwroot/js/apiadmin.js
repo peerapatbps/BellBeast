@@ -13,7 +13,7 @@
     let query = "";
     let access = "all";       // all | public | user | admin | off
     let freshKey = null;      // { id, key } — shown once after create / rotate
-    let ipInfo = { your_ip: "", activity: [], bans: [] };
+    let ipInfo = { your_ip: "", activity: [], bans: [], viewers: [], rejected: [] };
     let datasets = [];
 
     const ERR = {
@@ -61,7 +61,8 @@
             const [a, c, act, bans] = await Promise.all([call("/api/admin/api/catalog"), call("/api/admin/api/clients"),
                 call("/api/admin/ip/activity"), call("/api/admin/ip/bans")]);
             datasets = (await call("/api/admin/datasets")).datasets || [];
-            ipInfo = { your_ip: act.your_ip, activity: act.activity || [], bans: bans.bans || [] };
+            const vw = await call("/api/admin/ip/viewers");
+            ipInfo = { your_ip: act.your_ip, activity: act.activity || [], bans: bans.bans || [], viewers: vw.viewers || [], rejected: vw.rejected || [] };
             apis = a.apis || [];
             clients = c.clients || [];
             clearError();
@@ -89,7 +90,7 @@
     }
 
     // ── APIs tab ──
-    const ACCESS_LABEL = { public: "สาธารณะ", user: "ต้อง login", admin: "admin" };
+    const ACCESS_LABEL = { public: "สาธารณะ", page: "หน้าเว็บ (hash)", user: "ต้อง login", admin: "admin" };
 
     function renderApis() {
         const q = query.toLowerCase();
@@ -101,7 +102,7 @@
         $("#v-apis").innerHTML = `
             <div class="ap-toolbar">
                 <input class="ap-search" id="q" type="search" placeholder="ค้นหา route / หมายเหตุ" value="${esc(query)}">
-                ${chip("all", "ทั้งหมด " + apis.length)}${chip("public", "สาธารณะ")}${chip("user", "ต้อง login")}${chip("admin", "admin")}${chip("off", "ที่ปิดอยู่")}
+                ${chip("all", "ทั้งหมด " + apis.length)}${chip("public", "สาธารณะ")}${chip("page", "หน้าเว็บ (hash)")}${chip("user", "ต้อง login")}${chip("admin", "admin")}${chip("off", "ที่ปิดอยู่")}
             </div>
             <table class="ap-table">
                 <thead><tr><th style="width:56px">เปิด</th><th style="width:90px">Method</th><th>Route</th><th style="width:110px">สิทธิ์</th><th style="width:30%">หมายเหตุ</th></tr></thead>
@@ -436,7 +437,30 @@
         </form>`;
     }
 
+    const banButton = (ip) => ipInfo.bans.some((b) => b.ip === ip) ? '<span class="ap-badge off">แบนอยู่</span>'
+        : ip === ipInfo.your_ip ? "" : `<button class="ap-btn sm ghost-bad" type="button" data-ban="${esc(ip)}">แบน…</button>`;
+
     function renderIp() {
+        const views = ipInfo.viewers.length ? `
+            <table class="ap-table">
+                <thead><tr><th>IP</th><th>หน้าที่เปิดอยู่</th><th>จำนวนแท็บ</th><th>เริ่มเปิด</th><th>ล่าสุด</th><th>request</th><th></th></tr></thead>
+                <tbody>${ipInfo.viewers.map((v) => `
+                    <tr><td class="ap-mono">${esc(v.ip)}${v.ip === ipInfo.your_ip ? ' <span class="ap-badge user">คุณ</span>' : ""}</td>
+                        <td><div class="ap-devs">${(v.pages || []).map((p) => `<span>${esc(p)}</span>`).join("")}</div></td>
+                        <td>${esc(v.sessions)}</td><td>${esc(ts(v.first_seen))}</td><td>${esc(ts(v.last_seen))}</td><td>${esc(v.requests)}</td>
+                        <td>${banButton(v.ip)}</td></tr>`).join("")}
+                </tbody></table>` : `<div class="ap-card ap-empty">ไม่มีใครเปิดหน้าเว็บอยู่ตอนนี้</div>`;
+
+        const REASON = { view_token_missing: "ไม่มี hash (ยิงตรง)", view_token_expired: "hash หมดอายุ/เก่า", view_token_wrong_ip: "hash ของ IP อื่น", view_refresh_expired: "ต่ออายุไม่ได้" };
+        const rejected = ipInfo.rejected.length ? `
+            <table class="ap-table">
+                <thead><tr><th>IP</th><th>ครั้ง</th><th>ล่าสุด</th><th>เหตุผลล่าสุด</th><th>path ล่าสุด</th><th></th></tr></thead>
+                <tbody>${ipInfo.rejected.map((r) => `
+                    <tr><td class="ap-mono">${esc(r.ip)}${r.ip === ipInfo.your_ip ? ' <span class="ap-badge user">คุณ</span>' : ""}</td>
+                        <td>${esc(r.count)}</td><td>${esc(ts(r.last_at))}</td><td>${esc(REASON[r.last_reason] || r.last_reason)}</td>
+                        <td class="ap-mono ap-muted">${esc(r.last_path)}</td><td>${banButton(r.ip)}</td></tr>`).join("")}
+                </tbody></table>` : `<div class="ap-card ap-empty">ยังไม่มีใครถูกปฏิเสธ</div>`;
+
         const bans = ipInfo.bans.length ? `
             <table class="ap-table">
                 <thead><tr><th>IP</th><th>เหตุผล</th><th>แบนเมื่อ</th><th>หมดเวลา</th><th>โดย</th><th></th></tr></thead>
@@ -458,6 +482,10 @@
 
         $("#v-ip").innerHTML = banForm() +
             `<div class="ap-section-title">IP ที่ถูกแบน</div>${bans}` +
+            `<div class="ap-section-title">ถูกปฏิเสธ — เรียก API ของหน้าเว็บโดยไม่มี hash หรือใช้ hash เก่า</div>
+             <div class="ap-meta">นับตั้งแต่ BellBeast เริ่มทำงานรอบนี้ · แถวที่ตัวเลขเพิ่มเรื่อยๆ = มีคนยิง endpoint ตรง</div>${rejected}` +
+            `<div class="ap-section-title">กำลังเปิดหน้าเว็บอยู่</div>
+             <div class="ap-meta">hash ที่ยังใช้งานอยู่ (ไม่ได้เรียกนานเกิน ${esc(ipInfo.idle_sec || 10)} วิ = หมดอายุ)</div>${views}` +
             `<div class="ap-section-title">ใครเขียนเข้า IoT room (join / data / command)</div>
              <div class="ap-meta">นับตั้งแต่ BellBeast เริ่มทำงานรอบนี้ · ถ้าชื่อ uroboros-alarm มาจาก IP ที่ไม่ใช่เครื่อง Uroboros แปลว่ามีคนส่ง alarm ปลอม</div>${act}`;
 
@@ -500,8 +528,11 @@
     setInterval(async () => {
         if (view !== "ip" || document.hidden || (document.activeElement && document.activeElement.closest("#ban-form"))) return;
         try {
-            const act = await call("/api/admin/ip/activity");
+            const [act, vw] = await Promise.all([call("/api/admin/ip/activity"), call("/api/admin/ip/viewers")]);
             ipInfo.activity = act.activity || [];
+            ipInfo.viewers = vw.viewers || [];
+            ipInfo.rejected = vw.rejected || [];
+            ipInfo.idle_sec = vw.idle_sec;
             renderIp();
         } catch { /* next tick */ }
     }, 15000);

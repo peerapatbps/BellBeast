@@ -26,6 +26,7 @@ public static class ProxyEndpoints
     public static void MapProxyEndpoints(this WebApplication app, ApiGroups api)
     {
         var (pub, user, admin) = (api.Public, api.User, api.Admin);
+        var page = api.Page;   // public pages' APIs: anonymous + live view token
 
         static IReadOnlyList<string> ReadStatusGroups(IQueryCollection query)
         {
@@ -38,7 +39,7 @@ public static class ProxyEndpoints
             return values.Count == 0 ? new[] { "all" } : values;
         }
 
-        pub.MapGet("/api/wayfarer/map-summary", async (HttpContext ctx, WayfarerMapQueryService svc, CancellationToken ct) =>
+        page.MapGet("/api/wayfarer/map-summary", async (HttpContext ctx, WayfarerMapQueryService svc, CancellationToken ct) =>
         {
             var req = ctx.Request.Query;
             var from = req["from"].ToString().Trim();
@@ -55,7 +56,7 @@ public static class ProxyEndpoints
             });
         });
 
-        pub.MapGet("/api/wayfarer/map-branch-workorders", async (HttpContext ctx, WayfarerMapQueryService svc, CancellationToken ct) =>
+        page.MapGet("/api/wayfarer/map-branch-workorders", async (HttpContext ctx, WayfarerMapQueryService svc, CancellationToken ct) =>
         {
             var req = ctx.Request.Query;
             var puCode = req["puCode"].ToString().Trim();
@@ -72,7 +73,7 @@ public static class ProxyEndpoints
 
         app.MapWayfarerApi();
 
-        pub.MapMethods("/api/wayfarer/{**path}", new[] { "GET", "POST" }, async (HttpContext ctx, IHttpClientFactory factory, string? path) =>
+        page.MapMethods("/api/wayfarer/{**path}", new[] { "GET", "POST" }, async (HttpContext ctx, IHttpClientFactory factory, string? path) =>
         {
             var backendCfg = Backend(app);
             var baseUrl = backendCfg.BaseUrl;

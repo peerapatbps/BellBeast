@@ -27,12 +27,13 @@ public static class IotEndpoints
     public static void MapIotEndpoints(this WebApplication app, ApiGroups api)
     {
         var (pub, user, admin) = (api.Public, api.User, api.Admin);
+        var page = api.Page;   // public pages' APIs: anonymous + live view token
 
         // ===============================
         // API : Cloudflare Tunnel control
         // ===============================
 
-        pub.MapGet("/api/iot/tunnel/status", (CloudflareTunnelService cf) =>
+        page.MapGet("/api/iot/tunnel/status", (CloudflareTunnelService cf) =>
         {
             var uptimeSec = cf.StartedAt.HasValue
                 ? (int)(DateTime.UtcNow - cf.StartedAt.Value).TotalSeconds

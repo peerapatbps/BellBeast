@@ -13,13 +13,14 @@ public static class AuthSchemes
 }
 
 /// <summary>
-/// The three access levels every endpoint is mapped on. All groups have an empty prefix,
+/// The access levels every endpoint is mapped on. All groups have an empty prefix,
 /// so URLs are unchanged; only the authorization metadata differs.
 /// </summary>
 /// <param name="Public">anonymous</param>
 /// <param name="User">signed in (user or admin cookie) via the deny-by-default fallback policy</param>
 /// <param name="Admin">AdminOnly policy</param>
-public sealed record ApiGroups(RouteGroupBuilder Public, RouteGroupBuilder User, RouteGroupBuilder Admin);
+/// <param name="Page">anonymous, but needs a live view token from one of our pages (see ViewTokenService)</param>
+public sealed record ApiGroups(RouteGroupBuilder Public, RouteGroupBuilder User, RouteGroupBuilder Admin, RouteGroupBuilder Page);
 
 /// <summary>Helpers shared by more than one endpoint module.</summary>
 public static class EndpointHelpers

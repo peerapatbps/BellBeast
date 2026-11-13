@@ -52,7 +52,8 @@ public sealed class ApiAccessTests : IClassFixture<BellBeastBaseFactory>, IClass
         var doc = J(await _admin.CreateClient().GetStringAsync("/api/admin/api/catalog"));
         var apis = doc.GetProperty("apis").EnumerateArray().ToDictionary(a => a.GetProperty("id").GetString()!, a => a);
 
-        Assert.Equal("public", apis["GET /api/dps/summary"].GetProperty("access").GetString());
+        Assert.Equal("page", apis["GET /api/dps/summary"].GetProperty("access").GetString());
+        Assert.Equal("public", apis["GET /api/alarm/active"].GetProperty("access").GetString());
         Assert.Equal("user", apis[GrantableApi].GetProperty("access").GetString());
         Assert.Equal("admin", apis["POST /api/admin/pause"].GetProperty("access").GetString());
         Assert.True(apis["GET /api/admin/api/catalog"].GetProperty("locked").GetBoolean());

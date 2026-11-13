@@ -116,6 +116,16 @@ public static class ApiAdminEndpoints
         admin.MapGet("/api/admin/ip/activity", (HttpContext ctx, IpAccessService ips) =>
             Results.Json(new { ok = true, your_ip = IpAccessService.ClientIp(ctx), activity = ips.ListActivity() }, json));
 
+        // live page viewers (view tokens) + callers rejected for a missing / stale token
+        admin.MapGet("/api/admin/ip/viewers", (ViewTokenService views) =>
+            Results.Json(new
+            {
+                ok = true,
+                idle_sec = (int)views.IdleTimeout.TotalSeconds,
+                viewers = views.ListViewers(),
+                rejected = views.ListRejections(),
+            }, json));
+
         admin.MapGet("/api/admin/ip/bans", (HttpContext ctx, IpAccessService ips) =>
             Results.Json(new { ok = true, your_ip = IpAccessService.ClientIp(ctx), bans = ips.ListBans() }, json));
 
