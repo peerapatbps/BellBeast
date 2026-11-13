@@ -123,10 +123,10 @@ public sealed class ViewTokenTests : IClassFixture<ViewTokenFactory>, IClassFixt
     [Fact]
     public async Task Trusted_Callers_Skip_The_Token()
     {
-        // the server itself (BellBeast Tester, tools on the box)
+        // the server itself (tools on the box)
         Assert.NotEqual(HttpStatusCode.Unauthorized, (await Get(Client("127.0.0.1"), PageApi, null)).StatusCode);
 
-        // signed-in admin (e.g. the Tester tab in an admin browser)
+        // signed-in admin
         Assert.NotEqual(HttpStatusCode.Unauthorized, (await _admin.CreateClient().GetAsync(PageApi)).StatusCode);
     }
 

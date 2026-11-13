@@ -21,7 +21,7 @@ public sealed class RequiresViewToken { }
 /// - The page script renews silently with the refresh cookie (after sleep / server restart / IP change)
 ///   and retries, so walls never reload (a reload would block alarm sound until someone taps the screen).
 /// Callers that are already trusted skip the check: signed-in users/admins, IPs with a pass for that API
-/// (IpPassService), and loopback when ViewToken:ExemptLoopback is true (e.g. BellBeast Tester).
+/// (IpPassService), and loopback when ViewToken:ExemptLoopback is true (tools running on the server).
 /// </summary>
 public sealed class ViewTokenService
 {

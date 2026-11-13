@@ -13,12 +13,6 @@
         "--Kestrel:Endpoints:Http:Url=http://localhost:5077"
       ],
       "port": 5077
-    },
-    {
-      "name": "bellbeast-tester",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "../BellBeast_Tester", "run", "dev"],
-      "port": 8890
     }
   ]
 }

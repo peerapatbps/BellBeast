@@ -93,7 +93,6 @@ The IoT room (`/api/iot/room/*`) is public on purpose: it is the broadcast alarm
 - `/Admin/*` - protected admin area
 - `/IotRoom` - browser UI for connected devices and room state
 - `/LedDemo` and `/WebPM` - supporting feature/demo pages
-- `/Admin/Tester` - admin tab "Tester": embeds BellBeast Tester (separate Next.js app in `BellBeast_Tester`, started with its `start.bat`). It listens on `127.0.0.1:8890` only and BellBeast reverse-proxies `/tester/*` to it (admin login required; the admin cookie is not forwarded). Upstream address: `Tester:BaseUrl` (default `http://127.0.0.1:8890`).
 
 Unhandled exceptions on `/api/*` return JSON instead of the `/Error` page: `502 upstream_unavailable` when Uroboros / another upstream is unreachable or times out, otherwise `500 internal_error`.
 
@@ -112,7 +111,7 @@ API access settings in `appsettings.json`:
 - `Uroboros:UtcOffset` - offset for Uroboros' plant-local timestamps on `/api/v1` (default `+07:00`)
 - `ViewToken:IdleSeconds` - a view token dies after this long without a request (default 10 = 2 × the 5 s alarm poll)
 - `ViewToken:RefreshHours` - lifetime of the refresh cookie, rolled forward every 4 h while a page is open (default 24)
-- `ViewToken:ExemptLoopback` - requests from the server itself need no view token (default true; tools such as BellBeast Tester)
+- `ViewToken:ExemptLoopback` - requests from the server itself need no view token (default true; tools running on the box)
 - `ViewToken:PublishTrafficToRoom` - every 30 s put viewer/rejection counts (no IPs) into the IoT room as device `bellbeast-traffic` (default true)
 
 Runtime data written by the admin pages (gitignored, back them up with the deployment):

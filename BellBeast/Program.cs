@@ -192,9 +192,6 @@ builder.Services.AddAuthorization(options =>
     });
 });
 builder.Services.AddHttpClient();
-// /tester proxy: pass Next.js redirects and cookies through untouched (see Endpoints/TesterEndpoints.cs)
-builder.Services.AddHttpClient(TesterEndpoints.ClientName)
-    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false });
 builder.Services.AddSingleton<BackendConfigProvider>();
 builder.Services.AddSingleton<ApiCatalogService>();
 builder.Services.AddSingleton<ApiClientService>();
@@ -287,7 +284,6 @@ app.MapFleetEndpoints(api);
 app.MapApiAdminEndpoints(api);
 app.MapV1Endpoints(api);
 app.MapViewEndpoints(api);
-app.MapTesterEndpoints(api);
 
 app.Run();
 
