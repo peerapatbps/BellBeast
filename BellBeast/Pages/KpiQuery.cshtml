@@ -92,18 +92,89 @@
     .st-no   { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.12); color: rgba(232,238,252,.55); }
     .kq-defs dt { font-weight: 700; margin-top: 10px; }
     .kq-defs dd { margin: 2px 0 0 0; font-size: 13px; color: rgba(232,238,252,.7); }
+
+    /* ── top-level views: CAR Log (default) | KPI ── */
+    .kq-views { display: flex; gap: 4px; margin-bottom: 14px; padding: 4px; width: fit-content; max-width: 100%;
+        background: rgba(20,25,35,.72); border: 1px solid rgba(255,255,255,.10); border-radius: 12px; }
+    .kq-view { padding: 8px 18px; border-radius: 9px; border: 1px solid transparent; background: transparent; color: rgba(232,238,252,.7);
+        font-size: 15px; font-weight: 700; cursor: pointer; }
+    .kq-view:hover { color: #e8eefc; background: rgba(255,255,255,.05); }
+    .kq-view.on { color: #fff; background: rgba(50,170,255,.32); border-color: rgba(50,170,255,.6); }
+    [hidden] { display: none !important; }
+
+    /* ── CAR log ── */
+    .cl-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .cl-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font-size: 13px; cursor: pointer;
+        border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.04); color: rgba(232,238,252,.85); }
+    .cl-chip b { font-variant-numeric: tabular-nums; }
+    .cl-chip:hover { border-color: rgba(120,190,255,.5); }
+    .cl-chip.on { border-color: rgba(50,170,255,.75); background: rgba(50,170,255,.22); color: #fff; }
+    .cl-chip i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .kq-table tbody tr.cl-row { cursor: pointer; }
+    .kq-table tbody tr.cl-row:hover td { background: rgba(50,170,255,.07); }
+    .kq-table tbody tr.cl-row.sel td { background: rgba(50,170,255,.14); }
+    .st10 { background: rgba(80,160,255,.18); border-color: rgba(80,160,255,.5); color: #bcdcff; }
+    .st15 { background: rgba(60,200,230,.16); border-color: rgba(60,200,230,.45); color: #b5ecf7; }
+    .st20 { background: rgba(255,150,60,.16); border-color: rgba(255,150,60,.45); color: #ffd0a6; }
+    .st30 { background: rgba(240,210,70,.16); border-color: rgba(240,210,70,.45); color: #f6e7a5; }
+    .st40 { background: rgba(170,120,255,.18); border-color: rgba(170,120,255,.5); color: #d9c6ff; }
+    .st50 { background: rgba(40,200,180,.16); border-color: rgba(40,200,180,.45); color: #a9efe4; }
+    .st60 { background: rgba(70,200,120,.18); border-color: rgba(70,200,120,.45); color: #b6f0c9; }
+    .st70 { background: rgba(255,80,80,.18); border-color: rgba(255,80,80,.5); color: #ffb3b3; }
+
+    .cl-drawer-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 900; }
+    .cl-drawer { position: fixed; top: 0; right: 0; height: 100%; width: min(760px, 100%); z-index: 901; display: flex; flex-direction: column;
+        background: rgba(16,21,31,.98); border-left: 1px solid rgba(120,180,255,.25); box-shadow: -20px 0 50px rgba(0,0,0,.45); color: #e8eefc; }
+    .cl-dhead { display: flex; align-items: flex-start; gap: 10px; padding: 16px 18px 12px; border-bottom: 1px solid rgba(255,255,255,.10);
+        background: linear-gradient(135deg, rgba(50,170,255,.18), rgba(120,90,255,.10) 60%, rgba(0,0,0,0)); }
+    .cl-dhead h3 { margin: 0; font-size: 20px; font-weight: 800; }
+    .cl-dhead .key { font-size: 11px; font-family: ui-monospace, Consolas, monospace; color: rgba(232,238,252,.5); margin-top: 3px; }
+    .cl-dacts { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
+    .cl-dacts a { text-decoration: none; }
+    .cl-close { background: none; border: 0; color: rgba(232,238,252,.7); font-size: 22px; cursor: pointer; padding: 0 4px; line-height: 1; }
+    .cl-close:hover { color: #fff; }
+    .cl-dbody { flex: 1; overflow-y: auto; padding: 14px 18px 30px; }
+    .cl-dates { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; padding: 10px 12px; border-radius: 12px;
+        background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
+    .cl-sec { margin-top: 18px; }
+    .cl-sec-t { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: #cfe6ff; padding-bottom: 6px;
+        border-bottom: 1px solid rgba(120,180,255,.18); margin-bottom: 8px; }
+    .cl-sec-t .n { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px;
+        background: rgba(50,170,255,.25); border: 1px solid rgba(50,170,255,.55); }
+    .cl-sec.pending .cl-sec-t { color: rgba(232,238,252,.45); }
+    .cl-sec.pending .cl-sec-t .n { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.15); }
+    .cl-f { margin-bottom: 8px; min-width: 0; }
+    .cl-f .l { font-size: 11px; color: rgba(232,238,252,.5); }
+    .cl-f .v { font-size: 14px; white-space: pre-wrap; word-break: break-word; }
+    .cl-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+    @@media (max-width: 600px) { .cl-grid2 { grid-template-columns: 1fr; } }
+    .cl-note { font-size: 12px; color: rgba(232,238,252,.6); }
+    .cl-res { font-size: 14px; font-weight: 700; }
+    .cl-res.pass { color: #9ee8b5; } .cl-res.fail { color: #ffb3b3; }
+    .cl-flag { margin-top: 8px; padding: 7px 10px; border-radius: 10px; font-size: 13px; font-weight: 700;
+        background: rgba(255,80,80,.14); border: 1px solid rgba(255,80,80,.4); color: #ffc2c2; }
+    .cl-tl { list-style: none; margin: 0; padding: 0; }
+    .cl-tl li { display: grid; grid-template-columns: 112px 14px minmax(0,1fr); gap: 8px; font-size: 13px; padding: 4px 0; }
+    .cl-tl .t { color: rgba(232,238,252,.55); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .cl-tl .d { width: 9px; height: 9px; border-radius: 50%; margin-top: 5px; background: #7cc4ff; }
+    .cl-tl .d.chase { background: #f6c66b; } .cl-tl .d.line { background: #6fdc8c; } .cl-tl .d.fwd { background: #b5ecf7; }
+    .cl-tl .s { color: rgba(232,238,252,.6); font-size: 12px; }
 </style>
 
 <div class="kq-wrap">
+    <div class="kq-views" id="views" role="tablist">
+        <button type="button" class="kq-view on" data-view="car" role="tab">📋 CAR Log</button>
+        <button type="button" class="kq-view" data-view="kpi" role="tab">🎯 KPI</button>
+    </div>
     <div class="kq-grid">
 
         <!-- LEFT: filter -->
         <div class="kq-card">
             <div class="kq-head">
-                <div class="kq-head-icon" aria-hidden="true">🎯</div>
+                <div class="kq-head-icon" aria-hidden="true" id="headIcon">📋</div>
                 <div>
-                    <h2 class="kq-head-title">KPI Query</h2>
-                    <div class="kq-head-sub">สืบค้น Output · Outcome ของระบบ CAR</div>
+                    <h2 class="kq-head-title" id="headTitle">CAR Log</h2>
+                    <div class="kq-head-sub" id="headSub">ทะเบียน CAR/PAR · คลิกแถวเพื่อดูรายละเอียด</div>
                 </div>
             </div>
 
@@ -120,8 +191,18 @@
                 <input id="toDate" class="kq-input" type="date" value="@Model.DefaultEndYmd" aria-label="ถึงวันที่" />
             </div>
 
-            <span class="kq-label">สถานี (ตารางเหตุการณ์/บันทึก)</span>
-            <select id="nodeSel" class="kq-select"><option value="">ทุกสถานี</option></select>
+            <div id="carScopeWrap">
+                <span class="kq-label">ขอบเขตวันที่ (CAR Log)</span>
+                <select id="carScope" class="kq-select">
+                    <option value="range">ออกใบในช่วงที่เลือก</option>
+                    <option value="open">ใบที่ยังไม่ปิด (ทุกช่วงเวลา)</option>
+                    <option value="all">ทั้งหมด (ทุกช่วงเวลา)</option>
+                </select>
+            </div>
+            <div id="nodeWrap" hidden>
+                <span class="kq-label">สถานี (ตารางเหตุการณ์/บันทึก)</span>
+                <select id="nodeSel" class="kq-select"><option value="">ทุกสถานี</option></select>
+            </div>
 
             <button type="button" class="kq-btn primary" id="btnQuery">🔍 สืบค้น</button>
             <div class="kq-status" id="status">Ready.</div>
@@ -129,8 +210,22 @@
             <div class="kq-meta" id="meta"></div>
         </div>
 
-        <!-- RIGHT: results -->
-        <div style="display:grid; gap:14px; min-width:0;">
+        <!-- RIGHT (CAR Log view — default) -->
+        <div id="viewCar" style="display:grid; gap:14px; min-width:0;">
+            <div class="kq-card">
+                <div class="cl-chips" id="clChips"></div>
+                <div class="kq-filters">
+                    <input class="kq-input" id="clSearch" placeholder="ค้นเลขที่ / เรื่อง / ชื่อ / หน่วยงาน" style="width:260px;" />
+                    <select class="kq-select" id="clSystem"><option value="">ทุกระบบ</option></select>
+                    <select class="kq-select" id="clType"><option value="">CAR + PAR</option><option value="CAR">CAR</option><option value="PAR">PAR</option></select>
+                    <label style="font-size:13px;"><input type="checkbox" id="clOverdue" /> เกินกำหนดเท่านั้น</label>
+                </div>
+                <div class="kq-table-wrap" id="clWrap" style="max-height:70vh;"></div>
+            </div>
+        </div>
+
+        <!-- RIGHT (KPI view) -->
+        <div id="viewKpi" style="display:grid; gap:14px; min-width:0;" hidden>
             <div class="kq-card">
                 <div class="kq-section-t">OUTCOME หลัก (เทียบ baseline ก่อนใช้ระบบ)</div>
                 <div class="kq-tiles" id="tilesOutcome"></div>
@@ -170,6 +265,22 @@
 
     </div>
 </div>
+
+<!-- CAR detail drawer -->
+<div class="cl-drawer-bg" id="clDrawerBg" hidden></div>
+<aside class="cl-drawer" id="clDrawer" role="dialog" aria-modal="true" aria-labelledby="clDTitle" hidden>
+    <div class="cl-dhead">
+        <div style="min-width:0;">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <h3 id="clDTitle">—</h3><span id="clDStatus"></span>
+            </div>
+            <div class="key" id="clDKey"></div>
+        </div>
+        <div class="cl-dacts" id="clDActs"></div>
+        <button type="button" class="cl-close" id="clDClose" aria-label="ปิด">✕</button>
+    </div>
+    <div class="cl-dbody" id="clDBody"></div>
+</aside>
 
 @section Scripts {
     <script src="~/js/kpiquery.js" asp-append-version="true"></script>

@@ -1,15 +1,20 @@
-// KPI Query page: ตัวชี้วัด Output/Outcome ของระบบ CAR (CAR Lean proposal)
-// ข้อมูลทั้งหมดจาก LabVenture /api/kpi ผ่าน proxy /labventure/* ของ BellBeast (อ่านได้โดยไม่ login;
-// ปุ่ม "คำนวณใหม่" ต้อง login LabVenture เป็น Admin)
+// KPI Query page — 2 มุมมอง: CAR Log (ค่าเริ่มต้น; ทะเบียน + รายละเอียดใบ) และ KPI (ตัวชี้วัด Output/Outcome ตาม CAR Lean proposal)
+// ข้อมูลจาก LabVenture /api/car และ /api/kpi ผ่าน proxy /labventure/* ของ BellBeast (อ่านได้โดยไม่ login;
+// ปุ่ม "คำนวณใหม่" ต้อง login LabVenture เป็น Admin) · หน้านี้อ่านอย่างเดียว — แก้ไข CAR ทำที่ LabVenture
 (function () {
     "use strict";
 
     const LV = "/labventure/api";
     const $ = id => document.getElementById(id);
-    const CAR_STATUS = { 10: "รอตอบ", 15: "ส่งต่อ", 20: "รออนุมัติ", 30: "ติดตาม#1", 40: "ติดตาม#2", 50: "รอพิจารณาปิด", 60: "ปิดแล้ว", 70: "ตีกลับ" };
+    // ชื่อสถานะเดียวกับหน้า CAR ของ LabVenture (CARLog.jsx STATUS)
+    const CAR_STATUS = { 10: "ออกใบแล้ว", 15: "ส่งต่อแล้ว", 20: "รออนุมัติ", 30: "รอติดตาม#1", 40: "รอติดตาม#2", 50: "แก้ไขแล้ว", 60: "ปิด", 70: "ตีกลับ" };
     const SLOT_STATUS = { on_time: ["ตรงเวลา", "st-ok"], late: ["ช้า", "st-warn"], missing: ["ขาด", "lv-red"], unknown: ["ไม่ทราบเวลา", "st-no"], pending: ["ยังไม่ถึงกำหนด", "st-no"] };
 
-    const state = { summary: null, options: null, trend: "breach_escalation_pct", tab: "episodes", seq: 0 };
+    const state = {
+        summary: null, options: null, trend: "breach_escalation_pct", tab: "episodes", seq: 0,
+        view: "car", kpiKey: null,                                   // KPI โหลดเมื่อเปิดมุมมอง KPI ครั้งแรก / เมื่อช่วงวันที่เปลี่ยน
+        cars: null, clSeq: 0, clStatus: "", openId: null, pendingKey: null,
+    };
 
     // ===== utils =====
     const thaiToday = () => new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
@@ -61,7 +66,7 @@
         $("fromDate").value = from;
         $("toDate").value = today;
         document.querySelectorAll("#presets .kq-btn").forEach(b => b.classList.toggle("on", b.dataset.preset === p));
-        query();
+        refresh();
     }
 
     // ===== tiles =====
@@ -286,7 +291,7 @@
         try {
             const r = await getJson(`${LV}/kpi/recompute`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ full: true, baseline: true }) });
             setStatus(`คำนวณใหม่แล้ว (${r.ms} ms)`);
-            await query();
+            await queryKpi();
         } catch (e) {
             setStatus(e.status === 401 ? "ต้องเข้าสู่ระบบ LabVenture (Admin) ก่อน" : e.message);
         } finally { btn.disabled = false; }
@@ -305,8 +310,9 @@
             `คำนวณเมื่อ ${thaiDT(sm.computed_at)}`,
         ].filter(Boolean).map(esc).join("<br>");
     }
-    async function query() {
+    async function queryKpi() {
         const { from, to } = range();
+        state.kpiKey = `${from}|${to}`;
         $("btnQuery").disabled = true;
         setStatus("กำลังสืบค้น…");
         try {
@@ -325,20 +331,316 @@
             loadTab();
             setStatus(`${thaiDate(from)} – ${thaiDate(to)}`);
         } catch (e) {
+            state.kpiKey = null;
             setStatus(e.message);
             if (e.status === 502 || e.status === 404) { $("conn").textContent = e.status === 404 ? "LabVenture ยังไม่มี /api/kpi (ต้องอัปเดต)" : e.message; $("conn").hidden = false; }
         } finally { $("btnQuery").disabled = false; }
     }
 
+    // ===== CAR Log (มุมมองเริ่มต้น) =====
+    const CHASE_CH = { phone: "โทร", walk: "เดินไปตาม", line: "LINE ส่วนตัว", other: "อื่น ๆ" };
+    const STEP_TEXT = {
+        10: "ออกใบ CAR", 15: "ส่งต่อผู้ตอบ", 20: "ตอบส่วนที่ 2 → รออนุมัติ", 30: "อนุมัติแผน → รอติดตาม#1", 40: "ติดตาม#1 → รอติดตาม#2",
+        50: "ติดตามครบ → รอ ผอ.ฝผม. พิจารณา", 60: "ผอ.ฝผม. อนุมัติปิด", 70: "ผอ.ฝผม. ตีกลับ",
+        reclaim: "ปลดล็อก (ยกเลิกการส่งต่อ)", edited: "แก้ไขส่วนที่ 1", deleted: "ลบใบ",
+    };
+    const FOLLOW_ITEMS = { correction: "การแก้ไข", prevention: "การป้องกัน" };
+    const itemsText = a => (a || []).map(k => FOLLOW_ITEMS[k]).filter(Boolean).join(" / ");
+
+    // เวลาใน DB มี 3 แบบ: 'YYYY-MM-DD HH:MM:SS' = UTC (datetime('now')) · ISO มี offset · ISO ไม่มี offset = เวลาไทย → คืน 'YYYY-MM-DDTHH:MM' เวลาไทย
+    function tsTH(s) {
+        if (!s) return null;
+        s = String(s);
+        if (/^\d{4}-\d\d-\d\d$/.test(s)) return s;
+        if (/^\d{4}-\d\d-\d\d \d\d:\d\d/.test(s)) s = s.replace(" ", "T") + "Z";
+        if (/(Z|[+-]\d\d:?\d\d)$/i.test(s)) { const ms = Date.parse(s); return Number.isFinite(ms) ? new Date(ms + 7 * 3600e3).toISOString().slice(0, 16) : s.slice(0, 16); }
+        return s.slice(0, 16);
+    }
+    const fmtD = s => { const t = tsTH(s); return !t ? "—" : t.length <= 10 ? thaiDate(t) : thaiDT(t); };
+    const dayTH = s => (tsTH(s) || "").slice(0, 10);
+    const codeOf = c => Number(c.status_code) || 10;
+    const isOverdue = c => !!c.deadline_at && codeOf(c) < 60 && dayTH(c.deadline_at) < thaiToday();
+    const holderOf = c => (c.assignee_name ? { name: c.assignee_name, dept: c.assignee_dept } : { name: c.receiver_name, dept: c.receiver_dept });
+    const statusPill = code => `<span class="pill st${esc(code)}">${esc(CAR_STATUS[code] || code)}</span>`;
+    const fdOf = c => { try { return JSON.parse(c.form_data || "{}") || {}; } catch { return {}; } };
+    const personsText = (arr, legacy) => (Array.isArray(arr) && arr.length ? arr.filter(p => p && p.name).map(p => `${p.name}${p.dept ? ` (${p.dept})` : ""}`).join(", ") : legacy || "");
+    function findingsOf(c) {
+        try { const a = JSON.parse(c.findings || "null"); if (Array.isArray(a) && a.length) return a; } catch { /* old CAR */ }
+        return c.recorded_value != null ? [{ value: c.recorded_value, direction: c.threshold_direction === "below" ? "below" : "above", threshold: c.threshold_value, unit: "" }] : [];
+    }
+    const findingText = f => {
+        const u = f.unit ? ` ${f.unit}` : "";
+        return `${f.value ?? "—"}${f.value != null ? u : ""}${f.threshold != null ? ` (เกณฑ์: ${f.direction === "below" ? "≥" : "≤"} ${f.threshold}${u})` : ""}`;
+    };
+
+    async function loadCars() {
+        const seq = ++state.clSeq;
+        $("btnQuery").disabled = true;
+        if (!state.cars) $("clWrap").innerHTML = `<div class="muted" style="padding:12px;">กำลังโหลด…</div>`;
+        setStatus("กำลังโหลด CAR…");
+        try {
+            // ดึงทั้งหมดครั้งเดียว แล้วกรองช่วงวันที่ฝั่งนี้ตามวันที่ไทย (issued_at ใน DB เป็น UTC)
+            const rows = await getJson(`${LV}/car`);
+            if (seq !== state.clSeq) return;
+            state.cars = Array.isArray(rows) ? rows : [];
+            $("conn").hidden = true;
+            const sys = $("clSystem"), cur = sys.value;
+            const systems = [...new Set(state.cars.map(c => c.system_type).filter(Boolean))].sort();
+            sys.innerHTML = `<option value="">ทุกระบบ</option>` + systems.map(s => `<option>${esc(s)}</option>`).join("");
+            sys.value = systems.includes(cur) ? cur : "";
+            renderCars();
+            if (state.pendingKey) {
+                const c = state.cars.find(x => x.unique_key === state.pendingKey);
+                state.pendingKey = null;
+                if (c) openCar(c.id);
+            } else if (state.openId != null) {
+                if (state.cars.some(x => x.id === state.openId)) openCar(state.openId, true); else closeCar();
+            }
+        } catch (e) {
+            if (seq !== state.clSeq) return;
+            setStatus(e.message);
+            $("clWrap").innerHTML = `<div style="padding:12px; color:#ffb3b3">${esc(e.message)}</div>`;
+            if (e.status === 502) { $("conn").textContent = e.message; $("conn").hidden = false; }
+        } finally { if (seq === state.clSeq) $("btnQuery").disabled = false; }
+    }
+
+    // ใบในขอบเขตวันที่ (ก่อนกรองสถานะ/ค้นหา) — ใช้นับ chip
+    function scopedCars() {
+        const scope = $("carScope").value;
+        const { from, to } = range();
+        return (state.cars || []).filter(c => {
+            if (scope === "open") return codeOf(c) < 60;
+            if (scope === "all") return true;
+            const d = dayTH(c.issued_at);
+            return d >= from && d <= to;
+        });
+    }
+    function renderCars() {
+        if (!state.cars) return;
+        const base = scopedCars();
+        const counts = {};
+        base.forEach(c => { counts[codeOf(c)] = (counts[codeOf(c)] || 0) + 1; });
+        const nOver = base.filter(isOverdue).length;
+        if (state.clStatus && !counts[state.clStatus]) state.clStatus = "";
+        $("clChips").innerHTML = `<span class="cl-chip${state.clStatus ? "" : " on"}" data-st="" role="button">ทั้งหมด <b>${base.length}</b></span>`
+            + Object.keys(CAR_STATUS).filter(k => counts[k]).map(k =>
+                `<span class="cl-chip${String(state.clStatus) === k ? " on" : ""}" data-st="${k}" role="button"><span class="pill st${k}" style="padding:0 6px;">${esc(CAR_STATUS[k])}</span><b>${counts[k]}</b></span>`).join("")
+            + (nOver ? `<span class="cl-chip" style="cursor:default; border-color:rgba(255,80,80,.45); color:#ffc2c2;">เกินกำหนด <b>${nOver}</b></span>` : "");
+        $("clChips").querySelectorAll(".cl-chip[data-st]").forEach(el => el.addEventListener("click", () => { state.clStatus = el.dataset.st; renderCars(); }));
+
+        const q = $("clSearch").value.trim().toLowerCase();
+        const sys = $("clSystem").value, typ = $("clType").value, over = $("clOverdue").checked;
+        const list = base.filter(c => (!state.clStatus || String(codeOf(c)) === String(state.clStatus))
+            && (!sys || c.system_type === sys)
+            && (!typ || (c.car_type || "CAR") === typ)
+            && (!over || isOverdue(c))
+            && (!q || [c.car_number, c.unique_key, c.parameter_name, c.issuer_name, c.issuer_dept, c.receiver_name, c.receiver_dept, c.assignee_name, c.assignee_dept, c.issue_type]
+                .some(v => String(v || "").toLowerCase().includes(q))));
+
+        const head = ["เลขที่", "เรื่องที่พบ", "ผู้ออก → ผู้ถือใบ", "ออกใบ", "กำหนด", "สถานะ"];
+        const rows = list.map(c => {
+            const h = holderOf(c), code = codeOf(c), od = isOverdue(c);
+            const subj = String(c.parameter_name || "").split("\n")[0];
+            return `<tr class="cl-row${state.openId === c.id ? " sel" : ""}" data-id="${esc(c.id)}" tabindex="0">
+                <td><b>${esc(c.car_number || "(ไม่มีเลข)")}</b><span class="sub">${esc(c.car_type || "CAR")}${c.system_type ? ` · ${esc(c.system_type)}` : ""}</span></td>
+                <td><span title="${esc(c.parameter_name || "")}">${esc(subj.length > 90 ? subj.slice(0, 90) + "…" : subj)}</span>${c.issue_type ? `<span class="sub">${esc(c.issue_type)}</span>` : ""}</td>
+                <td>${esc(c.issuer_name || "—")}<span class="sub">→ ${esc(h.name || "—")}${h.dept ? ` · ${esc(h.dept)}` : ""}</span></td>
+                <td style="white-space:nowrap">${fmtD(c.issued_at)}</td>
+                <td style="white-space:nowrap">${c.deadline_at ? thaiDate(dayTH(c.deadline_at)) : "—"}${od ? `<span class="sub" style="color:#ffb3b3">เกินกำหนด</span>` : ""}</td>
+                <td>${statusPill(code)}${fdOf(c).s4_to_meeting && code < 60 ? `<span class="sub" style="color:#ffc2c2">ประเด็นเข้าที่ประชุม</span>` : ""}</td>
+            </tr>`;
+        }).join("");
+        $("clWrap").innerHTML = `<table class="kq-table"><thead><tr>${head.map(x => `<th>${esc(x)}</th>`).join("")}</tr></thead>
+            <tbody>${rows || `<tr><td colspan="${head.length}" class="muted">ไม่มี CAR ตามเงื่อนไข</td></tr>`}</tbody></table>`;
+        $("clWrap").querySelectorAll("tr.cl-row").forEach(tr => {
+            tr.addEventListener("click", () => openCar(Number(tr.dataset.id)));
+            tr.addEventListener("keydown", ev => { if (ev.key === "Enter") openCar(Number(tr.dataset.id)); });
+        });
+        const scope = $("carScope").value;
+        const { from, to } = range();
+        setStatus(`${scope === "range" ? `ออกใบ ${thaiDate(from)} – ${thaiDate(to)}` : scope === "open" ? "ใบที่ยังไม่ปิด (ทุกช่วงเวลา)" : "ทุกช่วงเวลา"} · แสดง ${list.length} / ${base.length} ใบ`);
+    }
+
+    // ── รายละเอียดใบ (drawer) ──
+    const field = (label, value, wide) => (value == null || value === "" ? "" :
+        `<div class="cl-f"${wide ? ' style="grid-column:1/-1"' : ""}><div class="l">${esc(label)}</div><div class="v">${esc(value)}</div></div>`);
+    const sec = (n, title, body, pending) => `<div class="cl-sec${pending ? " pending" : ""}"><div class="cl-sec-t"><span class="n">${esc(n)}</span>${esc(title)}</div>${body}</div>`;
+    const pendingNote = t => `<div class="cl-note">${esc(t)}</div>`;
+
+    function carDetailHtml(c) {
+        const fd = fdOf(c), code = codeOf(c), h = holderOf(c);
+        const fnd = findingsOf(c);
+        const dates = [["วันที่พบ", fmtD(c.record_datetime)], ["ออกใบ", fmtD(c.issued_at)], ["Deadline", c.deadline_at ? thaiDate(dayTH(c.deadline_at)) : null],
+            ["กำหนดแก้ไขเสร็จ", c.correction_deadline ? thaiDate(dayTH(c.correction_deadline)) : null],
+            ["กำหนดป้องกันเสร็จ", c.prevention_deadline ? thaiDate(dayTH(c.prevention_deadline)) : null],
+            ["กำหนดติดตาม#2", c.followup2_deadline ? thaiDate(dayTH(c.followup2_deadline)) : null]]
+            .filter(([, v]) => v && v !== "—").map(([l, v]) => field(l, v)).join("");
+        let html = `<div class="cl-dates">${dates}${isOverdue(c) ? `<div class="cl-f"><div class="l">สถานะกำหนด</div><div class="v" style="color:#ffb3b3; font-weight:700">เกินกำหนด</div></div>` : ""}</div>`;
+
+        // ส่วนที่ 1
+        html += sec(1, "รายละเอียดสิ่งที่ไม่เป็นไปตามข้อกำหนด", `<div class="cl-grid2">
+            ${field("ประเภท", `${c.car_type || "CAR"}${c.system_type ? ` · ${c.system_type}` : ""}`)}
+            ${field("ประเภทปัญหา", c.issue_type)}
+            ${field("1.1 เรื่องที่พบ", c.parameter_name, true)}
+            ${fnd.length ? field("ค่าที่พบ", fnd.length === 1 ? findingText(fnd[0]) : fnd.map((f, i) => `${i + 1}) ${findingText(f)}`).join("\n"), true) : ""}
+            ${field("1.2 ผู้ออก", `${c.issuer_name || "—"}${c.issuer_dept ? ` (${c.issuer_dept})` : ""}`)}
+            ${field("1.3 ผู้รับ", `${c.receiver_name || "—"}${c.receiver_dept ? ` (${c.receiver_dept})` : ""}`)}
+            ${c.assignee_name ? field("ผู้ถือใบปัจจุบัน (หลังส่งต่อ)", `${c.assignee_name}${c.assignee_dept ? ` (${c.assignee_dept})` : ""}`) : ""}
+            ${field("หมายเหตุ", c.notes, true)}
+        </div>`);
+
+        // ส่วนที่ 2
+        const fwds = Array.isArray(fd.s2_forwards) ? fd.s2_forwards : [];
+        const fwdHtml = fwds.length ? `<div class="cl-f"><div class="l">ประวัติการส่งต่อ</div><ul class="cl-tl">${fwds.map(f => `<li><span class="t">${fmtD(f.at)}</span><span class="d fwd"></span><span>${f.type === "reclaim"
+            ? `🔓 <b>${esc(f.by)}</b> ปลดล็อก ยกเลิกการส่งต่อจาก ${esc(f.from_name)}`
+            : `<b>${esc(f.from_name)}</b> ส่งต่อให้ <b>${esc(f.to_name)}</b>${f.to_dept ? ` (${esc(f.to_dept)})` : ""}${f.reason ? ` <span class="s">— ${esc(f.reason)}</span>` : ""}`}</span></li>`).join("")}</ul></div>` : "";
+        const s2done = !!(fd.s2_root_cause || fd.s2_correction);
+        html += sec(2, "วิเคราะห์หาสาเหตุ และกำหนดแผนการแก้ไขและป้องกัน", fwdHtml + (s2done ? `
+            ${field("ผู้เข้าประชุม", personsText(fd.s2_attendees, fd.s2_meeting_members), true)}
+            ${field("2.1 สาเหตุของปัญหา", fd.s2_root_cause, true)}
+            ${field("2.2 กำหนดการแก้ไข", fd.s2_correction, true)}
+            ${fd.s2_correction ? `<div class="cl-note" style="margin:-4px 0 8px">${[fd.s2_correction_deadline ? `กำหนดเสร็จ ${thaiDate(fd.s2_correction_deadline)}` : "", personsText(fd.s2_correction_owners, fd.s2_correction_owner) ? `ผู้รับผิดชอบ ${personsText(fd.s2_correction_owners, fd.s2_correction_owner)}` : ""].filter(Boolean).map(esc).join(" · ")}</div>` : ""}
+            ${field("2.3 กำหนดการป้องกัน", fd.s2_prevention, true)}
+            ${fd.s2_prevention ? `<div class="cl-note" style="margin:-4px 0 8px">${[fd.s2_prevention_deadline ? `กำหนดเสร็จ ${thaiDate(fd.s2_prevention_deadline)}` : "", personsText(fd.s2_prevention_owners, fd.s2_prevention_owner) ? `ผู้รับผิดชอบ ${personsText(fd.s2_prevention_owners, fd.s2_prevention_owner)}` : ""].filter(Boolean).map(esc).join(" · ")}</div>` : ""}
+            ${fd.s2_respondent ? `<div class="cl-note">ผู้ตอบ: ${esc(fd.s2_respondent)}${fd.s2_respondent_pos ? ` (${esc(fd.s2_respondent_pos)})` : ""}${fd.s2_responded_at ? ` · ${thaiDate(fd.s2_responded_at)}` : ""}</div>` : ""}`
+            : pendingNote(code === 70 ? "ไม่มีการตอบ" : `รอผู้ถือใบตอบ: ${h.name || "—"}${h.dept ? ` (${h.dept})` : ""}`)), !s2done);
+
+        // ส่วนที่ 3 (อนุมัติแผน — กลุ่ม 3A)
+        const s3done = !!fd.s2_approver || (code >= 30 && code !== 70);
+        html += sec(3, "การอนุมัติแผนการแก้ไข / ป้องกัน", s3done
+            ? `<div class="cl-res pass">✅ อนุมัติ</div><div class="cl-note">${esc(fd.s2_approver || "—")}${fd.s2_approved_at ? ` · ${thaiDate(fd.s2_approved_at)}` : ""}</div>`
+            : pendingNote(code === 20 ? "รอผู้อนุมัติ (กลุ่ม 3A)" : "ยังไม่ถึงขั้นนี้"), !s3done);
+
+        // ส่วนที่ 4 (ติดตามผล)
+        const check = (n, r, items, notes, by, pos, date, deadline) => `
+            <div style="margin-bottom:10px;"><div class="cl-note" style="font-weight:700; color:rgba(232,238,252,.8)">ติดตามผล ครั้งที่ ${n}${deadline ? ` · กำหนด ${thaiDate(deadline)}` : ""}</div>
+            ${items && items.length ? `<div class="cl-note">ติดตาม: ${esc(itemsText(items))}</div>` : ""}
+            ${r ? `<div class="cl-res ${r === "pass" ? "pass" : "fail"}">${r === "pass" ? "✅ เป็นไปตามที่กำหนด" : "❌ ไม่เป็นไปตามที่กำหนด"}</div>` : pendingNote("ยังไม่บันทึกผล")}
+            ${notes ? `<div class="cl-f"><div class="v">${esc(notes)}</div></div>` : ""}
+            ${by ? `<div class="cl-note">${esc(by)}${pos ? ` (${esc(pos)})` : ""}${date ? ` · ${thaiDate(date)}` : ""}</div>` : ""}</div>`;
+        const s4any = !!(fd.s4_check1_result || fd.s4_check2_result);
+        html += sec(4, "ติดตามผลการแก้ไข / ป้องกัน", (s4any || code === 30 || code === 40)
+            ? (fd.s4_check1_result || code === 30 ? check(1, fd.s4_check1_result, fd.s4_check1_items, fd.s4_check1_notes, fd.s4_check1_by, fd.s4_check1_by_pos, fd.s4_check1_date) : "")
+              + (fd.s4_check2_result || code === 40 ? check(2, fd.s4_check2_result, fd.s4_check2_items, fd.s4_check2_notes, fd.s4_check2_by, fd.s4_check2_by_pos, fd.s4_check2_date, fd.s4_check2_deadline) : "")
+              + (fd.s4_to_meeting ? `<div class="cl-flag">🗣 ประเด็นเข้าที่ประชุม — ติดตาม 2 ครั้งแล้วยังปิดไม่ได้</div>` : "")
+            : pendingNote("ยังไม่ถึงขั้นนี้"), !s4any);
+
+        // ส่วนที่ 5 (ผอ.ฝผม.)
+        const s5done = code >= 60 || !!fd.s5_decision;
+        html += sec(5, "การพิจารณาอนุมัติโดยผู้อำนวยการฝ่าย", s5done
+            ? `<div class="cl-res ${fd.s5_decision === "reject" || code === 70 ? "fail" : "pass"}">${fd.s5_decision === "reject" || code === 70 ? "❌ ตีกลับ" : "✅ อนุมัติปิด"}</div>
+               ${field("เหตุผล", fd.s5_reason, true)}${field("การดำเนินการ", fd.s5_action, true)}
+               ${fd.s5_approver ? `<div class="cl-note">${esc(fd.s5_approver)} (ผอ.ฝผม.)${fd.s5_approved_at ? ` · ${thaiDate(fd.s5_approved_at)}` : ""}</div>` : ""}`
+            : pendingNote(code === 50 ? "รอ ผอ.ฝผม. พิจารณา (กลุ่ม 3B)" : "ยังไม่ถึงขั้นนี้"), !s5done);
+
+        html += sec("⏱", "ประวัติการดำเนินการ · การแจ้งเตือน · การตามงาน", `<div id="clTimeline"><div class="cl-note">กำลังโหลด…</div></div>`);
+        return html;
+    }
+
+    async function loadTimeline(c) {
+        const [steps, notes] = await Promise.allSettled([
+            getJson(`${LV}/car/steps/${encodeURIComponent(c.id)}`),
+            getJson(`${LV}/kpi/notifications?${qs({ car_id: c.id })}`),
+        ]);
+        if (state.openId !== c.id || !$("clTimeline")) return;
+        const ev = [];
+        if (steps.status === "fulfilled" && Array.isArray(steps.value)) for (const s of steps.value) {
+            const st = String(s.step || "");
+            const txt = STEP_TEXT[st] || (st.startsWith("revert:") ? `ย้อนสถานะเป็น "${CAR_STATUS[st.slice(7)] || st.slice(7)}"` : st);
+            ev.push({ at: tsTH(s.at_th || s.updated_at), cls: "", txt, who: s.actor || s.updated_by, note: s.notes });
+        }
+        if (notes.status === "fulfilled") for (const n of notes.value.rows || []) {
+            const chase = n.kind === "chase";
+            const txt = chase ? `ตามงาน (${CHASE_CH[n.channel] || n.channel})${n.minutes ? ` ${fmtNum(n.minutes, 0)} นาที` : ""}`
+                : `${n.kind === "resend" ? "ส่ง LINE ซ้ำ" : "แจ้ง LINE"}${n.status_code ? ` · ${CAR_STATUS[n.status_code] || n.status_code}` : ""}${n.ok ? "" : " — ส่งไม่สำเร็จ"}`;
+            ev.push({ at: tsTH(n.at), cls: chase ? "chase" : "line", txt, who: n.actor || (chase ? "" : n.recipient), note: n.note || (n.ok ? "" : n.error) });
+        }
+        ev.sort((a, b) => String(a.at || "").localeCompare(String(b.at || "")));
+        const failed = steps.status === "rejected" ? `<div class="cl-note" style="color:#ffb3b3">โหลดประวัติไม่ได้: ${esc(steps.reason.message)}</div>` : "";
+        $("clTimeline").innerHTML = failed + (ev.length
+            ? `<ul class="cl-tl">${ev.map(e => `<li><span class="t">${e.at ? (e.at.length <= 10 ? thaiDate(e.at) : thaiDT(e.at)) : "—"}</span><span class="d ${e.cls}"></span><span>${esc(e.txt)}${e.who ? ` <span class="s">· ${esc(e.who)}</span>` : ""}${e.note ? `<br><span class="s">${esc(e.note)}</span>` : ""}</span></li>`).join("")}</ul>`
+            : `<div class="cl-note">ยังไม่มีประวัติ (ใบที่ออกก่อนเริ่มบันทึกขั้นตอนจะไม่มีรายการ)</div>`);
+    }
+
+    function openCar(id, keepScroll) {
+        const c = (state.cars || []).find(x => x.id === id);
+        if (!c) return;
+        const body = $("clDBody"), top = body.scrollTop;
+        state.openId = id;
+        $("clDTitle").textContent = `${c.car_type || "CAR"} ${c.car_number || "(ยังไม่ระบุเลข)"}`;
+        $("clDStatus").innerHTML = statusPill(codeOf(c));
+        $("clDKey").textContent = c.unique_key || "";
+        $("clDActs").innerHTML = `
+            <a class="kq-btn small secondary" href="${LV}/car/${encodeURIComponent(c.id)}/form/pdf" target="_blank" rel="noopener" title="ใบ ${esc(c.car_type || "CAR")} สบค-08">PDF</a>
+            <a class="kq-btn small secondary" href="${LV}/car/${encodeURIComponent(c.id)}/form/xlsx" title="ใบ ${esc(c.car_type || "CAR")} สบค-08">Excel</a>
+            ${c.unique_key ? `<a class="kq-btn small" href="/labventure/car?key=${encodeURIComponent(c.unique_key)}" target="_blank" rel="noopener">เปิดใน LabVenture ↗</a>` : ""}`;
+        body.innerHTML = carDetailHtml(c);
+        body.scrollTop = keepScroll ? top : 0;
+        $("clDrawer").hidden = false;
+        $("clDrawerBg").hidden = false;
+        document.body.style.overflow = "hidden";
+        document.querySelectorAll("#clWrap tr.cl-row").forEach(tr => tr.classList.toggle("sel", Number(tr.dataset.id) === id));
+        if (c.unique_key) history.replaceState(null, "", `#car=${encodeURIComponent(c.unique_key)}`);
+        if (!keepScroll) $("clDClose").focus();
+        loadTimeline(c);
+    }
+    function closeCar() {
+        if ($("clDrawer").hidden) return;
+        const id = state.openId;
+        state.openId = null;
+        $("clDrawer").hidden = true;
+        $("clDrawerBg").hidden = true;
+        document.body.style.overflow = "";
+        document.querySelectorAll("#clWrap tr.cl-row.sel").forEach(tr => tr.classList.remove("sel"));
+        history.replaceState(null, "", location.pathname + location.search);
+        const tr = document.querySelector(`#clWrap tr.cl-row[data-id="${id}"]`);
+        if (tr) tr.focus();
+    }
+
+    // ===== views =====
+    function setView(v) {
+        state.view = v;
+        document.querySelectorAll("#views .kq-view").forEach(b => { const on = b.dataset.view === v; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
+        $("viewCar").hidden = v !== "car";
+        $("viewKpi").hidden = v !== "kpi";
+        $("carScopeWrap").hidden = v !== "car";
+        $("nodeWrap").hidden = v !== "kpi";
+        $("meta").hidden = v !== "kpi";
+        $("headIcon").textContent = v === "car" ? "📋" : "🎯";
+        $("headTitle").textContent = v === "car" ? "CAR Log" : "KPI Query";
+        $("headSub").textContent = v === "car" ? "ทะเบียน CAR/PAR · คลิกแถวเพื่อดูรายละเอียด" : "สืบค้น Output · Outcome ของระบบ CAR";
+        if (v === "kpi") {
+            closeCar();
+            history.replaceState(null, "", "#kpi");
+            const { from, to } = range();
+            if (state.kpiKey !== `${from}|${to}`) queryKpi(); else { loadTrend(); setStatus(`${thaiDate(from)} – ${thaiDate(to)}`); }
+        } else {
+            if (location.hash === "#kpi") history.replaceState(null, "", location.pathname + location.search);
+            if (!state.cars) loadCars(); else renderCars();
+        }
+    }
+    const refresh = () => (state.view === "car" ? loadCars() : queryKpi());
+
+    document.querySelectorAll("#views .kq-view").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
     document.querySelectorAll("#presets .kq-btn").forEach(b => b.addEventListener("click", () => applyPreset(b.dataset.preset)));
     document.querySelectorAll("#tabs .kq-btn").forEach(b => b.addEventListener("click", () => setTab(b.dataset.tab)));
-    $("btnQuery").addEventListener("click", query);
+    $("btnQuery").addEventListener("click", refresh);
     $("nodeSel").addEventListener("change", loadTab);
     $("trendPeriod").addEventListener("change", loadTrend);
+    ["fromDate", "toDate", "carScope"].forEach(id => $(id).addEventListener("change", () => { if (state.view === "car") renderCars(); }));
+    $("clSearch").addEventListener("input", renderCars);
+    ["clSystem", "clType", "clOverdue"].forEach(id => $(id).addEventListener("change", renderCars));
+    $("clDClose").addEventListener("click", closeCar);
+    $("clDrawerBg").addEventListener("click", closeCar);
+    document.addEventListener("keydown", ev => { if (ev.key === "Escape") closeCar(); });
     let resizeT;
-    window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(loadTrend, 200); });
+    window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (state.view === "kpi") loadTrend(); }, 200); });
 
     $("filters").innerHTML = FILTERS.episodes;
     $("filters").querySelectorAll("select, input").forEach(el => el.addEventListener("change", loadTab));
-    query();
+
+    // เข้าหน้า → CAR Log เป็นค่าเริ่มต้น · #kpi = เปิดมุมมอง KPI · #car=<unique_key> = เปิดรายละเอียดใบนั้น
+    const hash = decodeURIComponent(location.hash.slice(1));
+    if (hash.startsWith("car=")) state.pendingKey = hash.slice(4);
+    setView(hash === "kpi" ? "kpi" : "car");
 })();
