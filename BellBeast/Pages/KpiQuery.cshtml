@@ -1,0 +1,176 @@
+@page
+@model BellBeast.Pages.KpiQueryModel
+@{
+    ViewData["Title"] = "KPI Query";
+    ViewData["ContentClass"] = "content content-wide";
+}
+
+<style>
+    .kq-wrap { width: 100%; max-width: none; margin: 0; padding: 16px 6%; box-sizing: border-box; color: #e8eefc; }
+    .kq-grid { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 14px; align-items: start; }
+    @@media (max-width: 1000px) { .kq-wrap { padding: 16px; } .kq-grid { grid-template-columns: 1fr; } }
+
+    .kq-card {
+        background: rgba(20, 25, 35, .72); border: 1px solid rgba(255,255,255,.10); border-radius: 14px;
+        box-shadow: 0 10px 30px rgba(0,0,0,.25); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+        padding: 14px; min-width: 0;
+    }
+    .kq-head { display: flex; align-items: center; gap: 12px; margin: -14px -14px 14px; padding: 16px 14px 14px;
+        background: linear-gradient(135deg, rgba(50,170,255,.22), rgba(120,90,255,.14) 60%, rgba(0,0,0,0));
+        border-bottom: 1px solid rgba(120,180,255,.25); border-radius: 14px 14px 0 0; }
+    .kq-head-icon { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; font-size: 24px;
+        background: rgba(50,170,255,.22); border: 1px solid rgba(120,190,255,.45); }
+    .kq-head-title { margin: 0; font-size: 24px; font-weight: 800; background: linear-gradient(90deg, #ffffff, #9fd4ff);
+        -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .kq-head-sub { margin-top: 4px; font-size: 13px; color: rgba(190,220,255,.75); }
+
+    .kq-label { display: block; font-size: 14px; font-weight: 600; color: rgba(232,238,252,.85); margin: 12px 0 6px; }
+    .kq-input, .kq-select { width: 100%; box-sizing: border-box; padding: 9px 10px; font-size: 15px; border-radius: 10px;
+        border: 1px solid rgba(255,255,255,.12); background: rgba(0,0,0,.25); color: #e8eefc; outline: none; color-scheme: dark; }
+    .kq-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .kq-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+    .kq-btn { padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12); background: rgba(80,110,255,.18);
+        color: #e8eefc; cursor: pointer; font-size: 14px; }
+    .kq-btn:hover { background: rgba(80,110,255,.28); }
+    .kq-btn:disabled { opacity: .5; cursor: progress; }
+    .kq-btn.small { padding: 4px 9px; font-size: 12px; border-radius: 8px; }
+    .kq-btn.secondary { background: rgba(255,255,255,.08); }
+    .kq-btn.primary { background: rgba(50,170,255,.32); border-color: rgba(50,170,255,.6); width: 100%; margin-top: 14px; font-weight: 700; }
+    .kq-btn.on { background: rgba(50,170,255,.42); border-color: rgba(50,170,255,.7); }
+    .kq-status { margin-top: 10px; font-size: 13px; color: rgba(232,238,252,.75); white-space: pre-wrap; }
+    .kq-meta { margin-top: 12px; font-size: 12px; color: rgba(232,238,252,.6); line-height: 1.6; border-top: 1px solid rgba(255,255,255,.08); padding-top: 10px; }
+    .kq-conn { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 999px; margin-top: 8px;
+        background: rgba(255,80,80,.18); border: 1px solid rgba(255,80,80,.45); color: #ffb3b3; }
+    .kq-conn[hidden] { display: none; }
+
+    /* ── tiles ── */
+    .kq-section-t { font-size: 13px; font-weight: 700; letter-spacing: .3px; color: rgba(190,220,255,.8); margin: 4px 0 8px; }
+    .kq-tiles { display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .kq-tiles.small { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+    @@media (max-width: 700px) { .kq-tiles { grid-template-columns: 1fr; } }
+    .kq-tile { border-radius: 12px; border: 1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.04); padding: 12px; cursor: pointer; min-width: 0; }
+    .kq-tile:hover, .kq-tile.sel { border-color: rgba(120,190,255,.6); background: rgba(50,170,255,.08); }
+    .kq-tile .t { font-size: 13px; color: rgba(232,238,252,.8); min-height: 2.6em; }
+    .kq-tile .v { font-size: 30px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .kq-tiles.small .kq-tile .v { font-size: 22px; }
+    .kq-tile .u { font-size: 14px; font-weight: 600; color: rgba(232,238,252,.6); margin-left: 4px; }
+    .kq-tile .b { font-size: 12px; color: rgba(232,238,252,.6); margin-top: 6px; font-variant-numeric: tabular-nums; }
+    .kq-tile .n { font-size: 11px; color: rgba(232,238,252,.45); margin-top: 2px; }
+    .kq-delta { display: inline-block; font-size: 12px; font-weight: 700; padding: 1px 7px; border-radius: 8px; margin-left: 6px; border: 1px solid transparent; }
+    .kq-delta.good { background: rgba(70,200,120,.18); border-color: rgba(70,200,120,.45); color: #b6f0c9; }
+    .kq-delta.bad  { background: rgba(255,80,80,.18);  border-color: rgba(255,80,80,.45);  color: #ffb3b3; }
+    .kq-delta.flat { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); color: rgba(232,238,252,.7); }
+
+    /* ── trend ── */
+    .kq-trend-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+    .kq-trend-title { font-size: 16px; font-weight: 700; }
+    .kq-legend { display: flex; gap: 14px; font-size: 12px; color: rgba(232,238,252,.75); align-items: center; }
+    .kq-legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid #7cc4ff; vertical-align: middle; margin-right: 5px; }
+    .kq-legend i.base { border-top: 2px dashed rgba(232,238,252,.55); }
+    .kq-chart { position: relative; width: 100%; height: 240px; }
+    .kq-chart svg { width: 100%; height: 100%; display: block; overflow: visible; }
+    .kq-tip { position: absolute; pointer-events: none; background: rgba(10,14,22,.95); border: 1px solid rgba(255,255,255,.18);
+        border-radius: 8px; padding: 6px 9px; font-size: 12px; white-space: nowrap; transform: translate(-50%, -110%); }
+    .kq-tip[hidden] { display: none; }
+
+    /* ── tabs + tables ── */
+    .kq-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .kq-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+    .kq-filters .kq-select, .kq-filters .kq-input { width: auto; padding: 6px 8px; font-size: 13px; }
+    .kq-table-wrap { width: 100%; overflow: auto; max-height: 60vh; }
+    table.kq-table { width: 100%; border-collapse: collapse; }
+    .kq-table th, .kq-table td { border-bottom: 1px solid rgba(255,255,255,.08); padding: 7px 7px; font-size: 13px; text-align: left; vertical-align: top; }
+    .kq-table th { position: sticky; top: 0; background: rgba(20,25,35,.97); color: rgba(232,238,252,.75); font-weight: 600; z-index: 1; }
+    .kq-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .kq-table .muted { color: rgba(232,238,252,.45); }
+    .kq-table .sub { display: block; font-size: 11px; color: rgba(232,238,252,.5); }
+    .pill { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 8px; white-space: nowrap; border: 1px solid transparent; }
+    .lv-blue { background: rgba(80,160,255,.18); border-color: rgba(80,160,255,.5); color: #bcdcff; }
+    .lv-red  { background: rgba(255,80,80,.18);  border-color: rgba(255,80,80,.5);  color: #ffb3b3; }
+    .st-ok   { background: rgba(70,200,120,.18); border-color: rgba(70,200,120,.45); color: #b6f0c9; }
+    .st-warn { background: rgba(255,180,60,.16); border-color: rgba(255,180,60,.45); color: #ffd99a; }
+    .st-no   { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.12); color: rgba(232,238,252,.55); }
+    .kq-defs dt { font-weight: 700; margin-top: 10px; }
+    .kq-defs dd { margin: 2px 0 0 0; font-size: 13px; color: rgba(232,238,252,.7); }
+</style>
+
+<div class="kq-wrap">
+    <div class="kq-grid">
+
+        <!-- LEFT: filter -->
+        <div class="kq-card">
+            <div class="kq-head">
+                <div class="kq-head-icon" aria-hidden="true">🎯</div>
+                <div>
+                    <h2 class="kq-head-title">KPI Query</h2>
+                    <div class="kq-head-sub">สืบค้น Output · Outcome ของระบบ CAR</div>
+                </div>
+            </div>
+
+            <span class="kq-label">ช่วงเวลา</span>
+            <div class="kq-presets" id="presets">
+                <button type="button" class="kq-btn small secondary" data-preset="7">7 วัน</button>
+                <button type="button" class="kq-btn small secondary" data-preset="30">30 วัน</button>
+                <button type="button" class="kq-btn small secondary" data-preset="90">90 วัน</button>
+                <button type="button" class="kq-btn small secondary" data-preset="month">เดือนนี้</button>
+                <button type="button" class="kq-btn small secondary" data-preset="fy">ปีงบนี้</button>
+            </div>
+            <div class="kq-row2" style="margin-top:8px;">
+                <input id="fromDate" class="kq-input" type="date" value="@Model.DefaultStartYmd" aria-label="ตั้งแต่วันที่" />
+                <input id="toDate" class="kq-input" type="date" value="@Model.DefaultEndYmd" aria-label="ถึงวันที่" />
+            </div>
+
+            <span class="kq-label">สถานี (ตารางเหตุการณ์/บันทึก)</span>
+            <select id="nodeSel" class="kq-select"><option value="">ทุกสถานี</option></select>
+
+            <button type="button" class="kq-btn primary" id="btnQuery">🔍 สืบค้น</button>
+            <div class="kq-status" id="status">Ready.</div>
+            <span class="kq-conn" id="conn" hidden></span>
+            <div class="kq-meta" id="meta"></div>
+        </div>
+
+        <!-- RIGHT: results -->
+        <div style="display:grid; gap:14px; min-width:0;">
+            <div class="kq-card">
+                <div class="kq-section-t">OUTCOME หลัก (เทียบ baseline ก่อนใช้ระบบ)</div>
+                <div class="kq-tiles" id="tilesOutcome"></div>
+                <div class="kq-section-t" style="margin-top:14px;">OUTCOME ที่ต้องพิสูจน์</div>
+                <div class="kq-tiles small" id="tilesProof"></div>
+                <div class="kq-section-t" style="margin-top:14px;">OUTPUT (ผลผลิต)</div>
+                <div class="kq-tiles small" id="tilesOutput"></div>
+            </div>
+
+            <div class="kq-card">
+                <div class="kq-trend-head">
+                    <div class="kq-trend-title" id="trendTitle">แนวโน้ม</div>
+                    <div class="kq-legend">
+                        <span><i></i>ช่วงที่สืบค้น</span>
+                        <span><i class="base"></i>baseline</span>
+                        <select id="trendPeriod" class="kq-select" style="width:auto; padding:4px 8px; font-size:12px;">
+                            <option value="day">รายวัน</option>
+                            <option value="month" selected>รายเดือน</option>
+                            <option value="fiscal_year">รายปีงบ</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="kq-chart" id="chart"><div class="kq-tip" id="tip" hidden></div></div>
+            </div>
+
+            <div class="kq-card">
+                <div class="kq-tabs" id="tabs">
+                    <button type="button" class="kq-btn small on" data-tab="episodes">เหตุการณ์หลุดเกณฑ์</button>
+                    <button type="button" class="kq-btn small secondary" data-tab="cars">CAR</button>
+                    <button type="button" class="kq-btn small secondary" data-tab="slots">บันทึกตรงเวลา</button>
+                    <button type="button" class="kq-btn small secondary" data-tab="defs">นิยาม / การคำนวณ</button>
+                </div>
+                <div class="kq-filters" id="filters"></div>
+                <div class="kq-table-wrap" id="tableWrap"></div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/kpiquery.js" asp-append-version="true"></script>
+}

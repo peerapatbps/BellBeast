@@ -41,6 +41,7 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AllowAnonymousToPage("/MHxViewer/MHxView");
     options.Conventions.AllowAnonymousToPage("/CHEM_report");
     options.Conventions.AllowAnonymousToPage("/DailyReport");
+    options.Conventions.AllowAnonymousToPage("/KpiQuery");   // สืบค้น KPI ของระบบ CAR (ข้อมูลจาก LabVenture /api/kpi)
     options.Conventions.AllowAnonymousToPage("/IotRoom");
     options.Conventions.AllowAnonymousToPage("/LedDemo");
 
