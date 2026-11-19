@@ -12,6 +12,11 @@
     let view = "devices";
     let filter = "all";       // devices filter: all | lost | behind
     let query = "";
+    let gfilter = "";         // devices list: "" all | "__none" ungrouped | group id
+    let grouping = false;     // bulk "จัดกลุ่ม" panel open
+    const grpSel = new Set(); // device ids ticked in that panel
+    let grpTo = null;         // group picked in that panel (kept across the 30 s refresh)
+    let grpNew = "";          // new group name being typed there
     let logDev = "";
     const logTypes = new Set();
     let viewDirty = false;    // user is editing a form in the current tab → background refresh leaves it alone
@@ -37,7 +42,11 @@
         bad_next: "รหัสถัดไปยาวเกิน 63 ตัว", bad_next_valid_from: "วันเวลาเริ่มใช้รหัสถัดไปไม่ถูกต้อง",
         device_not_found: "ไม่พบเครื่องนี้ในระบบแล้ว", firmware_not_found: "ไม่พบไฟล์ firmware รุ่นนี้",
         bad_model: "ชื่อรุ่นใช้ได้เฉพาะ a–z, 0–9, . _ - ไม่เกิน 32 ตัว", fw_model_mismatch: "ไฟล์นี้เป็นของรุ่นอื่น ล็อกให้เครื่องนี้ไม่ได้",
-        firmware_in_use: "ไฟล์นี้ยังตั้งเป็นใช้จริง/ทดสอบอยู่", firmware_pinned: "มีเครื่องล็อกไฟล์นี้อยู่ ปลดล็อกก่อนจึงลบได้", bad_wifi: "ค่า WiFi ไม่ถูกต้อง",
+        firmware_in_use: "มีกลุ่มที่เลือกไฟล์นี้อยู่", firmware_pinned: "มีเครื่องที่ระบุไฟล์นี้เองอยู่", firmware_released: "ไฟล์นี้ปล่อยให้ Auto patcher อยู่ เลิกปล่อยก่อนจึงลบได้",
+        bad_wifi: "ค่า WiFi ไม่ถูกต้อง", fw_board_mismatch: "ไฟล์นี้เป็นของบอร์ดอื่น ใช้กับเครื่องนี้ไม่ได้", bad_fw_mode: "ตัวเลือก firmware ไม่ถูกต้อง",
+        group_not_found: "ไม่พบกลุ่มนี้แล้ว", bad_group_name: "ชื่อกลุ่มต้องมี 1–40 ตัวอักษร", group_name_taken: "มีกลุ่มชื่อนี้แล้ว",
+        too_many_groups: "สร้างกลุ่มได้ไม่เกิน 50 กลุ่ม", auto_group_has_no_target: "Auto patcher เลือกไฟล์เองไม่ได้ (ใช้ “ปล่อย” ที่รายการไฟล์)",
+        auto_group_is_built_in: "กลุ่ม Auto patcher ลบไม่ได้", no_devices: "เลือกเครื่องก่อน",
     };
     const errText = (code) => ERR[code] || code;
 
@@ -61,12 +70,15 @@
     const approved = () => devs().filter((d) => d.approved);
     const pending = () => devs().filter((d) => !d.approved);
     const defs = () => (data && data.defaults) || {};
-    const tracks = () => (data && data.ota && data.ota.tracks) || {};
-    const chans = (m) => tracks()[m || ""] || {};                      // stable/beta of one model
     const firmware = () => (data && data.ota && data.ota.firmware) || [];
-    const models = () => (data && data.ota && data.ota.models) || [];
-    const mname = (m) => m || "ไม่ระบุรุ่น";
-    const fwOf = (m) => firmware().filter((f) => (f.model || "") === (m || ""));
+    const released = () => (data && data.ota && data.ota.released) || {};
+    const groups = () => (data && data.groups) || [];
+    const groupOf = (id) => groups().find((g) => g.id === id) || null;
+    const gname = (id) => (groupOf(id) || {}).name || "ยังไม่จัดกลุ่ม";
+    // board = firmware label suffix: "183" = Spotpear 1.83, "" = MUMA 1.54, null = not known yet
+    const bname = (b) => b === null || b === undefined ? "ยังไม่รู้บอร์ด" : b === "" ? "MUMA (ไม่มี suffix)" : b === "183" ? "1.83 (-183)" : "-" + b;
+    const boardTag = (b) => `<span class="fl-badge plain fl-mono" title="บอร์ดจาก suffix ของ firmware">${esc(b === null || b === undefined ? "?" : b === "" ? "MUMA" : b)}</span>`;
+    const fwFor = (b) => firmware().filter((f) => b === null || b === undefined || f.board === b);   // images a device may take
     const dname = (d) => d.name || "ยังไม่ได้ตั้งชื่อ";
     const zlist = (s) => (s || "").split(",").map((z) => z.trim()).filter(Boolean);
 
@@ -75,7 +87,6 @@
         { k: "zones", label: "Zone ที่ให้ดัง", help: "เครื่องจะดังเฉพาะ alarm ของ zone ที่เลือก (alarm ที่ไม่มี zone ดังทุกเครื่อง)", kind: "zones" },
         { k: "volume", label: "ระดับเสียง", help: "0–100 · ว่าง = ใช้ค่าที่ตั้งไว้ในเครื่อง", unit: "%", min: 0, max: 100, nullable: true },
         { k: "remind_sec", label: "ดังซ้ำถ้ายังไม่มีคนรับทราบ ทุก", help: "0 = ดังครั้งเดียว", unit: "วินาที", min: 0, max: 3600 },
-        { k: "channel", label: "รับอัปเดต firmware", help: "เครื่องในกลุ่มทดสอบจะได้รุ่นใหม่ก่อน · ไฟล์ที่ได้จริงเลือกตามรุ่นของเครื่อง", kind: "channel", dev: false },
         { k: "poll_sec", label: "เช็ก alarm ใหม่ทุก", help: "ยิ่งถี่ยิ่งดังเร็ว แต่ใช้เครือข่ายมากขึ้น", unit: "วินาที", min: 1, max: 60, adv: true },
         { k: "lab_sec", label: "ดึงผลแล็บมาแสดงทุก", help: "ดึงทันทีอยู่แล้วเมื่อมี alarm แล็บใหม่หรือสถานการณ์เปลี่ยน", unit: "วินาที", min: 60, max: 3600, adv: true },
         { k: "scn_sec", label: "เช็กสถานการณ์/โรคระบาดทุก", help: "จาก LabVenture", unit: "วินาที", min: 10, max: 600, adv: true },
@@ -83,22 +94,27 @@
     const isCustom = (d, k) => d[k] !== null && d[k] !== undefined;
     const eff = (d, k) => isCustom(d, k) ? d[k] : defs()[k];
     const customList = (d) => FIELDS.filter((f) => isCustom(d, f.k)).map((f) => f.label)
-        .concat(d.wifi ? ["รหัส WiFi"] : [], d.fw_pin ? ["ล็อก firmware"] : []);
+        .concat(d.wifi ? ["รหัส WiFi"] : [], d.fw_mode === "override" ? ["ระบุ firmware เอง"] : [], d.fw_mode === "hold" ? ["ไม่อัปเดต firmware"] : []);
     const customCount = (d) => customList(d).length;
-    const chanLabel = { stable: "ใช้จริง", beta: "ทดสอบ", none: "ไม่อัปเดต", pin: "ล็อกไฟล์" };
-    const target = (d) => d.target_fw || null;                         // server resolves pin / model track
+    const target = (d) => d.target_fw || null;                         // server resolves group / auto / override
     const behind = (d) => { const t = target(d); return !!t && d.fw !== t; };
-    const pinVer = (d) => d.fw_pin ? d.fw_pin.split("/").pop() : null;
-    // "ตามกลุ่มใช้จริง → 3.0.0" etc.
+    const NOTE = {
+        board_mismatch: "ไฟล์คนละบอร์ด — ไม่ส่ง", not_released: "ยังไม่ได้ปล่อยไฟล์ของบอร์ดนี้", no_target: "ยังไม่เลือกไฟล์",
+        unknown_board: "ยังไม่รู้บอร์ด (รอเครื่องรายงานตัว)", missing: "ไฟล์ถูกลบไปแล้ว",
+    };
+    // where the device's firmware comes from, in words: "กลุ่ม A → ann-1.4.0-183"
     function fwPlan(d) {
-        if (d.fw_pin) return d.target_fw ? `ล็อก ${d.target_fw}` : `ล็อก ${pinVer(d)} (คนละรุ่น ไม่ส่ง)`;
-        const ch = eff(d, "channel") || "stable";
-        if (ch === "none") return "ไม่อัปเดต";
-        return `${chanLabel[ch]} → ${d.target_fw || "ยังไม่ได้ตั้ง"}`;
+        const to = d.target_fw || NOTE[d.target_note] || "–";
+        switch (d.target_source) {
+            case "hold": return "ไม่อัปเดต (คงรุ่นเดิม)";
+            case "override": return `ระบุเอง → ${to}`;
+            case "auto": return `Auto patcher → ${to}`;
+            case "group": return `กลุ่ม ${gname(d.group)} → ${to}`;
+            default: return "ยังไม่จัดกลุ่ม → ไม่อัปเดต";
+        }
     }
     function fmt(f, v) {
         if (f.kind === "zones") return zlist(v).length ? zlist(v).join(", ") : "ทุก zone";
-        if (f.kind === "channel") return chanLabel[v] || v || "–";
         return v === null || v === undefined || v === "" ? "ค่าในเครื่อง" : v + " " + f.unit;
     }
 
@@ -128,13 +144,11 @@
     }
     const zoneChips = (s) => zlist(s).length ? zlist(s).map((z) => `<span class="fl-z">${esc(z)}</span>`).join("") : '<span class="fl-z all">ทุก zone</span>';
     function fwCell(d) {
-        const mdl = d.eff_model ? `<div class="fl-faint fl-small fl-mono">${esc(d.eff_model)}</div>` : "";
-        if (!d.fw) return '<span class="fl-faint">–</span>' + mdl;
-        const t = target(d), ch = d.target_channel;
-        const tag = ch === "none" ? '<span class="fl-badge plain">ปิดอัปเดต</span>' : behind(d) ? `<span class="fl-badge warn">รอ ${esc(t)}</span>` : "";
-        const kind = ch === "pin" ? '<span class="fl-badge info" title="ล็อกไฟล์ firmware เฉพาะเครื่อง">ล็อก</span>'
-            : ch === "beta" ? '<span class="fl-badge info">ทดสอบ</span>' : "";
-        return `<span class="fl-mono">${esc(d.fw)}</span> ${kind} ${tag}${mdl}`;
+        const grp = `<div class="fl-faint fl-small">${d.target_source === "override" ? "ระบุเอง" : d.target_source === "hold" ? "ไม่อัปเดต" : esc(gname(d.group))}</div>`;
+        if (!d.fw) return '<span class="fl-faint">–</span>' + grp;
+        const tag = d.target_source === "hold" ? '<span class="fl-badge plain">ไม่อัปเดต</span>'
+            : behind(d) ? `<span class="fl-badge warn">รอ ${esc(target(d))}</span>` : "";
+        return `<span class="fl-mono">${esc(d.fw)}</span> ${tag}${grp}`;
     }
     function acked(d) {
         return !!(d.last_ack_at && d.last_played_at && d.last_ack_alarm === d.last_played_alarm &&
@@ -154,12 +168,12 @@
         const lost = ok.length - on;
         const pend = pending().length;
         const beh = ok.filter(behind).length;
-        const nm = models().length;
+        const ungrouped = ok.filter((d) => !d.group).length;
         const tiles = [
             ["all", "", '<span class="fl-dot on"></span>ทำงานปกติ', `${on} <small>/ ${ok.length}</small>`, "ติดต่อได้ใน 3 นาที"],
             ["lost", lost ? "t-bad" : "", '<span class="fl-dot off"></span>ขาดการติดต่อ', lost, lost ? "กดเพื่อดูเครื่อง" : "ไม่มี"],
             ["pending", pend ? "t-warn" : "", '<span class="fl-dot pend"></span>รออนุมัติ', pend, pend ? "เครื่องใหม่" : "ไม่มี"],
-            ["behind", beh ? "t-warn" : "", "firmware ไม่ตรงเป้าหมาย", beh, nm > 1 ? `${nm} รุ่นฮาร์ดแวร์` : `ใช้จริง ${esc(chans(models()[0]).stable || "–")}`],
+            ["behind", beh ? "t-warn" : "", "รออัปเดต firmware", beh, ungrouped ? `ยังไม่จัดกลุ่ม ${ungrouped} เครื่อง` : `${groups().length} กลุ่ม`],
         ];
         $("#strip").innerHTML = tiles.map(([f, cls, l, n, s]) =>
             `<button type="button" class="fl-tile ${cls} ${view === "devices" && filter === f && f !== "all" ? "sel" : ""}" data-f="${f}">` +
@@ -179,12 +193,18 @@
         if (!$("#devlist", v)) {
             v.innerHTML = `<div id="pendbox"></div>
                 <div class="fl-toolbar">
-                    <input class="fl-search" id="q" placeholder="ค้นหาชื่อ, รหัสเครื่อง, zone, IP, รุ่น" autocomplete="off">
+                    <input class="fl-search" id="q" placeholder="ค้นหาชื่อ, รหัสเครื่อง, zone, IP, firmware" autocomplete="off">
+                    <select class="fl-search" id="gfilter" style="max-width:220px" title="กรองตามกลุ่ม"></select>
                     <div class="fl-chipset" id="fchips"></div>
+                    <span style="flex:1"></span>
+                    <button type="button" class="fl-btn" id="grpToggle">จัดกลุ่ม…</button>
                 </div>
+                <div id="grpbox"></div>
                 <div class="fl-list" id="devlist"></div>
                 <p class="fl-note" style="margin-top:10px">กดที่เครื่องเพื่อดูรายละเอียด แก้ชื่อ/zone/เสียง หรือจัดการเครื่อง · ข้อมูลรีเฟรชเองทุก 30 วินาที</p>`;
             $("#q").oninput = (e) => { query = e.target.value.trim().toLowerCase(); renderDeviceList(); };
+            $("#gfilter").onchange = (e) => { gfilter = e.target.value; renderDeviceList(); };
+            $("#grpToggle").onclick = () => { grouping = !grouping; renderDeviceList(); };
         }
         $("#q").value = query;
         renderDeviceList();
@@ -198,17 +218,23 @@
                 <div class="acts">${d.has_key ? `<button type="button" class="fl-btn ok" data-approve="${esc(d.id)}">อนุมัติ</button>` : ""}
                 <button type="button" class="fl-btn" data-open="${esc(d.id)}">ดูรายละเอียด</button></div></div>`).join("") + "</div>" : "";
 
-        const fchips = [["all", "ทั้งหมด"], ["lost", "ขาดการติดต่อ"], ["behind", "firmware ไม่ล่าสุด"]];
+        const fchips = [["all", "ทั้งหมด"], ["lost", "ขาดการติดต่อ"], ["behind", "รออัปเดต firmware"]];
         $("#fchips").innerHTML = fchips.map(([f, l]) => `<button type="button" class="fl-chip" aria-pressed="${filter === f}" data-f="${f}">${l}</button>`).join("");
         $$("#fchips .fl-chip").forEach((b) => b.onclick = () => { filter = b.dataset.f; renderStrip(); renderDeviceList(); });
+        const ok = approved();
+        if (gfilter && gfilter !== "__none" && !groupOf(gfilter)) gfilter = "";
+        $("#gfilter").innerHTML = `<option value="">ทุกกลุ่ม</option><option value="__none" ${gfilter === "__none" ? "selected" : ""}>ยังไม่จัดกลุ่ม (${ok.filter((d) => !d.group).length})</option>` +
+            groups().map((g) => `<option value="${esc(g.id)}" ${gfilter === g.id ? "selected" : ""}>${esc(g.name)} (${g.members.length})</option>`).join("");
+        renderGrouping();
 
-        let list = approved();
+        let list = ok;
         if (filter === "lost") list = list.filter((d) => live(d) !== "on");
         if (filter === "behind") list = list.filter(behind);
-        if (query) list = list.filter((d) => [d.id, d.name, eff(d, "zones"), d.ip, d.eff_model, d.fw].join(" ").toLowerCase().includes(query));
+        if (gfilter) list = list.filter((d) => gfilter === "__none" ? !d.group : d.group === gfilter);
+        if (query) list = list.filter((d) => [d.id, d.name, eff(d, "zones"), d.ip, d.fw, gname(d.group)].join(" ").toLowerCase().includes(query));
 
         const empty = !approved().length ? "ยังไม่มีเครื่องที่อนุมัติแล้ว" : "ไม่มีเครื่องตรงกับตัวกรอง";
-        $("#devlist").innerHTML = `<div class="fl-lrow hd"><span>เครื่อง</span><span>Zone ที่ดัง</span><span>Firmware</span><span>สัญญาณ</span><span>Alarm ที่ดังล่าสุด</span><span>ติดต่อล่าสุด</span><span></span></div>` +
+        $("#devlist").innerHTML = `<div class="fl-lrow hd"><span>เครื่อง</span><span>Zone ที่ดัง</span><span>Firmware · กลุ่ม</span><span>สัญญาณ</span><span>Alarm ที่ดังล่าสุด</span><span>ติดต่อล่าสุด</span><span></span></div>` +
             (list.length ? list.map((d) => `<button type="button" class="fl-lrow" data-open="${esc(d.id)}">
                 <span class="fl-nm"><span class="fl-dot ${live(d)}"></span><span style="min-width:0"><b>${esc(dname(d))}</b><span class="fl-mono">${esc(d.id)}</span>
                     ${customCount(d) ? ` <span class="fl-badge plain" title="${esc("ตั้งเอง: " + customList(d).join(", "))}">ตั้งเอง ${customCount(d)}</span>` : ""}</span></span>
@@ -223,6 +249,57 @@
         $$("#v-devices [data-open]").forEach((b) => b.onclick = () => openDrawer(b.dataset.open));
         $$("#v-devices [data-approve]").forEach((b) => b.onclick = () => approve(b.dataset.approve));
     }
+    // bulk: tick devices → pick a group → move (the selection survives the 30 s refresh)
+    function renderGrouping() {
+        const box = $("#grpbox");
+        $("#grpToggle").setAttribute("aria-pressed", String(grouping));
+        if (!grouping) { box.innerHTML = ""; return; }
+        const ok = approved();
+        [...grpSel].forEach((id) => { if (!ok.some((d) => d.id === id)) grpSel.delete(id); });
+        box.innerHTML = `<div class="fl-panel" style="margin-bottom:12px"><h2>จัดกลุ่มอุปกรณ์</h2>
+            <p class="fl-lead">ระบบไม่รู้ว่าเครื่องไหนติดตั้งที่ไหนหรือควรได้ firmware ตัวไหน — เลือกเครื่องแล้วย้ายเข้ากลุ่ม · เครื่องที่ยังไม่จัดกลุ่มจะไม่อัปเดต firmware
+                · กลุ่ม <b style="color:var(--fl-fg)">Auto patcher</b> ได้ไฟล์ล่าสุดที่ปล่อยของบอร์ดตัวเองเสมอ</p>
+            <div class="fl-toolbar"><button type="button" class="fl-link" data-sel="all">เลือกทั้งหมด</button> ·
+                <button type="button" class="fl-link" data-sel="none">ที่ยังไม่จัดกลุ่ม</button> ·
+                <button type="button" class="fl-link" data-sel="clear">ล้างที่เลือก</button></div>
+            <div class="fl-list" style="max-height:320px;overflow:auto">${ok.length ? ok.map((d) => `<label class="fl-ov" style="grid-template-columns:24px minmax(0,2fr) minmax(0,1fr) minmax(0,1.4fr) minmax(0,1.4fr);cursor:pointer">
+                <input type="checkbox" data-gsel="${esc(d.id)}" ${grpSel.has(d.id) ? "checked" : ""}>
+                <span class="fl-nm"><span class="fl-dot ${live(d)}"></span><span style="min-width:0"><b>${esc(dname(d))}</b><span class="fl-mono">${esc(d.id)}</span></span></span>
+                <span>${boardTag(d.board)}</span><span class="fl-mono fl-small">${esc(d.fw || "–")}</span>
+                <span class="fl-small ${d.group ? "" : "c-warn"}">${esc(gname(d.group))}</span></label>`).join("")
+                : '<div class="fl-ov"><span class="fl-muted">ยังไม่มีเครื่องที่อนุมัติแล้ว</span></div>'}</div>
+            <div class="fl-toolbar" style="margin-top:12px">
+                <span class="fl-note">เลือก <b style="color:var(--fl-fg)" id="gselN">${grpSel.size}</b> เครื่อง → ย้ายเข้า</span>
+                <select class="fl-search" id="gto" style="max-width:240px"><option value="">— เลือกกลุ่ม —</option>${groups().map((g) =>
+                    `<option value="${esc(g.id)}" ${grpTo === g.id ? "selected" : ""}>${esc(g.name)}</option>`).join("")}<option value="none" ${grpTo === "none" ? "selected" : ""}>— เอาออกจากกลุ่ม —</option></select>
+                <button type="button" class="fl-btn primary" id="gmove">ย้าย</button>
+                <span style="flex:1"></span>
+                <input class="fl-finput" id="gnew" maxlength="40" placeholder="ชื่อกลุ่มใหม่ เช่น 1.83 อาคาร A" style="max-width:240px" value="${esc(grpNew)}">
+                <button type="button" class="fl-btn" id="gcreate">สร้างกลุ่ม</button>
+            </div></div>`;
+        $$("[data-gsel]", box).forEach((cb) => cb.onchange = () => { cb.checked ? grpSel.add(cb.dataset.gsel) : grpSel.delete(cb.dataset.gsel); $("#gselN").textContent = grpSel.size; });
+        $$("[data-sel]", box).forEach((b) => b.onclick = () => {
+            if (b.dataset.sel === "clear") grpSel.clear();
+            else ok.filter((d) => b.dataset.sel === "all" || !d.group).forEach((d) => grpSel.add(d.id));
+            renderGrouping();
+        });
+        $("#gto").onchange = (e) => { grpTo = e.target.value || null; };
+        $("#gnew").oninput = (e) => { grpNew = e.target.value; };
+        $("#gmove").onclick = () => {
+            if (!grpSel.size) { toast("เลือกเครื่องก่อน", true); return; }
+            const to = $("#gto").value, n = grpSel.size;
+            if (!to) { toast("เลือกกลุ่มปลายทางก่อน", true); return; }
+            run(() => send("/api/admin/fleet/groups/" + encodeURIComponent(to) + "/devices", "POST", { devices: [...grpSel] }),
+                to === "none" ? `เอา ${n} เครื่องออกจากกลุ่มแล้ว` : `ย้าย ${n} เครื่องเข้า ${gname(to)} แล้ว · เครื่องจะเช็ก firmware ในรอบถัดไป`, () => { grpSel.clear(); grpTo = null; });
+        };
+        $("#gcreate").onclick = async () => {
+            const name = $("#gnew").value.trim();
+            if (!name) { toast("ใส่ชื่อกลุ่มก่อน", true); return; }
+            // the new group becomes the move target, so "สร้าง → ติ๊ก → ย้าย" needs no extra pick
+            run(async () => { const j = await send("/api/admin/fleet/groups", "POST", { name }); grpTo = j.id; grpNew = ""; }, "สร้างกลุ่ม " + name + " แล้ว");
+        };
+    }
+
     function approve(id) {
         run(() => send(devUrl(id), "POST", { approved: true }), "อนุมัติ " + id + " แล้ว · เครื่องจะได้รหัส WiFi และค่าตั้งในรอบถัดไป",
             () => { if (drawerId === id) closeDrawer(); });
@@ -241,10 +318,6 @@
             return `<div class="fl-zpick" id="${idp}-zones"><button type="button" aria-pressed="${!sel.length}" data-zv="">ทุก zone</button>` +
                 all.map((z) => `<button type="button" aria-pressed="${sel.includes(z)}" data-zv="${esc(z)}">${esc(z)}</button>`).join("") +
                 `<input placeholder="+ zone" maxlength="16" title="พิมพ์ชื่อ zone แล้วกด Enter"></div>`;
-        }
-        if (f.kind === "channel") {
-            return `<span class="fl-inp"><select id="${idp}-channel">` + ["stable", "beta", "none"].map((k) =>
-                `<option value="${k}" ${k === v ? "selected" : ""}>${chanLabel[k]}</option>`).join("") + "</select></span>";
         }
         return `<span class="fl-inp"><input id="${idp}-${f.k}" type="number" min="${f.min}" max="${f.max}" value="${esc(v ?? "")}"><span class="unit">${f.unit}</span></span>`;
     }
@@ -274,7 +347,6 @@
     }
     function readControl(f, idp) {
         if (f.kind === "zones") return $$(`#${idp}-zones button[data-zv]`).filter((b) => b.dataset.zv && b.getAttribute("aria-pressed") === "true").map((b) => b.dataset.zv).join(",");
-        if (f.kind === "channel") return $(`#${idp}-channel`).value;
         const raw = $(`#${idp}-${f.k}`).value.trim();
         if (raw === "") { if (f.nullable) return null; throw new Error(`ต้องใส่ค่า “${f.label}”`); }
         const n = Number(raw);
@@ -322,16 +394,14 @@
     const tierCell = (d) => d.wifi_tier === "known" ? '<span class="c-ok">รหัสที่ตั้งไว้</span>'
         : d.wifi_tier === "bootstrap" ? '<span class="c-warn">bypass</span>' : '<span class="fl-faint">–</span>';
 
-    // firmware choice for one device: def | ch:stable | ch:beta | ch:none | pin:<key>
-    function fwChoice(d, model) {
-        const c = chans(model), defCh = defs().channel || "stable";
-        const to = (ch) => ch === "none" ? "" : " → " + (c[ch] || "ยังไม่ได้ตั้ง");
-        const opts = [["def", `ใช้ค่ากลาง · ${chanLabel[defCh]}${to(defCh)}`], ["ch:stable", "ใช้จริง" + to("stable")],
-            ["ch:beta", "ทดสอบ" + to("beta")], ["ch:none", "ไม่อัปเดต (คงรุ่นที่มีอยู่)"]]
-            .concat(fwOf(model).map((f) => ["pin:" + f.key, `ล็อกไฟล์ ${f.version}${f.note ? " · " + f.note : ""}`]));
-        const cur = d.fw_pin ? "pin:" + d.fw_pin : d.channel ? "ch:" + d.channel : "def";
-        if (!opts.some(([v]) => v === cur)) opts.push([cur, `ล็อก ${pinVer(d)} (ไฟล์ของรุ่นอื่น — จะไม่ถูกส่ง)`]);
-        return opts.map(([v, l]) => `<option value="${esc(v)}" ${v === cur ? "selected" : ""}>${esc(l)}</option>`).join("");
+    // what a group would give this device, in words (for the drawer's "ตามกลุ่ม" option)
+    function groupGives(gid, board) {
+        const g = groupOf(gid);
+        if (!g) return "ยังไม่จัดกลุ่ม → ไม่อัปเดต";
+        if (g.auto) return board === null || board === undefined ? "Auto patcher → รอรู้บอร์ด" : `Auto patcher → ${released()[board] || "ยังไม่ปล่อยไฟล์ของบอร์ดนี้"}`;
+        if (!g.target) return `${g.name} → ยังไม่เลือกไฟล์`;
+        const f = firmware().find((x) => x.version === g.target);
+        return `${g.name} → ${g.target}${f && board !== null && board !== undefined && f.board !== board ? " (คนละบอร์ด — ไม่ส่ง)" : ""}`;
     }
 
     // ── device drawer ──
@@ -374,12 +444,17 @@
                     <details class="fl-adv"><summary>ตั้งค่าขั้นสูง (รอบการดึงข้อมูล)</summary><div class="fl-fields">${FIELDS.filter((f) => f.adv).map(row).join("")}</div></details>
                 </div>
                 <div class="fl-dr-sec"><h3>Firmware</h3>
-                    <div class="fl-field" style="border-top:0"><div class="fl-fl"><b>รุ่นฮาร์ดแวร์</b><span>เครื่องจะได้เฉพาะไฟล์ของรุ่นนี้ · เว้นว่าง = ${d.reported_model ? "ตามที่เครื่องแจ้ง (" + esc(d.reported_model) + ")" : "ไม่ระบุรุ่น"}</span></div>
-                        <div class="fl-fctl"><input class="fl-finput" id="c-model" list="c-models" maxlength="32" autocomplete="off" value="${esc(d.model || "")}" placeholder="${esc(d.reported_model || "ไม่ระบุรุ่น")}">
-                        <datalist id="c-models">${models().filter(Boolean).map((m) => `<option value="${esc(m)}">`).join("")}</datalist></div></div>
-                    <div class="fl-field"><div class="fl-fl"><b>ไฟล์ที่จะส่งให้เครื่องนี้</b><span>ตามกลุ่ม (ใช้จริง/ทดสอบของรุ่นนี้) หรือล็อกไฟล์เฉพาะเครื่อง</span></div>
-                        <div class="fl-fctl"><span class="fl-inp"><select id="c-fw" style="max-width:320px">${fwChoice(d, d.eff_model)}</select></span>
-                        <span class="fl-note">ตอนนี้: ${esc(fwPlan(d))}</span></div></div>
+                    <p class="fl-note" style="margin:0 0 6px">บอร์ด ${boardTag(d.board)} ${esc(bname(d.board))} (จาก firmware ที่เครื่องรัน) · ตอนนี้: <b style="color:var(--fl-fg)">${esc(fwPlan(d))}</b></p>
+                    <div class="fl-field" style="border-top:0"><div class="fl-fl"><b>กลุ่ม</b><span>กลุ่มเลือกไฟล์ให้ทุกเครื่องในกลุ่ม · จัดหลายเครื่องพร้อมกันได้ที่แท็บอุปกรณ์ → จัดกลุ่ม</span></div>
+                        <div class="fl-fctl"><span class="fl-inp"><select id="c-group" style="max-width:300px"><option value="">— ยังไม่จัดกลุ่ม —</option>${groups().map((g) =>
+                            `<option value="${esc(g.id)}" ${d.group === g.id ? "selected" : ""}>${esc(g.name)}</option>`).join("")}</select></span></div></div>
+                    <div class="fl-field"><div class="fl-fl"><b>Firmware ของเครื่องนี้</b><span>ตามกลุ่ม หรือ override เฉพาะเครื่อง (เลือกได้เฉพาะไฟล์ของบอร์ดเดียวกัน)</span></div>
+                        <div class="fl-fctl"><div class="fl-seg" id="c-fwmode">${[["group", "ตามกลุ่ม"], ["override", "ระบุไฟล์เอง"], ["hold", "ไม่อัปเดต"]].map(([k, l]) =>
+                            `<button type="button" data-m="${k}" aria-pressed="${(d.fw_mode || "group") === k}">${l}</button>`).join("")}</div>
+                        <span class="fl-note" id="c-fwgroup"></span>
+                        <span class="fl-inp" id="c-fwov" hidden><select id="c-fwfile" style="max-width:300px">${fwFor(d.board).map((f) =>
+                            `<option value="${esc(f.version)}" ${d.fw_override === f.version ? "selected" : ""}>${esc(f.version)}${f.note ? " · " + esc(f.note) : ""}</option>`).join("") ||
+                            '<option value="">ยังไม่มีไฟล์ของบอร์ดนี้ (อัปโหลดที่แท็บอัปเดต Firmware)</option>'}</select></span></div></div>
                 </div>
                 <div class="fl-dr-sec"><h3>WiFi</h3>
                     <p class="fl-note" style="margin:0 0 10px">${d.wifi ? `ตั้งรหัสไว้แล้ว · ${esc(nextIn(d.wifi))} · แก้ล่าสุด ${esc(ts(d.wifi.updated_at))}`
@@ -407,12 +482,19 @@
             dirty();
         }));
         wireZones(body, dirty);
-        $("#c-model").onchange = () => {
-            const m = $("#c-model").value.trim().toLowerCase() || d.reported_model || "";
-            const keep = $("#c-fw").value;
-            $("#c-fw").innerHTML = fwChoice(Object.assign({}, d, { fw_pin: null }), m);
-            if ($$("#c-fw option").some((o) => o.value === keep)) $("#c-fw").value = keep;
+        const fwMode = () => ($('#c-fwmode [aria-pressed="true"]') || {}).dataset?.m || "group";
+        const syncFw = () => {
+            const m = fwMode();
+            $("#c-fwov").hidden = m !== "override";
+            $("#c-fwgroup").hidden = m !== "group";
+            $("#c-fwgroup").textContent = "จะได้: " + groupGives($("#c-group").value || null, d.board);
         };
+        $$("#c-fwmode button").forEach((b) => b.onclick = () => {
+            $$("#c-fwmode button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+            syncFw(); dirty();
+        });
+        $("#c-group").onchange = syncFw;
+        syncFw();
 
         $$("[data-dz]", body).forEach((b) => b.onclick = () => {
             const rowEl = b.closest(".fl-danger-row");
@@ -442,14 +524,24 @@
                     const own = $('.fl-seg [data-mode="own"]', fe).getAttribute("aria-pressed") === "true";
                     patch[f.k] = own ? readControl(f, "c") : null;
                 });
-                patch.model = $("#c-model").value.trim();
-                const fw = $("#c-fw").value;
-                if (fw.startsWith("pin:")) patch.fw_pin = fw.slice(4);
-                else { patch.fw_pin = null; patch.channel = fw === "def" ? null : fw.slice(3); }
+                patch.group = $("#c-group").value || null;
+                patch.fw_mode = fwMode();
+                if (patch.fw_mode === "override") {
+                    if (!$("#c-fwfile").value) throw new Error("ยังไม่มีไฟล์ของบอร์ดนี้ให้เลือก");
+                    patch.fw_override = $("#c-fwfile").value;
+                }
                 if ($("#c-wifi-clear") && $("#c-wifi-clear").checked) patch.wifi = null;
                 else { const w = readWifi("dw", d.wifi); if (w) patch.wifi = w; }
             } catch (e) { toast(e.message, true); return; }
-            run(() => send(devUrl(d.id), "POST", patch), "บันทึก " + (patch.name.trim() || d.id) + " แล้ว · เครื่องจะรับค่าใหม่ในรอบถัดไป", closeDrawer);
+            const save = () => run(() => send(devUrl(d.id), "POST", patch), "บันทึก " + (patch.name.trim() || d.id) + " แล้ว · เครื่องจะรับค่าใหม่ในรอบถัดไป", closeDrawer);
+            const fwChanged = patch.group !== (d.group || null) || patch.fw_mode !== (d.fw_mode || "group") ||
+                (patch.fw_mode === "override" && patch.fw_override !== d.fw_override);
+            if (!fwChanged) return save();
+            // firmware plan changes → confirm first (the device installs it on its next OTA check)
+            const gives = patch.fw_mode === "hold" ? "ไม่อัปเดต (คงรุ่นเดิม)" : patch.fw_mode === "override" ? "ระบุเอง → " + patch.fw_override : groupGives(patch.group, d.board);
+            $("#dstate").innerHTML = `<span class="c-warn">ยืนยัน firmware: <b>${esc(gives)}</b> · ถ้าเป็นรุ่นใหม่ เครื่องจะติดตั้งในรอบเช็กถัดไป (≤ 30 นาที)</span>`;
+            $("#dsave").textContent = "ยืนยันและบันทึก";
+            $("#dsave").onclick = save;
         };
 
         $("#scrim").hidden = false;
@@ -469,13 +561,13 @@
                 <div class="fl-fctl">${control(f, def[f.k], "d")}</div></div>`;
         };
         const v = $("#v-defaults");
-        const ownWifi = ok.filter((d) => d.wifi).length, pinned = ok.filter((d) => d.fw_pin).length;
+        const ownWifi = ok.filter((d) => d.wifi).length, own = ok.filter((d) => d.fw_mode && d.fw_mode !== "group").length;
         v.innerHTML = `<div class="fl-panel"><h2>ค่าตั้งกลาง</h2>
             <p class="fl-lead">ทุกเครื่องใช้ค่ากลางเป็นพื้นฐาน แล้ว “กำหนดเอง” ทับได้รายเครื่องที่แผงตั้งค่าของเครื่อง ลำดับที่เครื่องได้รับ:</p>
             <div class="fl-stages">
                 <div class="fl-stage"><span class="k"><span class="fl-stepn">1</span>ค่าเสียง / zone / รอบดึงข้อมูล</span><div class="s" style="margin-top:4px">ค่ากลางในหน้านี้ → ทับได้รายเครื่อง</div></div>
                 <div class="fl-stage"><span class="k"><span class="fl-stepn">2</span>WiFi</span><div class="s" style="margin-top:4px">รหัสรายเครื่องเท่านั้น (ไม่มีค่ากลาง) → ไม่ได้ตั้ง = bypass · ตั้งแล้ว ${ownWifi}/${ok.length} เครื่อง</div></div>
-                <div class="fl-stage"><span class="k"><span class="fl-stepn">3</span>Firmware</span><div class="s" style="margin-top:4px">รุ่นของเครื่อง → กลุ่มใช้จริง/ทดสอบของรุ่นนั้น → ${pinned} เครื่องล็อกไฟล์เอง</div></div>
+                <div class="fl-stage"><span class="k"><span class="fl-stepn">3</span>Firmware</span><div class="s" style="margin-top:4px">กลุ่มของเครื่อง (แท็บอัปเดต Firmware) → override รายเครื่อง ${own} เครื่อง · ไม่จัดกลุ่ม = ไม่อัปเดต</div></div>
             </div>
             <div class="fl-fields">${FIELDS.filter((f) => !f.adv).map(row).join("")}</div>
             <details class="fl-adv"><summary>ตั้งค่าขั้นสูง (รอบการดึงข้อมูล)</summary><div class="fl-fields">${FIELDS.filter((f) => f.adv).map(row).join("")}</div></details>
@@ -484,10 +576,10 @@
             <div class="fl-panel"><h2>ภาพรวมรายเครื่อง</h2>
                 <p class="fl-lead">แต่ละเครื่องได้ค่าอะไรจริง · กดที่แถวเพื่อแก้</p>
                 <div class="fl-list">
-                    <div class="fl-ov hd"><span>เครื่อง</span><span>รุ่น</span><span>WiFi</span><span>Firmware ที่จะได้</span><span>ตั้งเองต่างจากค่ากลาง</span></div>
+                    <div class="fl-ov hd"><span>เครื่อง</span><span>บอร์ด · กลุ่ม</span><span>WiFi</span><span>Firmware ที่จะได้</span><span>ตั้งเองต่างจากค่ากลาง</span></div>
                     ${ok.length ? ok.map((d) => `<button type="button" class="fl-ov" data-open="${esc(d.id)}">
                         <span class="fl-nm"><span class="fl-dot ${live(d)}"></span><span style="min-width:0"><b>${esc(dname(d))}</b><span class="fl-mono">${esc(d.id)}</span></span></span>
-                        <span class="fl-mono">${esc(mname(d.eff_model))}${!d.model && d.reported_model ? ' <span class="fl-faint">(เครื่องแจ้ง)</span>' : ""}</span>
+                        <span>${boardTag(d.board)} <span class="fl-small ${d.group ? "" : "c-warn"}">${esc(gname(d.group))}</span></span>
                         <span>${d.wifi ? '<span class="fl-badge info">ตั้งรหัสแล้ว</span>' : '<span class="fl-badge warn">bypass</span>'}</span>
                         <span><span class="fl-mono">${esc(d.fw || "–")}</span> <span class="fl-muted">· ${esc(fwPlan(d))}</span></span>
                         <span class="fl-small fl-muted">${customList(d).map(esc).join(", ") || "–"}</span></button>`).join("")
@@ -544,92 +636,134 @@
         $$("[data-open]", v).forEach((b) => b.onclick = () => openDrawer(b.dataset.open));
     }
 
-    // ── firmware (per hardware model) ──
-    let fwModel = null;        // model shown in the firmware tab ("" = not specified)
+    // ── firmware: groups (top) + uploaded images (bottom) ──
+    // A group points at one image; "ยืนยัน" applies it to every member at once (no rolling). Auto patcher follows
+    // the newest image released for each board. A device's own override / hold is set in its drawer.
     function renderFirmware() {
-        const ok = approved(), ms = models();
-        if (fwModel === null || !ms.includes(fwModel)) fwModel = ms[0] ?? "";
-        const m = fwModel, c = chans(m), fws = fwOf(m);
-        const mine = ok.filter((d) => (d.eff_model || "") === m);
-        const on = (ver) => mine.filter((d) => d.fw === ver);
-        const inCh = (ch) => mine.filter((d) => !d.fw_pin && (eff(d, "channel") || "stable") === ch);
-        const pinned = mine.filter((d) => d.fw_pin);
-        const done = (ch) => inCh(ch).filter((d) => c[ch] && d.fw === c[ch]).length;
-        const latest = fws[0];
-        const q = (ver) => "/api/admin/ota/firmware/" + encodeURIComponent(ver) + (m ? "?model=" + encodeURIComponent(m) : "");
+        const ok = approved(), fws = firmware(), rel = released();
+        const membersOf = (g) => ok.filter((d) => d.group === g.id);
         const v = $("#v-firmware");
-        v.innerHTML = `<div class="fl-panel"><h2>อัปเดต Firmware</h2>
-            <p class="fl-lead">แยกตามรุ่นฮาร์ดแวร์ — ไฟล์ของรุ่นหนึ่งจะไม่ถูกส่งให้อีกรุ่น · อัปโหลด → ส่งให้กลุ่มทดสอบของรุ่นนั้นก่อน → ปล่อยให้ทุกเครื่องของรุ่นนั้น ·
-                เครื่องไหนต้องใช้ไฟล์เฉพาะ ให้ “ล็อกไฟล์” ที่แผงตั้งค่าของเครื่อง</p>
-            <div class="fl-toolbar"><span class="fl-muted fl-small">รุ่น</span><div class="fl-chipset" id="fwModels">${ms.map((x) =>
-                `<button type="button" class="fl-chip" aria-pressed="${x === m}" data-m="${esc(x)}">${esc(mname(x))} <span class="fl-faint">${ok.filter((d) => (d.eff_model || "") === x).length}</span></button>`).join("")}</div></div>
-            <div class="fl-stages">
-                <div class="fl-stage"><span class="k"><span class="fl-stepn">1</span>อัปโหลดล่าสุด · ${esc(mname(m))}</span><div class="v">${esc(latest ? latest.version : "–")}</div>
-                    <div class="s">${latest ? esc(ts(latest.uploaded_at)) : "ยังไม่มีไฟล์ของรุ่นนี้"}</div></div>
-                <div class="fl-stage"><span class="k"><span class="fl-stepn">2</span>กลุ่มทดสอบ</span><div class="v">${esc(c.beta || "–")}</div>
-                    <div class="s">${inCh("beta").length ? `อัปเดตแล้ว ${done("beta")}/${inCh("beta").length} เครื่อง` : "ยังไม่มีเครื่องรุ่นนี้ในกลุ่มทดสอบ"}</div></div>
-                <div class="fl-stage"><span class="k"><span class="fl-stepn">3</span>ใช้จริงทุกเครื่องของรุ่นนี้</span><div class="v">${esc(c.stable || "–")}</div>
-                    <div class="s">อัปเดตแล้ว ${done("stable")}/${inCh("stable").length} เครื่อง${pinned.length ? ` · ล็อกไฟล์เอง ${pinned.length} เครื่อง` : ""}</div></div>
-            </div>
+        const confirmIn = (host, html, label, go) => {
+            host.innerHTML = `<div class="fl-confirm" style="margin-top:8px"><span>${html}</span><button type="button" class="fl-btn sm">ยกเลิก</button><button type="button" class="fl-btn primary sm">${label}</button></div>`;
+            host.querySelectorAll("button")[0].onclick = () => { host.innerHTML = ""; viewDirty = false; };
+            host.querySelectorAll("button")[1].onclick = go;
+            viewDirty = true;
+        };
+        const status = (mem) => {
+            const want = mem.filter((d) => d.target_fw);
+            const done = want.filter((d) => d.fw === d.target_fw).length;
+            return want.length ? `อัปเดตแล้ว ${done}/${want.length} เครื่อง` : "ไม่มีเครื่องที่ต้องอัปเดต";
+        };
+        const groupRow = (g) => {
+            const mem = membersOf(g);
+            const boards = [...new Set(mem.map((d) => d.board))];
+            const names = mem.map((d) => esc(dname(d))).join(", ") || '<span class="fl-faint">ยังไม่มีเครื่อง</span>';
+            if (g.auto) {
+                const relTxt = Object.keys(rel).length ? Object.entries(rel).map(([b, ver]) => `${boardTag(b)} <span class="fl-mono">${esc(ver)}</span>`).join(" · ")
+                    : '<span class="fl-faint">ยังไม่ได้ปล่อยไฟล์ใด (ปล่อยได้ที่รายการไฟล์ด้านล่าง)</span>';
+                return `<div class="fl-fwrow"><div><div class="ver" style="font-family:inherit">Auto patcher <span class="fl-badge info">อัตโนมัติ</span></div>
+                        <div class="fl-faint fl-small">${mem.length} เครื่อง</div></div>
+                    <div><div>ได้ไฟล์ล่าสุดที่ปล่อยของบอร์ดตัวเอง: ${relTxt}</div><div class="fl-note">${names} · ${status(mem)}</div></div>
+                    <div class="acts"></div></div>`;
+            }
+            const opts = `<option value="">— ไม่อัปเดต —</option>` + fws.map((f) => {
+                const off = mem.filter((d) => d.board !== null && d.board !== undefined && d.board !== f.board).length;
+                return `<option value="${esc(f.version)}" ${g.target === f.version ? "selected" : ""}>${esc(f.version)} · ${esc(bname(f.board))}${off ? ` (คนละบอร์ดกับ ${off} เครื่อง)` : ""}</option>`;
+            }).join("");
+            return `<div class="fl-fwrow" data-g="${esc(g.id)}"><div><div class="ver" style="font-family:inherit">${esc(g.name)}</div>
+                    <div class="fl-faint fl-small">${mem.length} เครื่อง${boards.length ? " · บอร์ด " + boards.map(boardTag).join(" ") : ""}</div></div>
+                <div><div>ไฟล์: ${g.target ? `<span class="fl-mono">${esc(g.target)}</span>` : '<span class="fl-faint">ไม่อัปเดต</span>'}
+                    ${g.updated_at ? `<span class="fl-faint fl-small"> · ตั้งเมื่อ ${esc(ago(g.updated_at))}${g.updated_by ? " โดย " + esc(g.updated_by) : ""}</span>` : ""}</div>
+                    <div class="fl-note">${names} · ${status(mem)}</div><div class="gconfirm" style="grid-column:1/-1"></div></div>
+                <div class="acts"><span class="fl-inp"><select class="gtarget" style="max-width:260px">${opts}</select></span>
+                    <button type="button" class="fl-btn primary sm" data-gapply>ยืนยัน…</button>
+                    <button type="button" class="fl-btn ghost-bad sm" data-gdel>ลบ…</button></div></div>`;
+        };
+        const fileRow = (f) => {
+            const isRel = rel[f.board] === f.version;
+            const inGroups = groups().filter((g) => !g.auto && g.target === f.version).map((g) => esc(g.name));
+            const ovr = ok.filter((d) => d.fw_mode === "override" && d.fw_override === f.version);
+            const running = ok.filter((d) => d.fw === f.version);
+            const used = [inGroups.length ? "กลุ่ม " + inGroups.join(", ") : "", ovr.length ? `ระบุเอง ${ovr.length} เครื่อง` : "", isRel ? "Auto patcher" : ""].filter(Boolean).join(" · ");
+            return `<div class="fl-fwrow" data-f="${esc(f.version)}"><div><div class="ver">${esc(f.version)} ${boardTag(f.board)}</div>
+                    <div class="fl-faint fl-small">${esc(ts(f.uploaded_at))} · ${(f.size / 1048576).toFixed(2)} MB · <span class="fl-mono" title="sha256">${esc((f.sha256 || "").slice(0, 12))}…</span></div></div>
+                <div><div>${f.note ? esc(f.note) : '<span class="fl-faint">ไม่มีหมายเหตุ</span>'}</div>
+                    <div class="fl-note">${used ? "ใช้โดย: " + used : "ยังไม่มีใครใช้"} · รันอยู่ ${running.length} เครื่อง</div><div class="fconfirm"></div></div>
+                <div class="acts">${isRel ? '<span class="fl-badge ok">Auto patcher ใช้อยู่</span><button type="button" class="fl-btn sm" data-unrel>เลิกปล่อย</button>'
+                    : '<button type="button" class="fl-btn sm" data-rel>ปล่อยให้ Auto patcher…</button>'}
+                    ${!used ? '<button type="button" class="fl-btn ghost-bad sm" data-fdel>ลบ…</button>' : ""}</div></div>`;
+        };
+        v.innerHTML = `<div class="fl-panel"><h2>กลุ่ม Firmware</h2>
+            <p class="fl-lead">เลือกไฟล์ให้กลุ่ม แล้วกด <b style="color:var(--fl-fg)">ยืนยัน</b> — ทุกเครื่องในกลุ่มจะอัปเดตพร้อมกันในรอบเช็กถัดไป (2 นาทีหลังบูต แล้วทุก 30 นาที) ·
+                เครื่องจะไม่ได้ไฟล์ของบอร์ดอื่น · เครื่องที่ตั้ง “ระบุไฟล์เอง” หรือ “ไม่อัปเดต” ในแผงเครื่องจะไม่ตามกลุ่ม · จัดเครื่องเข้ากลุ่มได้ที่แท็บอุปกรณ์ → จัดกลุ่ม</p>
+            <div>${groups().map(groupRow).join("")}</div>
+            <div class="fl-toolbar" style="margin-top:12px"><input class="fl-finput" id="fwgnew" maxlength="40" placeholder="ชื่อกลุ่มใหม่ เช่น 1.83 อาคาร A" style="max-width:260px">
+                <button type="button" class="fl-btn" id="fwgcreate">สร้างกลุ่ม</button>
+                <span class="fl-note">ยังไม่จัดกลุ่ม ${ok.filter((d) => !d.group).length} เครื่อง (ไม่อัปเดต)</span></div>
+        </div>
+        <div class="fl-panel"><h2>ไฟล์ Firmware</h2>
+            <p class="fl-lead">บอร์ดอ่านจาก suffix ของเลขรุ่นในไฟล์: <span class="fl-mono">ann-1.4.0-183</span> = 1.83 · <span class="fl-mono">ann-1.4.0</span> = MUMA ·
+                “ปล่อยให้ Auto patcher” = เครื่องในกลุ่ม Auto patcher ที่เป็นบอร์ดนี้จะอัปเดตเป็นไฟล์นี้ทันที</p>
             <div class="fl-drop"><div class="grow"><b>อัปโหลดไฟล์ใหม่</b>
-                <div class="fl-note">ไฟล์ <span class="fl-mono">build/xiaozhi.bin</span> · ระบบอ่านเลขรุ่น firmware จากไฟล์ให้เอง</div></div>
+                <div class="fl-note">ไฟล์ <span class="fl-mono">build/xiaozhi.bin</span> · ระบบอ่านเลขรุ่นจากไฟล์ให้เอง</div></div>
                 <input type="file" id="fwFile" accept=".bin">
-                <label class="fl-note" style="display:grid;gap:2px">รุ่นฮาร์ดแวร์<input class="fl-finput" id="fwModel" list="fwModelList" maxlength="32" autocomplete="off" value="${esc(m)}" placeholder="ไม่ระบุรุ่น" style="max-width:180px"></label>
-                <datalist id="fwModelList">${ms.filter(Boolean).map((x) => `<option value="${esc(x)}">`).join("")}</datalist>
-                <input class="fl-finput" id="fwNote" placeholder="หมายเหตุ เช่น แก้อะไร" style="max-width:220px">
-                <details style="font-size:13px"><summary class="fl-muted" style="cursor:pointer">ระบุเลข firmware เอง</summary>
+                <input class="fl-finput" id="fwNote" placeholder="หมายเหตุ เช่น แก้อะไร" style="max-width:240px">
+                <details style="font-size:13px"><summary class="fl-muted" style="cursor:pointer">ระบุเลขรุ่นเอง</summary>
                     <input class="fl-finput" id="fwVersion" placeholder="ต้องตรงกับ PROJECT_VER" style="max-width:200px;margin-top:6px"></details>
                 <button type="button" class="fl-btn primary" id="fwUpload">อัปโหลด</button></div>
             <p class="fl-note" style="margin:0 0 6px">เครื่องจะไม่อัปเดตระหว่างมี alarm ที่ยังไม่รับทราบ · ถ้ารุ่นใหม่ดึง alarm ไม่สำเร็จใน 5 นาที เครื่องจะย้อนกลับรุ่นเดิมเอง</p>
-            <div>${fws.length ? fws.map((f) => {
-                const isB = c.beta === f.version, isS = c.stable === f.version, n = on(f.version);
-                const pins = ok.filter((d) => d.fw_pin === f.key);
-                const acts = (isS ? '<span class="fl-badge ok">ใช้จริงอยู่</span>' : "") +
-                    (isB ? '<span class="fl-badge info">กำลังทดสอบ</span>' : "") +
-                    (pins.length ? `<span class="fl-badge plain" title="${esc(pins.map(dname).join(", "))}">ล็อก ${pins.length} เครื่อง</span>` : "") +
-                    (!isB && !isS ? `<button type="button" class="fl-btn sm" data-ch="beta" data-v="${esc(f.version)}">ส่งให้กลุ่มทดสอบ</button>` : "") +
-                    (!isS ? `<button type="button" class="fl-btn ${isB ? "primary" : ""} sm" data-ch="stable" data-v="${esc(f.version)}">ปล่อยให้ทุกเครื่องรุ่นนี้</button>` : "") +
-                    (!isB && !isS && !pins.length ? `<button type="button" class="fl-btn ghost-bad sm" data-del="${esc(f.version)}">ลบ…</button>` : "");
-                return `<div class="fl-fwrow"><div><div class="ver">${esc(f.version)}</div>
-                    <div class="fl-faint fl-small">${esc(ts(f.uploaded_at))} · ${(f.size / 1048576).toFixed(2)} MB</div>
-                    <div class="fl-faint fl-small fl-mono" title="sha256">${esc((f.sha256 || "").slice(0, 12))}…</div></div>
-                    <div><div>${f.note ? esc(f.note) : '<span class="fl-faint">ไม่มีหมายเหตุ</span>'}</div>
-                    <div class="fl-note">${n.length ? "ใช้อยู่ " + n.length + " เครื่อง: " + n.map((d) => esc(dname(d))).join(", ") : "ไม่มีเครื่องใช้รุ่นนี้"}</div></div>
-                    <div class="acts">${acts}</div></div>`;
-            }).join("") : '<p class="fl-note">ยังไม่มีไฟล์ firmware ของรุ่นนี้</p>'}</div>
-            <p class="fl-note">กลุ่มทดสอบของรุ่นนี้: ${inCh("beta").map((d) => esc(dname(d))).join(", ") || "ไม่มี"} ·
-                ล็อกไฟล์: ${pinned.map((d) => `${esc(dname(d))} (${esc(pinVer(d))})`).join(", ") || "ไม่มี"} · ตั้งกลุ่ม/ล็อกไฟล์ได้ที่แผงตั้งค่าของเครื่อง</p>
+            <div>${fws.length ? fws.map(fileRow).join("") : '<p class="fl-note">ยังไม่มีไฟล์ firmware</p>'}</div>
         </div>`;
         v.oninput = () => (viewDirty = true);
         v.onchange = () => (viewDirty = true);
-        $$("#fwModels .fl-chip").forEach((b) => b.onclick = () => { fwModel = b.dataset.m; viewDirty = false; renderFirmware(); });
-        $$("[data-ch]", v).forEach((b) => b.onclick = () => {
-            const ch = b.dataset.ch, ver = b.dataset.v;
-            run(() => send("/api/admin/ota/channel", "POST", { model: m, channel: ch, version: ver }),
-                (ch === "beta" ? "ส่ง " + ver + " ให้กลุ่มทดสอบ" : "ปล่อย " + ver + " ให้ทุกเครื่อง") + "ของรุ่น " + mname(m) + " แล้ว");
+
+        $$("[data-g]", v).forEach((row) => {
+            const g = groupOf(row.dataset.g), mem = membersOf(g);
+            $("[data-gapply]", row).onclick = () => {
+                const ver = $(".gtarget", row).value || null;
+                const f = fws.find((x) => x.version === ver);
+                const off = f ? mem.filter((d) => d.board !== null && d.board !== undefined && d.board !== f.board) : [];
+                const follow = mem.filter((d) => (d.fw_mode || "group") === "group");
+                const will = follow.filter((d) => !off.includes(d) && ver && d.fw !== ver).length;
+                const html = !ver ? `กลุ่ม <b>${esc(g.name)}</b>: หยุดอัปเดต (เครื่องคงรุ่นที่มีอยู่)`
+                    : `กลุ่ม <b>${esc(g.name)}</b> → <b class="fl-mono">${esc(ver)}</b>: ${will} เครื่องจะอัปเดตพร้อมกัน` +
+                      (off.length ? ` · <span class="c-warn">${off.length} เครื่องคนละบอร์ด จะไม่ได้รับ</span>` : "") +
+                      (mem.length - follow.length ? ` · ${mem.length - follow.length} เครื่องตั้งเองไว้ ไม่ตาม` : "");
+                confirmIn($(".gconfirm", row), html, "ยืนยันอัปเดต", () =>
+                    run(() => send("/api/admin/fleet/groups/" + encodeURIComponent(g.id), "PUT", { target: ver }),
+                        ver ? `กลุ่ม ${g.name} → ${ver} แล้ว · เครื่องจะติดตั้งในรอบเช็กถัดไป` : `กลุ่ม ${g.name} หยุดอัปเดตแล้ว`));
+            };
+            $("[data-gdel]", row).onclick = () => confirmIn($(".gconfirm", row),
+                `ลบกลุ่ม <b>${esc(g.name)}</b>? ${mem.length} เครื่องจะกลายเป็น “ยังไม่จัดกลุ่ม” (ไม่อัปเดต)`, "ลบกลุ่ม",
+                () => run(() => api("/api/admin/fleet/groups/" + encodeURIComponent(g.id), { method: "DELETE" }), "ลบกลุ่ม " + g.name + " แล้ว"));
         });
-        $$("[data-del]", v).forEach((b) => b.onclick = () => {
-            const ver = b.dataset.del, acts = b.parentElement;
-            if ($(".fl-confirm", acts.parentElement)) return;
-            const c2 = document.createElement("div");
-            c2.className = "fl-confirm"; c2.style.gridColumn = "1 / -1";
-            c2.innerHTML = `<span>ลบไฟล์ firmware <b class="fl-mono">${esc(ver)}</b> ของรุ่น ${esc(mname(m))} ใช่ไหม?</span><button type="button" class="fl-btn sm">ยกเลิก</button><button type="button" class="fl-btn bad sm">ลบไฟล์</button>`;
-            acts.parentElement.appendChild(c2);
-            c2.children[1].onclick = () => c2.remove();
-            c2.children[2].onclick = () => run(() => api(q(ver), { method: "DELETE" }), "ลบ " + ver + " แล้ว");
+        $$("[data-f]", v).forEach((row) => {
+            const f = fws.find((x) => x.version === row.dataset.f);
+            const auto = groupOf("auto");
+            const autoMem = auto ? membersOf(auto).filter((d) => (d.fw_mode || "group") === "group" && d.board === f.board) : [];
+            if ($("[data-rel]", row)) $("[data-rel]", row).onclick = () => confirmIn($(".fconfirm", row),
+                `ปล่อย <b class="fl-mono">${esc(f.version)}</b> ให้ Auto patcher บอร์ด ${esc(bname(f.board))}: ${autoMem.filter((d) => d.fw !== f.version).length} เครื่องจะอัปเดตพร้อมกัน`,
+                "ยืนยันปล่อย", () => run(() => send("/api/admin/ota/release", "POST", { version: f.version, released: true }), "ปล่อย " + f.version + " ให้ Auto patcher แล้ว"));
+            if ($("[data-unrel]", row)) $("[data-unrel]", row).onclick = () =>
+                run(() => send("/api/admin/ota/release", "POST", { version: f.version, released: false }), "เลิกปล่อย " + f.version + " แล้ว · Auto patcher บอร์ดนี้จะไม่อัปเดต");
+            if ($("[data-fdel]", row)) $("[data-fdel]", row).onclick = () => confirmIn($(".fconfirm", row),
+                `ลบไฟล์ <b class="fl-mono">${esc(f.version)}</b>?`, "ลบไฟล์",
+                () => run(() => api("/api/admin/ota/firmware/" + encodeURIComponent(f.version), { method: "DELETE" }), "ลบ " + f.version + " แล้ว"));
         });
+        $("#fwgcreate").onclick = () => {
+            const name = $("#fwgnew").value.trim();
+            if (!name) { toast("ใส่ชื่อกลุ่มก่อน", true); return; }
+            run(() => send("/api/admin/fleet/groups", "POST", { name }), "สร้างกลุ่ม " + name + " แล้ว");
+        };
         $("#fwUpload").onclick = () => {
             const file = $("#fwFile").files[0];
             if (!file) { toast("เลือกไฟล์ .bin ก่อน", true); return; }
-            const model = $("#fwModel").value.trim().toLowerCase();
-            if (model && !/^[a-z0-9][a-z0-9._-]{0,31}$/.test(model)) { toast(ERR.bad_model, true); return; }
             const fd = new FormData();
             fd.append("version", $("#fwVersion").value.trim());
             fd.append("note", $("#fwNote").value);
-            fd.append("model", model);
             fd.append("file", file);
             $("#fwUpload").disabled = true; $("#fwUpload").textContent = "กำลังอัปโหลด…";
-            run(() => api("/api/admin/ota/firmware", { method: "POST", body: fd }), "อัปโหลดแล้ว (รุ่น " + mname(model) + ")", () => (fwModel = model)).finally(() => {
+            run(() => api("/api/admin/ota/firmware", { method: "POST", body: fd }), "อัปโหลดแล้ว").finally(() => {
                 const b = $("#fwUpload"); if (b) { b.disabled = false; b.textContent = "อัปโหลด"; }
             });
         };

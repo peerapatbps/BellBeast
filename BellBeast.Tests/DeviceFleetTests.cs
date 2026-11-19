@@ -10,7 +10,7 @@ using Xunit;
 
 /// <summary>
 /// Annunciator fleet (P4): device key TOFU + approval, report → registry/audit log, config with ETag
-/// (WiFi only for approved devices), OTA manifest per channel + firmware download, admin-only writes.
+/// (WiFi only for approved devices), OTA manifest per group / override + firmware download, admin-only writes.
 /// </summary>
 public sealed class DeviceFleetTests : IClassFixture<BellBeastAdminFactory>, IClassFixture<BellBeastBaseFactory>
 {
@@ -140,8 +140,24 @@ public sealed class DeviceFleetTests : IClassFixture<BellBeastAdminFactory>, ICl
         Assert.Equal(HttpStatusCode.Forbidden, (await c.SendAsync(Dev(HttpMethod.Get, $"/api/device/{id}/config", key))).StatusCode);
     }
 
+    private static MultipartFormDataContent Upload(byte[] bin)
+    {
+        var form = new MultipartFormDataContent();
+        form.Add(new ByteArrayContent(bin), "file", "xiaozhi.bin");
+        return form;
+    }
+
+    private async Task<string> NewGroup(HttpClient c, string name)
+    {
+        var r = await Json(await c.PostAsJsonAsync("/api/admin/fleet/groups", new { name }));
+        return r.GetProperty("id").GetString()!;
+    }
+
+    private async Task<JsonElement> Manifest(HttpClient c, string id, string key) =>
+        await Json(await c.SendAsync(Dev(HttpMethod.Get, $"/api/ota/manifest?device_id={id}", key)));
+
     [Fact]
-    public async Task Ota_Manifest_Follows_Channel_And_Firmware_Downloads_With_Sha()
+    public async Task Ota_Manifest_Follows_Group_And_Firmware_Downloads_With_Sha()
     {
         var c = _admin.CreateClient();
         var id = NewId(); var key = NewKey();
@@ -160,12 +176,18 @@ public sealed class DeviceFleetTests : IClassFixture<BellBeastAdminFactory>, ICl
         form.Add(fc, "file", "xiaozhi.bin");
         Assert.Equal(HttpStatusCode.OK, (await c.PostAsync("/api/admin/ota/firmware", form)).StatusCode);
 
-        var none = await Json(await c.SendAsync(Dev(HttpMethod.Get, $"/api/ota/manifest?device_id={id}", key)));
+        // a device in no group gets nothing
+        var none = await Manifest(c, id, key);
         Assert.Equal(JsonValueKind.Null, none.GetProperty("version").ValueKind);
+        Assert.Equal("ungrouped", none.GetProperty("channel").GetString());
 
-        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync("/api/admin/ota/channel", new { channel = "stable", version = "2.1.0-test" })).StatusCode);
-        var m = await Json(await c.SendAsync(Dev(HttpMethod.Get, $"/api/ota/manifest?device_id={id}", key)));
-        Assert.Equal("stable", m.GetProperty("channel").GetString());
+        var g = await NewGroup(c, "Lab " + id);
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync($"/api/admin/fleet/groups/{g}/devices", new { devices = new[] { id } })).StatusCode);
+        Assert.Equal(JsonValueKind.Null, (await Manifest(c, id, key)).GetProperty("version").ValueKind);    // group has no target yet
+
+        Assert.Equal(HttpStatusCode.OK, (await c.PutAsJsonAsync($"/api/admin/fleet/groups/{g}", new { target = "2.1.0-test" })).StatusCode);
+        var m = await Manifest(c, id, key);
+        Assert.Equal("group", m.GetProperty("channel").GetString());
         Assert.Equal("2.1.0-test", m.GetProperty("version").GetString());
         Assert.Equal(sha, m.GetProperty("sha256").GetString());
         Assert.Equal(4096, m.GetProperty("size").GetInt64());
@@ -175,17 +197,81 @@ public sealed class DeviceFleetTests : IClassFixture<BellBeastAdminFactory>, ICl
         Assert.Equal(bin, await dl.Content.ReadAsByteArrayAsync());
         Assert.Equal(sha, dl.Headers.GetValues("X-Firmware-Sha256").Single());
 
-        // staged rollout: this device opts out
-        await c.PostAsJsonAsync($"/api/admin/fleet/device/{id}", new { channel = "none" });
-        var off = await Json(await c.SendAsync(Dev(HttpMethod.Get, $"/api/ota/manifest?device_id={id}", key)));
+        // this one device holds its firmware
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync($"/api/admin/fleet/device/{id}", new { fw_mode = "hold" })).StatusCode);
+        var off = await Manifest(c, id, key);
         Assert.Equal(JsonValueKind.Null, off.GetProperty("version").ValueKind);
+        Assert.Equal("hold", off.GetProperty("channel").GetString());
 
-        // firmware in use cannot be deleted; non-ESP image is rejected
+        // firmware a group points at cannot be deleted; non-ESP image is rejected
         Assert.Equal(HttpStatusCode.BadRequest, (await c.DeleteAsync("/api/admin/ota/firmware/2.1.0-test")).StatusCode);
         var junk = new MultipartFormDataContent { { new StringContent("9.9.9"), "version" } };
         junk.Add(new ByteArrayContent(new byte[2048]), "file", "x.bin");
         Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsync("/api/admin/ota/firmware", junk)).StatusCode);
+
+        // deleting the group takes its devices out of it
+        Assert.Equal(HttpStatusCode.OK, (await c.DeleteAsync($"/api/admin/fleet/groups/{g}")).StatusCode);
+        Assert.Equal(JsonValueKind.Null, (await DeviceRow(c, id)).GetProperty("group").ValueKind);
+        await c.DeleteAsync($"/api/admin/fleet/device/{id}");
     }
+
+    [Fact]
+    public async Task Auto_Patcher_And_Override_Never_Cross_Boards()
+    {
+        var c = _admin.CreateClient();
+        var (a, ka) = (NewId(), NewKey());      // 1.83 board
+        var (b, kb) = (NewId(), NewKey());      // MUMA board (no suffix)
+        var a90 = Image("ann-9.0.0-183"); var b90 = Image("ann-9.0.0"); var a91 = Image("ann-9.0.1-183");
+        foreach (var img in new[] { a90, b90, a91 })
+            Assert.Equal(HttpStatusCode.OK, (await c.PostAsync("/api/admin/ota/firmware", Upload(img))).StatusCode);
+        await c.SendAsync(Dev(HttpMethod.Post, $"/api/device/{a}/report", ka, new { fw = "ann-1.3.1-183" }));   // board from the label
+        await c.SendAsync(Dev(HttpMethod.Post, $"/api/device/{b}/report", kb, new { fw = "ann-1.4.0", model = "" }));
+        Assert.Equal("183", (await DeviceRow(c, a)).GetProperty("board").GetString());
+        Assert.Equal("", (await DeviceRow(c, b)).GetProperty("board").GetString());
+
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync("/api/admin/fleet/groups/auto/devices", new { devices = new[] { a, b } })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync("/api/admin/ota/release", new { version = "ann-9.0.0-183" })).StatusCode);
+        Assert.Equal("ann-9.0.0-183", (await Manifest(c, a, ka)).GetProperty("version").GetString());
+        Assert.Equal(JsonValueKind.Null, (await Manifest(c, b, kb)).GetProperty("version").ValueKind);      // nothing released for MUMA
+        Assert.Equal("not_released", (await DeviceRow(c, b)).GetProperty("target_note").GetString());
+
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync("/api/admin/ota/release", new { version = "ann-9.0.0" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync("/api/admin/ota/release", new { version = "ann-9.0.1-183" })).StatusCode);
+        Assert.Equal("ann-9.0.1-183", (await Manifest(c, a, ka)).GetProperty("version").GetString());      // newest released for 183
+        Assert.Equal("ann-9.0.0", (await Manifest(c, b, kb)).GetProperty("version").GetString());
+
+        // personal override: same board only
+        var bad = await c.PostAsJsonAsync($"/api/admin/fleet/device/{b}", new { fw_mode = "override", fw_override = "ann-9.0.0-183" });
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+        Assert.Contains("fw_board_mismatch", await bad.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync($"/api/admin/fleet/device/{a}", new { fw_mode = "override", fw_override = "ann-9.0.0-183" })).StatusCode);
+        var ma = await Manifest(c, a, ka);
+        Assert.Equal("override", ma.GetProperty("channel").GetString());
+        Assert.Equal("ann-9.0.0-183", ma.GetProperty("version").GetString());
+
+        // a group pointed at another board's image serves nothing to the wrong board
+        var g = await NewGroup(c, "1.83 only " + a);
+        await c.PutAsJsonAsync($"/api/admin/fleet/groups/{g}", new { target = "ann-9.0.1-183" });
+        await c.PostAsJsonAsync($"/api/admin/fleet/groups/{g}/devices", new { devices = new[] { b } });
+        Assert.Equal(JsonValueKind.Null, (await Manifest(c, b, kb)).GetProperty("version").ValueKind);
+        Assert.Equal("board_mismatch", (await DeviceRow(c, b)).GetProperty("target_note").GetString());
+
+        // released / group target / override images cannot be deleted
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.DeleteAsync("/api/admin/ota/firmware/ann-9.0.0")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.DeleteAsync("/api/admin/ota/firmware/ann-9.0.1-183")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.DeleteAsync("/api/admin/ota/firmware/ann-9.0.0-183")).StatusCode);
+
+        // the auto group is built in: no target, no delete
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PutAsJsonAsync("/api/admin/fleet/groups/auto", new { target = "ann-9.0.0" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.DeleteAsync("/api/admin/fleet/groups/auto")).StatusCode);
+
+        await c.PostAsJsonAsync("/api/admin/ota/release", new { version = "ann-9.0.1-183", released = false });
+        await c.PostAsJsonAsync("/api/admin/ota/release", new { version = "ann-9.0.0", released = false });
+        await c.DeleteAsync($"/api/admin/fleet/groups/{g}");
+        await c.DeleteAsync($"/api/admin/fleet/device/{a}");
+        await c.DeleteAsync($"/api/admin/fleet/device/{b}");
+    }
+
 
     [Fact]
     public async Task Wifi_Is_Per_Device_And_None_Means_The_Built_In_Bypass()
@@ -224,65 +310,6 @@ public sealed class DeviceFleetTests : IClassFixture<BellBeastAdminFactory>, ICl
         await c.DeleteAsync($"/api/admin/fleet/device/{id}");
     }
 
-    private static MultipartFormDataContent Upload(byte[] bin, string? model)
-    {
-        var form = new MultipartFormDataContent();
-        if (model is not null) form.Add(new StringContent(model), "model");
-        form.Add(new ByteArrayContent(bin), "file", "xiaozhi.bin");
-        return form;
-    }
-
-    [Fact]
-    public async Task Firmware_Follows_Device_Model_Track_Or_Pin()
-    {
-        var c = _admin.CreateClient();
-        var (a, ka) = (NewId(), NewKey());
-        var (b, kb) = (NewId(), NewKey());
-        var binA = Image("3.0.0-mt"); var binB = Image("3.0.0-mt"); var binB2 = Image("3.0.1-mt");
-        // same version for two models is fine — images are kept per model
-        Assert.Equal(HttpStatusCode.OK, (await c.PostAsync("/api/admin/ota/firmware", Upload(binA, "Board-A"))).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await c.PostAsync("/api/admin/ota/firmware", Upload(binB, "board-b"))).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await c.PostAsync("/api/admin/ota/firmware", Upload(binB2, "board-b"))).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsync("/api/admin/ota/firmware", Upload(binA, "bad model!"))).StatusCode);
-
-        await c.SendAsync(Dev(HttpMethod.Post, $"/api/device/{a}/report", ka, new { fw = "2.0.0", model = "board-a" }));   // model as reported
-        await c.SendAsync(Dev(HttpMethod.Get, $"/api/device/{b}/config", kb));
-        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync($"/api/admin/fleet/device/{b}", new { model = "board-b" })).StatusCode);
-
-        // releasing board-a to stable reaches only board-a devices
-        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/admin/ota/channel", new { model = "board-a", channel = "stable", version = "3.0.1-mt" })).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync("/api/admin/ota/channel", new { model = "board-a", channel = "stable", version = "3.0.0-mt" })).StatusCode);
-        var ma = await Json(await c.SendAsync(Dev(HttpMethod.Get, $"/api/ota/manifest?device_id={a}", ka)));
-        Assert.Equal("3.0.0-mt", ma.GetProperty("version").GetString());
-        Assert.Equal(binA, await c.GetByteArrayAsync(ma.GetProperty("url").GetString()));
-        var mb = await Json(await c.SendAsync(Dev(HttpMethod.Get, $"/api/ota/manifest?device_id={b}", kb)));
-        Assert.Equal(JsonValueKind.Null, mb.GetProperty("version").ValueKind);
-
-        // pin: exact image for one device; another model's image is refused
-        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/admin/fleet/device/{b}", new { fw_pin = "board-a/3.0.0-mt" })).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync($"/api/admin/fleet/device/{b}", new { fw_pin = "board-b/3.0.1-mt" })).StatusCode);
-        mb = await Json(await c.SendAsync(Dev(HttpMethod.Get, $"/api/ota/manifest?device_id={b}", kb)));
-        Assert.Equal("pin", mb.GetProperty("channel").GetString());
-        Assert.Equal("3.0.1-mt", mb.GetProperty("version").GetString());
-        Assert.Equal(binB2, await c.GetByteArrayAsync(mb.GetProperty("url").GetString()));
-        var row = await DeviceRow(c, b);
-        Assert.Equal("3.0.1-mt", row.GetProperty("target_fw").GetString());
-
-        // pinned / released images cannot be deleted; an unused one can
-        Assert.Equal(HttpStatusCode.BadRequest, (await c.DeleteAsync("/api/admin/ota/firmware/3.0.1-mt?model=board-b")).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await c.DeleteAsync("/api/admin/ota/firmware/3.0.0-mt?model=board-a")).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await c.DeleteAsync("/api/admin/ota/firmware/3.0.0-mt?model=board-b")).StatusCode);
-
-        // model changed under a pin → nothing is served rather than the wrong board's image
-        await c.PostAsJsonAsync($"/api/admin/fleet/device/{b}", new { model = "board-c" });
-        mb = await Json(await c.SendAsync(Dev(HttpMethod.Get, $"/api/ota/manifest?device_id={b}", kb)));
-        Assert.Equal(JsonValueKind.Null, mb.GetProperty("version").ValueKind);
-
-        await c.PostAsJsonAsync($"/api/admin/fleet/device/{b}", new { fw_pin = (string?)null });
-        await c.PostAsJsonAsync("/api/admin/ota/channel", new { model = "board-a", channel = "stable", version = (string?)null });
-        await c.DeleteAsync($"/api/admin/fleet/device/{a}");
-        await c.DeleteAsync($"/api/admin/fleet/device/{b}");
-    }
 
     [Fact]
     public async Task Event_Log_Keeps_Newest_100_Per_Device()
@@ -309,9 +336,14 @@ public sealed class DeviceFleetTests : IClassFixture<BellBeastAdminFactory>, ICl
         await c.SendAsync(Dev(HttpMethod.Get, $"/api/device/{id}/config", key));
         Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/admin/fleet/device/{id}", new { zones = "R W S" })).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/admin/fleet/device/{id}", new { poll_sec = 0 })).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/admin/fleet/device/{id}", new { channel = "nightly" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/admin/fleet/device/{id}", new { fw_mode = "nightly" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/admin/fleet/device/{id}", new { group = "nope" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/admin/fleet/groups", new { name = "" })).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await c.PostAsJsonAsync("/api/admin/fleet/device/ann-nope", new { approved = true })).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/admin/ota/channel", new { channel = "stable", version = "0.0.0-missing" })).StatusCode);
+        var vg = await NewGroup(c, "validation " + id);
+        Assert.Equal(HttpStatusCode.NotFound, (await c.PutAsJsonAsync($"/api/admin/fleet/groups/{vg}", new { target = "0.0.0-missing" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/admin/fleet/groups", new { name = "VALIDATION " + id })).StatusCode);   // name taken
+        await c.DeleteAsync($"/api/admin/fleet/groups/{vg}");
         Assert.Equal(HttpStatusCode.OK, (await c.PutAsJsonAsync("/api/admin/fleet/defaults", new { zones = "chem", poll_sec = 3 })).StatusCode);
         var cfg = await Json(await c.SendAsync(Dev(HttpMethod.Get, $"/api/device/{id}/config", key)));
         Assert.Equal("CHEM", cfg.GetProperty("zones").GetString());
@@ -326,7 +358,7 @@ public sealed class DeviceFleetTests : IClassFixture<BellBeastAdminFactory>, ICl
         var c = _anon.CreateClient();
         Assert.Equal(HttpStatusCode.Unauthorized, (await c.GetAsync("/api/admin/fleet")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await c.PostAsJsonAsync("/api/admin/fleet/device/ann-x01", new { wifi = new { current = "x" } })).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await c.PostAsJsonAsync("/api/admin/ota/channel", new { channel = "stable" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await c.PostAsJsonAsync("/api/admin/fleet/groups", new { name = "x" })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await c.SendAsync(Dev(HttpMethod.Get, $"/api/device/{NewId()}/config", NewKey()))).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await c.GetAsync("/api/ota/manifest")).StatusCode);
 

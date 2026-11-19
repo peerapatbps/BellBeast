@@ -15,13 +15,17 @@ namespace BellBeast.Services;
 /// Later calls must present the same key (only its sha256 is stored). WiFi credentials are served to approved
 /// devices only — over plain HTTP on the plant LAN (BellBeast has no TLS), never logged, never in a URL.
 ///
-/// Per device: WiFi credentials (no fleet-wide set: a device without its own falls back to the password list built
-/// into the firmware, "bypass") and firmware. A device follows the stable/beta track
-/// of its <b>model</b> (board / hardware rev), or is pinned to one exact image. Firmware images belong to a model, so
-/// "release to all" only reaches devices of that model. Model "" = not specified (single-board fleets, legacy data).
+/// WiFi is per device (no fleet-wide set: a device without its own uses the password list built into the firmware,
+/// "bypass").
+///
+/// Firmware: the admin puts devices into <b>groups</b>; a group points at one uploaded image. The built-in group
+/// <see cref="AutoGroupId"/> ("Auto patcher") follows the newest image the admin <i>released</i> for each board.
+/// Per device: follow the group, override with one image, or hold (no update). The <b>board</b> comes from the
+/// firmware label suffix (<c>ann-1.4.0-183</c> → <c>183</c>, <c>ann-1.4.0</c> → MUMA ""); an image of another board
+/// is never served (the device has the same guard). A device in no group gets nothing.
 ///
 /// Layout: App_Data/fleet/fleet.json (state) · fleet/events/{device}.jsonl (rolling: newest
-/// <see cref="MaxEventsPerDevice"/> per device) · fleet/ota/{version}.bin (model "") · fleet/ota/{model}/{version}.bin
+/// <see cref="MaxEventsPerDevice"/> per device) · fleet/ota/{version}.bin (older uploads may sit in fleet/ota/{model}/)
 /// </summary>
 public sealed class DeviceFleetService
 {
@@ -29,13 +33,16 @@ public sealed class DeviceFleetService
     public const int MaxEventsPerReport = 64;
     public const int MaxEventsPerDevice = 100;
     public const long MaxFirmwareBytes = 0x3f0000;          // app partition size on the device (partitions/v2/16m.csv)
+    public const string AutoGroupId = "auto";
+    public const int MaxGroups = 50;
+    public const string ModeGroup = "group", ModeOverride = "override", ModeHold = "hold";
 
     private static readonly Regex IdRx = new("^[a-z0-9][a-z0-9-]{2,31}$", RegexOptions.Compiled);
     private static readonly Regex KeyRx = new("^[0-9a-f]{64}$", RegexOptions.Compiled);
     private static readonly Regex ModelRx = new("^[a-z0-9][a-z0-9._-]{0,31}$", RegexOptions.Compiled);
     private static readonly Regex VersionRx = new("^[0-9A-Za-z][0-9A-Za-z._+-]{0,39}$", RegexOptions.Compiled);
     private static readonly Regex ZonesRx = new("^[A-Z0-9_]{1,16}(,[A-Z0-9_]{1,16}){0,15}$", RegexOptions.Compiled);
-    private static readonly string[] Channels = ["stable", "beta", "none"];
+    private static readonly Regex GroupIdRx = new("^[a-z0-9]{1,16}$", RegexOptions.Compiled);
     internal static readonly JsonSerializerOptions JsonOpts = new()
     {
         WriteIndented = true,
@@ -58,7 +65,18 @@ public sealed class DeviceFleetService
         public FleetDefaults Defaults { get; set; } = new();
         /// <summary>Legacy fleet-wide WiFi — no longer served (WiFi is per device only); dropped on load.</summary>
         public WifiCreds? Wifi { get; set; }
+        public Dictionary<string, FirmwareGroup> Groups { get; set; } = new(StringComparer.Ordinal);
         public OtaState Ota { get; set; } = new();
+    }
+
+    public sealed class FirmwareGroup
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string? Target { get; set; }           // firmware version; null = no update. Ignored for the auto group
+        public DateTimeOffset CreatedAt { get; set; }
+        public DateTimeOffset? UpdatedAt { get; set; }
+        public string? UpdatedBy { get; set; }
     }
 
     public sealed class DeviceRecord
@@ -67,12 +85,12 @@ public sealed class DeviceFleetService
         public string? Name { get; set; }
         public string? KeySha256 { get; set; }
         public bool Approved { get; set; }
-        public string? Model { get; set; }            // set by admin; null = what the device reports ("" if neither)
-        public string? ReportedModel { get; set; }    // optional "model" in the device report
-        public string? FwPin { get; set; }            // firmware key (FirmwareInfo.Key); null = follow the model's track
+        public string? Group { get; set; }            // firmware group id; null = not grouped (no update)
+        public string? FwMode { get; set; }           // group (default) | override | hold
+        public string? FwOverride { get; set; }       // version when FwMode = override
+        public string? ReportedModel { get; set; }    // "model" in the report (ann-1.4.0+): the board suffix
         public WifiCreds? Wifi { get; set; }          // null = none: the device uses its built-in bootstrap list (bypass)
         public string? Zones { get; set; }            // null = fleet default
-        public string? Channel { get; set; }          // null = fleet default
         public int? PollSec { get; set; }
         public int? RemindSec { get; set; }
         public int? LabSec { get; set; }              // lab glance loop (device default 300)
@@ -95,6 +113,10 @@ public sealed class DeviceFleetService
         public DateTimeOffset? LastFallbackAt { get; set; }
         public string? LastOta { get; set; }
         public long Reports { get; set; }
+        // ── legacy (read once on load, then cleared) ──
+        public string? Model { get; set; }
+        public string? FwPin { get; set; }
+        public string? Channel { get; set; }
     }
 
     public sealed class FleetDefaults
@@ -105,7 +127,6 @@ public sealed class DeviceFleetService
         public int LabSec { get; set; } = 300;
         public int ScnSec { get; set; } = 30;
         public int? Volume { get; set; }
-        public string Channel { get; set; } = "stable";
     }
 
     public sealed class WifiCreds
@@ -120,20 +141,32 @@ public sealed class DeviceFleetService
 
     public sealed class OtaState
     {
-        /// <summary>Legacy single-model stable/beta map; moved into <see cref="Tracks"/>[""] on load.</summary>
-        public Dictionary<string, string?>? Channels { get; set; }
-        /// <summary>model → channel (stable/beta) → version.</summary>
-        public Dictionary<string, Dictionary<string, string?>> Tracks { get; set; } = new(StringComparer.Ordinal);
+        /// <summary>Auto patcher: board → newest released version for that board.</summary>
+        public Dictionary<string, string> Released { get; set; } = new(StringComparer.Ordinal);
         public List<FirmwareInfo> Firmware { get; set; } = new();
+        // legacy (cleared on load)
+        public Dictionary<string, string?>? Channels { get; set; }
+        public Dictionary<string, Dictionary<string, string?>>? Tracks { get; set; }
     }
 
+    /// <summary>One uploaded image. <see cref="Model"/> only says which folder an older upload sits in.</summary>
     public sealed record FirmwareInfo(string Version, string Sha256, long Size, DateTimeOffset UploadedAt, string? Note, string? Model = null)
     {
-        [JsonIgnore] public string Key => KeyOf(Model, Version);
+        [JsonIgnore] public string Board => BoardOf(Version) ?? "";
     }
 
-    /// <summary>"2.1.0" (model "") or "board-a/2.1.0".</summary>
-    public static string KeyOf(string? model, string version) => string.IsNullOrEmpty(model) ? version : model + "/" + version;
+    /// <summary>Board from a firmware label: "ann-1.4.0-183" → "183", "ann-1.4.0" → "" (MUMA), null → null (unknown).</summary>
+    public static string? BoardOf(string? fw)
+    {
+        if (string.IsNullOrWhiteSpace(fw)) return null;
+        var v = fw.Trim();
+        if (v.StartsWith("ann-", StringComparison.OrdinalIgnoreCase)) v = v[4..];
+        var i = 0;
+        while (i < v.Length && (char.IsDigit(v[i]) || v[i] == '.')) i++;
+        v = v[i..];
+        if (v.StartsWith('-')) v = v[1..];
+        return v.ToLowerInvariant();
+    }
 
     // ── device-facing DTOs ──
     public sealed class ReportBody
@@ -144,7 +177,7 @@ public sealed class DeviceFleetService
         public string? WifiTier { get; set; }
         public int? Rssi { get; set; }
         public long? UptimeSec { get; set; }
-        public string? Model { get; set; }            // optional: board/model id the firmware was built for
+        public string? Model { get; set; }            // optional: board the firmware was built for
         public List<ReportEvent>? Events { get; set; }
     }
 
@@ -181,7 +214,6 @@ public sealed class DeviceFleetService
         return m.Length == 0 || ValidModel(m) ? m : null;
     }
 
-    private static string EffModel(DeviceRecord d) => d.Model ?? d.ReportedModel ?? "";
 
     /// <summary>"rws, dps" -> "RWS,DPS"; "" -> ""; invalid -> null.</summary>
     public static string? NormalizeZones(string? zones)
@@ -318,7 +350,6 @@ public sealed class DeviceFleetService
                 ["lab_sec"] = d.LabSec ?? def.LabSec,
                 ["scn_sec"] = d.ScnSec ?? def.ScnSec,
                 ["volume"] = d.Volume ?? def.Volume,
-                ["channel"] = d.Channel ?? def.Channel,
                 ["wifi"] = wifi,
             };
             var etag = "\"" + Sha(JsonSerializer.Serialize(body))[..16] + "\"";
@@ -327,40 +358,62 @@ public sealed class DeviceFleetService
         }
     }
 
+    /// <summary>Board of a device: what it reports (ann-1.4.0+), else the suffix of the label it runs; null = unknown.</summary>
+    private static string? DeviceBoard(DeviceRecord d) => !string.IsNullOrEmpty(d.ReportedModel) ? d.ReportedModel : BoardOf(d.Fw);
+
+    private static string ModeOf(DeviceRecord d) => d.FwMode is ModeOverride or ModeHold ? d.FwMode : ModeGroup;
+
+    private FirmwareInfo? Fw(string? version) => version is null ? null : _state.Ota.Firmware.FirstOrDefault(f => f.Version == version);
+
     /// <summary>
-    /// What a device should run: its pin, else its model's track for its channel (channel "pin" = pinned).
-    /// Never hands out an image of another model — a pin left behind after the model changed yields nothing.
+    /// What a device should run and why. Source: hold | override | group | auto | ungrouped.
+    /// Note (why nothing is served): board_mismatch | not_released | no_target | unknown_board | missing.
     /// </summary>
+    private (string Source, FirmwareInfo? Firmware, string? Note) Target(DeviceRecord? d)
+    {
+        if (d is null) return ("ungrouped", null, null);
+        var board = DeviceBoard(d);
+        (string, FirmwareInfo?, string?) Check(string source, string? version, string empty)
+        {
+            if (version is null) return (source, null, empty);
+            var fw = Fw(version);
+            if (fw is null) return (source, null, "missing");
+            if (board is not null && fw.Board != board) return (source, null, "board_mismatch");
+            return (source, fw, null);
+        }
+        switch (ModeOf(d))
+        {
+            case ModeHold: return (ModeHold, null, null);
+            case ModeOverride: return Check(ModeOverride, d.FwOverride, "no_target");
+        }
+        if (d.Group is null || !_state.Groups.TryGetValue(d.Group, out var g)) return ("ungrouped", null, null);
+        if (g.Id == AutoGroupId)
+        {
+            if (board is null) return ("auto", null, "unknown_board");
+            return Check("auto", _state.Ota.Released.TryGetValue(board, out var v) ? v : null, "not_released");
+        }
+        return Check(ModeGroup, g.Target, "no_target");
+    }
+
     public (string Channel, FirmwareInfo? Firmware) ManifestFor(string? id)
     {
-        lock (_lock) return Target(id is not null && _state.Devices.TryGetValue(id, out var d) ? d : null);
-    }
-
-    private (string Channel, FirmwareInfo? Firmware) Target(DeviceRecord? d)
-    {
-        var model = d is null ? "" : EffModel(d);
-        if (d?.FwPin is { } pin)
+        lock (_lock)
         {
-            var fw = _state.Ota.Firmware.FirstOrDefault(f => f.Key == pin);
-            return ("pin", fw is not null && (fw.Model ?? "") == model ? fw : null);
+            var (source, fw, _) = Target(id is not null && _state.Devices.TryGetValue(id, out var d) ? d : null);
+            return (source, fw);
         }
-        var ch = d?.Channel ?? _state.Defaults.Channel;
-        if (ch == "none" || !_state.Ota.Tracks.TryGetValue(model, out var tr) || !tr.TryGetValue(ch, out var v) || v is null) return (ch, null);
-        return (ch, _state.Ota.Firmware.FirstOrDefault(f => (f.Model ?? "") == model && f.Version == v));
     }
 
-    public string FirmwarePath(string? model, string version) =>
-        string.IsNullOrEmpty(model) ? Path.Combine(_fwDir, version + ".bin") : Path.Combine(_fwDir, model, version + ".bin");
+    public string FirmwarePath(FirmwareInfo fw) =>
+        string.IsNullOrEmpty(fw.Model) ? Path.Combine(_fwDir, fw.Version + ".bin") : Path.Combine(_fwDir, fw.Model, fw.Version + ".bin");
 
-    public FirmwareInfo? GetFirmware(string? model, string version)
+    public FirmwareInfo? GetFirmware(string version)
     {
-        model ??= "";
-        lock (_lock) return _state.Ota.Firmware.FirstOrDefault(f => (f.Model ?? "") == model && f.Version == version);
+        lock (_lock) return Fw(version);
     }
 
     /// <summary>Download path the manifest points at.</summary>
-    public static string FirmwareUrl(FirmwareInfo fw) =>
-        string.IsNullOrEmpty(fw.Model) ? $"/api/ota/firmware/{fw.Version}" : $"/api/ota/firmware/{fw.Model}/{fw.Version}";
+    public static string FirmwareUrl(FirmwareInfo fw) => $"/api/ota/firmware/{fw.Version}";
 
     // ── admin ──
     private static object? WifiView(WifiCreds? w) => w is null ? null : new
@@ -373,29 +426,38 @@ public sealed class DeviceFleetService
     {
         lock (_lock)
         {
+            var released = _state.Ota.Released;
             return new
             {
                 ok = true,
                 defaults = _state.Defaults,
+                groups = _state.Groups.Values
+                    .OrderBy(g => g.Id == AutoGroupId ? 0 : 1).ThenBy(g => g.Name, StringComparer.CurrentCultureIgnoreCase)
+                    .Select(g => new
+                    {
+                        g.Id, g.Name, auto = g.Id == AutoGroupId, target = g.Id == AutoGroupId ? null : g.Target,
+                        g.CreatedAt, g.UpdatedAt, g.UpdatedBy,
+                        members = _state.Devices.Values.Where(d => d.Group == g.Id).Select(d => d.Id).OrderBy(x => x, StringComparer.Ordinal),
+                    }),
                 ota = new
                 {
-                    tracks = _state.Ota.Tracks,
-                    models = _state.Ota.Firmware.Select(f => f.Model ?? "")
-                        .Concat(_state.Devices.Values.Select(EffModel))
-                        .Concat(_state.Ota.Tracks.Keys)
-                        .Distinct().OrderBy(m => m, StringComparer.Ordinal),
-                    firmware = _state.Ota.Firmware.OrderByDescending(f => f.UploadedAt)
-                        .Select(f => new { f.Version, model = f.Model ?? "", key = f.Key, f.Sha256, f.Size, f.UploadedAt, f.Note }),
+                    released,
+                    firmware = _state.Ota.Firmware.OrderByDescending(f => f.UploadedAt).Select(f => new
+                    {
+                        f.Version, board = f.Board, f.Sha256, f.Size, f.UploadedAt, f.Note,
+                        released = released.TryGetValue(f.Board, out var rv) && rv == f.Version,
+                    }),
                 },
                 devices = _state.Devices.Values.OrderBy(d => d.Id, StringComparer.Ordinal).Select(d =>
                 {
-                    var (tch, tfw) = Target(d);
+                    var (src, tfw, note) = Target(d);
                     return new
                     {
                         d.Id, d.Name, has_key = d.KeySha256 is not null, d.Approved,
-                        d.Model, d.ReportedModel, eff_model = EffModel(d), d.FwPin, target_channel = tch, target_fw = tfw?.Version,
+                        d.Group, fw_mode = ModeOf(d), d.FwOverride, board = DeviceBoard(d),
+                        target_source = src, target_fw = tfw?.Version, target_note = note,
                         wifi = WifiView(d.Wifi),
-                        d.Zones, d.Channel, d.PollSec, d.RemindSec, d.LabSec, d.ScnSec, d.Volume,
+                        d.Zones, d.PollSec, d.RemindSec, d.LabSec, d.ScnSec, d.Volume,
                         d.CreatedAt, d.LastSeen, d.Fw, d.Ip, d.SeenIp, d.SeenAt, d.Partition, d.WifiTier, d.Rssi, d.UptimeSec,
                         d.LastPlayedAt, d.LastPlayedAlarm, d.LastAckAt, d.LastAckAlarm, d.LastFallbackAt, d.LastOta, d.Reports,
                     };
@@ -419,27 +481,23 @@ public sealed class DeviceFleetService
                 if (z is null) n.Zones = null;
                 else { var nz = NormalizeZones(z); if (nz is null) return "bad_zones"; n.Zones = nz; }
             }
-            if (Str(patch, "channel", out var ch))
+            if (Str(patch, "group", out var grp))
             {
-                if (ch is not null && !Channels.Contains(ch)) return "bad_channel";
-                n.Channel = ch;
+                if (string.IsNullOrEmpty(grp)) n.Group = null;
+                else if (!_state.Groups.ContainsKey(grp)) return "group_not_found";
+                else n.Group = grp;
             }
-            if (Str(patch, "model", out var model))
+            if (Str(patch, "fw_mode", out var mode))
             {
-                var nm = NormalizeModel(model);
-                if (nm is null) return "bad_model";
-                n.Model = nm.Length == 0 ? null : nm;
+                if (mode is not (ModeGroup or ModeOverride or ModeHold)) return "bad_fw_mode";
+                n.FwMode = mode;
             }
-            if (Str(patch, "fw_pin", out var pin))
+            if (Str(patch, "fw_override", out var ov)) n.FwOverride = string.IsNullOrEmpty(ov) ? null : ov;
+            if (ModeOf(n) == ModeOverride)
             {
-                if (string.IsNullOrEmpty(pin)) n.FwPin = null;
-                else
-                {
-                    var fw = _state.Ota.Firmware.FirstOrDefault(f => f.Key == pin);
-                    if (fw is null) return "firmware_not_found";
-                    if ((fw.Model ?? "") != EffModel(n)) return "fw_model_mismatch";
-                    n.FwPin = pin;
-                }
+                var fw = Fw(n.FwOverride);
+                if (fw is null) return "firmware_not_found";
+                if (DeviceBoard(n) is { } b && fw.Board != b) return "fw_board_mismatch";
             }
             if (patch.TryGetProperty("wifi", out var wj))
             {
@@ -481,7 +539,6 @@ public sealed class DeviceFleetService
         {
             var def = _state.Defaults;
             if (Str(patch, "zones", out var z)) { var nz = NormalizeZones(z); if (nz is null) return "bad_zones"; def.Zones = nz; }
-            if (Str(patch, "channel", out var ch)) { if (ch is null || !Channels.Contains(ch)) return "bad_channel"; def.Channel = ch; }
             if (patch.TryGetProperty("poll_sec", out var p)) { if (!p.TryGetInt32(out var v) || v is < 1 or > 60) return "bad_poll_sec"; def.PollSec = v; }
             if (patch.TryGetProperty("remind_sec", out var r)) { if (!r.TryGetInt32(out var v) || v is < 0 or > 3600) return "bad_remind_sec"; def.RemindSec = v; }
             if (patch.TryGetProperty("lab_sec", out var lb)) { if (!lb.TryGetInt32(out var v) || v is < 60 or > 3600) return "bad_lab_sec"; def.LabSec = v; }
@@ -515,16 +572,88 @@ public sealed class DeviceFleetService
         return (w, null);
     }
 
-    /// <summary>Points a model's stable/beta track at one of that model's images (version null = clear).</summary>
-    public string? SetChannel(string? model, string channel, string? version)
+    // ── firmware groups ──
+    /// <summary>Creates a group; returns (id, null) or (null, error).</summary>
+    public (string? Id, string? Error) CreateGroup(string? name, string? actor)
     {
-        if (channel is not ("stable" or "beta")) return "bad_channel";
-        if (NormalizeModel(model) is not { } m) return "bad_model";
+        name = (name ?? "").Trim();
+        if (name.Length is 0 or > 40) return (null, "bad_group_name");
         lock (_lock)
         {
-            if (version is not null && !_state.Ota.Firmware.Any(f => (f.Model ?? "") == m && f.Version == version)) return "firmware_not_found";
-            if (!_state.Ota.Tracks.TryGetValue(m, out var tr)) _state.Ota.Tracks[m] = tr = new(StringComparer.Ordinal);
-            tr[channel] = version;
+            if (_state.Groups.Count >= MaxGroups) return (null, "too_many_groups");
+            if (_state.Groups.Values.Any(g => string.Equals(g.Name, name, StringComparison.CurrentCultureIgnoreCase))) return (null, "group_name_taken");
+            string id;
+            do id = "g" + Convert.ToHexString(RandomNumberGenerator.GetBytes(3)).ToLowerInvariant(); while (_state.Groups.ContainsKey(id));
+            _state.Groups[id] = new FirmwareGroup { Id = id, Name = name, CreatedAt = DateTimeOffset.UtcNow, UpdatedBy = actor };
+            Save();
+            return (id, null);
+        }
+    }
+
+    /// <summary>Rename and/or point a group at an image ("target": version or null = no update). Takes effect at once.</summary>
+    public string? UpdateGroup(string id, JsonElement patch, string? actor)
+    {
+        lock (_lock)
+        {
+            if (!_state.Groups.TryGetValue(id, out var g)) return "group_not_found";
+            string? newName = null;
+            if (Str(patch, "name", out var name))
+            {
+                newName = (name ?? "").Trim();
+                if (newName.Length is 0 or > 40) return "bad_group_name";
+                if (_state.Groups.Values.Any(o => o.Id != id && string.Equals(o.Name, newName, StringComparison.CurrentCultureIgnoreCase))) return "group_name_taken";
+            }
+            var setTarget = Str(patch, "target", out var target);
+            if (setTarget)
+            {
+                if (id == AutoGroupId) return "auto_group_has_no_target";
+                if (!string.IsNullOrEmpty(target) && Fw(target) is null) return "firmware_not_found";
+            }
+            if (newName is not null) g.Name = newName;
+            if (setTarget) g.Target = string.IsNullOrEmpty(target) ? null : target;
+            g.UpdatedAt = DateTimeOffset.UtcNow;
+            g.UpdatedBy = actor;
+            Save();
+            return null;
+        }
+    }
+
+    public string? DeleteGroup(string id)
+    {
+        if (id == AutoGroupId) return "auto_group_is_built_in";
+        lock (_lock)
+        {
+            if (!_state.Groups.Remove(id)) return "group_not_found";
+            foreach (var d in _state.Devices.Values.Where(d => d.Group == id)) d.Group = null;
+            Save();
+            return null;
+        }
+    }
+
+    /// <summary>Moves devices into a group (groupId null = take them out of any group).</summary>
+    public string? AssignGroup(string? groupId, IEnumerable<string> deviceIds)
+    {
+        lock (_lock)
+        {
+            if (groupId is not null && !_state.Groups.ContainsKey(groupId)) return "group_not_found";
+            var ids = deviceIds.Distinct(StringComparer.Ordinal).ToList();
+            if (ids.Count == 0) return "no_devices";
+            if (ids.FirstOrDefault(x => !_state.Devices.ContainsKey(x)) is { } missing) return "device_not_found:" + missing;
+            foreach (var x in ids) _state.Devices[x].Group = groupId;
+            Save();
+            return null;
+        }
+    }
+
+    /// <summary>Auto patcher: make this image the newest released one for its board (released=false clears that board).</summary>
+    public string? Release(string version, bool released)
+    {
+        lock (_lock)
+        {
+            var fw = Fw(version);
+            if (fw is null) return "firmware_not_found";
+            if (released) _state.Ota.Released[fw.Board] = fw.Version;
+            else if (_state.Ota.Released.TryGetValue(fw.Board, out var cur) && cur == fw.Version) _state.Ota.Released.Remove(fw.Board);
             Save();
             return null;
         }
@@ -542,13 +671,12 @@ public sealed class DeviceFleetService
     }
 
     /// <summary>
-    /// Stores a firmware image for <paramref name="model"/> ("" = not specified). <paramref name="version"/> may be
-    /// null = take the version embedded in the image. A label that differs from the embedded version is rejected —
-    /// the device compares the manifest version with what it runs, so a mismatch would reinstall the same image forever.
+    /// Stores a firmware image. <paramref name="version"/> may be null = take the version embedded in the image.
+    /// A label that differs from the embedded version is rejected — the device compares the manifest version with
+    /// what it runs, so a mismatch would reinstall the same image forever. Its board comes from the label suffix.
     /// </summary>
-    public FirmwareInfo SaveFirmware(string? version, byte[] bin, string? note, string? model = null)
+    public FirmwareInfo SaveFirmware(string? version, byte[] bin, string? note)
     {
-        var m = NormalizeModel(model) ?? throw new ArgumentException("bad_model");
         if (bin.Length < 1024 || bin.Length > MaxFirmwareBytes) throw new ArgumentException("bad_size");
         if (bin[0] != 0xE9) throw new ArgumentException("not_esp_image");          // ESP app image magic
         var embedded = EmbeddedVersion(bin) ?? throw new ArgumentException("no_app_descriptor");
@@ -556,30 +684,29 @@ public sealed class DeviceFleetService
         if (version != embedded) throw new ArgumentException($"version_mismatch: image is {embedded}");
         if (!ValidVersion(version)) throw new ArgumentException("bad_version");
         var sha = Convert.ToHexString(SHA256.HashData(bin)).ToLowerInvariant();
-        var info = new FirmwareInfo(version, sha, bin.Length, DateTimeOffset.UtcNow,
-            string.IsNullOrWhiteSpace(note) ? null : Trunc(note.Trim(), 120), m.Length == 0 ? null : m);
+        var info = new FirmwareInfo(version, sha, bin.Length, DateTimeOffset.UtcNow, string.IsNullOrWhiteSpace(note) ? null : Trunc(note.Trim(), 120));
         lock (_lock)
         {
-            var path = FirmwarePath(info.Model, version);
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllBytes(path, bin);
-            _state.Ota.Firmware.RemoveAll(f => f.Key == info.Key);
+            if (Fw(version) is { } old && old.Model is not null) try { File.Delete(FirmwarePath(old)); } catch (IOException) { }
+            File.WriteAllBytes(FirmwarePath(info), bin);
+            _state.Ota.Firmware.RemoveAll(f => f.Version == version);
             _state.Ota.Firmware.Add(info);
             Save();
         }
         return info;
     }
 
-    public string? DeleteFirmware(string? model, string version)
+    public string? DeleteFirmware(string version)
     {
-        if (NormalizeModel(model) is not { } m) return "bad_model";
-        var key = KeyOf(m, version);
         lock (_lock)
         {
-            if (_state.Ota.Tracks.TryGetValue(m, out var tr) && tr.Values.Contains(version)) return "firmware_in_use";
-            if (_state.Devices.Values.Any(d => d.FwPin == key)) return "firmware_pinned";
-            if (_state.Ota.Firmware.RemoveAll(f => f.Key == key) == 0) return "firmware_not_found";
-            try { File.Delete(FirmwarePath(m, version)); } catch (IOException) { }
+            var fw = Fw(version);
+            if (fw is null) return "firmware_not_found";
+            if (_state.Ota.Released.Values.Contains(version)) return "firmware_released";
+            if (_state.Groups.Values.Any(g => g.Target == version)) return "firmware_in_use";
+            if (_state.Devices.Values.Any(d => ModeOf(d) == ModeOverride && d.FwOverride == version)) return "firmware_pinned";
+            _state.Ota.Firmware.Remove(fw);
+            try { File.Delete(FirmwarePath(fw)); } catch (IOException) { }
             Save();
             return null;
         }
@@ -676,17 +803,35 @@ public sealed class DeviceFleetService
                 if (s is not null)
                 {
                     s.Devices = new Dictionary<string, DeviceRecord>(s.Devices, StringComparer.Ordinal);
-                    s.Ota.Tracks = new Dictionary<string, Dictionary<string, string?>>(s.Ota.Tracks ?? new(), StringComparer.Ordinal);
-                    if (s.Ota.Channels is { Count: > 0 } legacy && !s.Ota.Tracks.ContainsKey(""))
-                        s.Ota.Tracks[""] = new Dictionary<string, string?>(legacy, StringComparer.Ordinal);
+                    s.Groups = new Dictionary<string, FirmwareGroup>(s.Groups ?? new(), StringComparer.Ordinal);
+                    s.Ota.Released = new Dictionary<string, string>(s.Ota.Released ?? new(), StringComparer.Ordinal);
+                    // stable/beta channels and model tracks are gone: the admin groups devices instead.
+                    // A pinned image becomes a personal override, channel "none" becomes hold.
+                    foreach (var d in s.Devices.Values)
+                    {
+                        if (d.FwPin is { } pin) { d.FwMode = ModeOverride; d.FwOverride = pin[(pin.LastIndexOf('/') + 1)..]; }
+                        else if (d.Channel == "none") d.FwMode = ModeHold;
+                        if (string.IsNullOrEmpty(d.ReportedModel) && !string.IsNullOrEmpty(d.Model)) d.ReportedModel = d.Model;
+                        d.FwPin = null; d.Channel = null; d.Model = null;
+                    }
+                    // images are identified by version now (the board is in the label): keep the newest per version
+                    s.Ota.Firmware = (s.Ota.Firmware ?? new()).GroupBy(f => f.Version).Select(g => g.OrderByDescending(f => f.UploadedAt).First()).ToList();
                     s.Ota.Channels = null;
+                    s.Ota.Tracks = null;
                     s.Wifi = null;                              // fleet-wide WiFi is gone: never served again
-                    return s;
+                    return EnsureAutoGroup(s);
                 }
             }
         }
         catch (JsonException) { }
-        return new FleetState();
+        return EnsureAutoGroup(new FleetState());
+    }
+
+    private static FleetState EnsureAutoGroup(FleetState s)
+    {
+        if (!s.Groups.ContainsKey(AutoGroupId))
+            s.Groups[AutoGroupId] = new FirmwareGroup { Id = AutoGroupId, Name = "Auto patcher", CreatedAt = DateTimeOffset.UtcNow };
+        return s;
     }
 
     private void Save()

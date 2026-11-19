@@ -71,18 +71,18 @@ public static class FleetEndpoints
                 : new { ok = true, channel, version = (string?)fw.Version, size = fw.Size, sha256 = (string?)fw.Sha256, url = (string?)DeviceFleetService.FirmwareUrl(fw) });
         });
 
-        // firmware download: /api/ota/firmware/{version} (model not specified) or /api/ota/firmware/{model}/{version}
-        static IResult Firmware(DeviceFleetService fleet, HttpContext ctx, string model, string version)
+        // firmware download by version (the board is in the label). /{model}/{version} = older manifests, model ignored
+        static IResult Firmware(DeviceFleetService fleet, HttpContext ctx, string version)
         {
-            if (!DeviceFleetService.ValidVersion(version) || (model.Length > 0 && !DeviceFleetService.ValidModel(model))
-                || fleet.GetFirmware(model, version) is not { } fw) return Results.NotFound(new { ok = false, error = "firmware_not_found" });
-            var path = fleet.FirmwarePath(model, version);
+            if (!DeviceFleetService.ValidVersion(version) || fleet.GetFirmware(version) is not { } fw)
+                return Results.NotFound(new { ok = false, error = "firmware_not_found" });
+            var path = fleet.FirmwarePath(fw);
             if (!File.Exists(path)) return Results.NotFound(new { ok = false, error = "firmware_file_missing" });
             ctx.Response.Headers["X-Firmware-Sha256"] = fw.Sha256;
-            return Results.File(path, "application/octet-stream", model.Length > 0 ? $"annunciator-{model}-{version}.bin" : $"annunciator-{version}.bin");
+            return Results.File(path, "application/octet-stream", $"annunciator-{version}.bin");
         }
-        device.MapGet("/api/ota/firmware/{version}", (string version, DeviceFleetService fleet, HttpContext ctx) => Firmware(fleet, ctx, "", version));
-        device.MapGet("/api/ota/firmware/{model}/{version}", (string model, string version, DeviceFleetService fleet, HttpContext ctx) => Firmware(fleet, ctx, model, version));
+        device.MapGet("/api/ota/firmware/{version}", (string version, DeviceFleetService fleet, HttpContext ctx) => Firmware(fleet, ctx, version));
+        device.MapGet("/api/ota/firmware/{model}/{version}", (string model, string version, DeviceFleetService fleet, HttpContext ctx) => Firmware(fleet, ctx, version));
 
         // admin (/Admin/Fleet)
         admin.MapGet("/api/admin/fleet", (DeviceFleetService fleet) => Results.Json(fleet.AdminView(), DeviceFleetService.JsonOpts));
@@ -127,26 +127,60 @@ public static class FleetEndpoints
             if (file is null || file.Length == 0 || file.Length > DeviceFleetService.MaxFirmwareBytes) return Results.BadRequest(new { ok = false, error = "bad_size" });
             using var ms = new MemoryStream();
             await file.CopyToAsync(ms, ctx.RequestAborted);
-            try { return Results.Json(new { ok = true, firmware = fleet.SaveFirmware(version.Length > 0 ? version : null, ms.ToArray(), form["note"], form["model"]) }); }
+            try
+            {
+                var fw = fleet.SaveFirmware(version.Length > 0 ? version : null, ms.ToArray(), form["note"]);
+                return Results.Json(new { ok = true, firmware = new { fw.Version, board = fw.Board, fw.Sha256, fw.Size, fw.UploadedAt, fw.Note } });
+            }
             catch (ArgumentException ex) { return Results.BadRequest(new { ok = false, error = ex.Message }); }
         });
 
-        // ?model= picks the model's image ("" / absent = model not specified)
-        admin.MapDelete("/api/admin/ota/firmware/{version}", (string version, DeviceFleetService fleet, HttpContext ctx) =>
+        admin.MapDelete("/api/admin/ota/firmware/{version}", (string version, DeviceFleetService fleet) =>
         {
-            var e = fleet.DeleteFirmware(ctx.Request.Query["model"].FirstOrDefault(), version);
+            var e = fleet.DeleteFirmware(version);
             return e is null ? Results.Json(new { ok = true }) : Results.BadRequest(new { ok = false, error = e });
         });
 
-        admin.MapPost("/api/admin/ota/channel", async (DeviceFleetService fleet, HttpContext ctx) =>
+        // Auto patcher: { version, released: true|false } — newest released image per board
+        admin.MapPost("/api/admin/ota/release", async (DeviceFleetService fleet, HttpContext ctx) =>
         {
             JsonElement body;
             try { body = await ctx.Request.ReadFromJsonAsync<JsonElement>(ctx.RequestAborted); }
             catch (JsonException) { return Results.BadRequest(new { ok = false, error = "bad_json" }); }
-            var channel = ConfigArg(body, "channel") ?? "";
-            var version = ConfigArg(body, "version");
-            var e = fleet.SetChannel(ConfigArg(body, "model"), channel, string.IsNullOrWhiteSpace(version) ? null : version);
+            var released = !(body.ValueKind == JsonValueKind.Object && body.TryGetProperty("released", out var r) && r.ValueKind == JsonValueKind.False);
+            var e = fleet.Release(ConfigArg(body, "version") ?? "", released);
             return e is null ? Results.Json(new { ok = true }) : Results.BadRequest(new { ok = false, error = e });
+        });
+
+        // ── firmware groups ──
+        static async Task<JsonElement?> Body(HttpContext ctx)
+        {
+            try { return await ctx.Request.ReadFromJsonAsync<JsonElement>(ctx.RequestAborted); }
+            catch (JsonException) { return null; }
+        }
+        static IResult Done(string? e) => e is null ? Results.Json(new { ok = true })
+            : e.EndsWith("not_found") ? Results.NotFound(new { ok = false, error = e }) : Results.BadRequest(new { ok = false, error = e });
+
+        admin.MapPost("/api/admin/fleet/groups", async (DeviceFleetService fleet, HttpContext ctx) =>
+        {
+            if (await Body(ctx) is not { } b) return Results.BadRequest(new { ok = false, error = "bad_json" });
+            var (id, e) = fleet.CreateGroup(ConfigArg(b, "name"), ctx.User.Identity?.Name);
+            return e is null ? Results.Json(new { ok = true, id }) : Results.BadRequest(new { ok = false, error = e });
+        });
+
+        // { name?, target? } — target = version (null/"" = no update); applies to every member at once
+        admin.MapPut("/api/admin/fleet/groups/{id}", async (string id, DeviceFleetService fleet, HttpContext ctx) =>
+            await Body(ctx) is { } b ? Done(fleet.UpdateGroup(id, b, ctx.User.Identity?.Name)) : Results.BadRequest(new { ok = false, error = "bad_json" }));
+
+        admin.MapDelete("/api/admin/fleet/groups/{id}", (string id, DeviceFleetService fleet) => Done(fleet.DeleteGroup(id)));
+
+        // { devices: [...] } into group {id}; id "none" = take them out of any group
+        admin.MapPost("/api/admin/fleet/groups/{id}/devices", async (string id, DeviceFleetService fleet, HttpContext ctx) =>
+        {
+            if (await Body(ctx) is not { } b || b.ValueKind != JsonValueKind.Object || !b.TryGetProperty("devices", out var arr) || arr.ValueKind != JsonValueKind.Array)
+                return Results.BadRequest(new { ok = false, error = "bad_json" });
+            var ids = arr.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!).ToList();
+            return Done(fleet.AssignGroup(id == "none" ? null : id, ids));
         });
 
         // ── device API access (DeviceAccessService): shadow/enforce, IP-pass bridge, who gets in how ──
