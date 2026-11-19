@@ -394,6 +394,15 @@
     const tierCell = (d) => d.wifi_tier === "known" ? '<span class="c-ok">รหัสที่ตั้งไว้</span>'
         : d.wifi_tier === "bootstrap" ? '<span class="c-warn">bypass</span>' : '<span class="fl-faint">–</span>';
 
+    // the version a group would send this device (null = nothing: no target, not released, other board)
+    function willGet(gid, board) {
+        const g = groupOf(gid);
+        if (!g) return null;
+        const ver = g.auto ? (board === null || board === undefined ? null : released()[board] || null) : g.target || null;
+        const f = ver && firmware().find((x) => x.version === ver);
+        if (!f) return null;
+        return board !== null && board !== undefined && f.board !== board ? null : ver;
+    }
     // what a group would give this device, in words (for the drawer's "ตามกลุ่ม" option)
     function groupGives(gid, board) {
         const g = groupOf(gid);
@@ -534,14 +543,17 @@
                 else { const w = readWifi("dw", d.wifi); if (w) patch.wifi = w; }
             } catch (e) { toast(e.message, true); return; }
             const save = () => run(() => send(devUrl(d.id), "POST", patch), "บันทึก " + (patch.name.trim() || d.id) + " แล้ว · เครื่องจะรับค่าใหม่ในรอบถัดไป", closeDrawer);
-            const fwChanged = patch.group !== (d.group || null) || patch.fw_mode !== (d.fw_mode || "group") ||
-                (patch.fw_mode === "override" && patch.fw_override !== d.fw_override);
-            if (!fwChanged) return save();
-            // firmware plan changes → confirm first (the device installs it on its next OTA check)
-            const gives = patch.fw_mode === "hold" ? "ไม่อัปเดต (คงรุ่นเดิม)" : patch.fw_mode === "override" ? "ระบุเอง → " + patch.fw_override : groupGives(patch.group, d.board);
-            $("#dstate").innerHTML = `<span class="c-warn">ยืนยัน firmware: <b>${esc(gives)}</b> · ถ้าเป็นรุ่นใหม่ เครื่องจะติดตั้งในรอบเช็กถัดไป (≤ 30 นาที)</span>`;
-            $("#dsave").textContent = "ยืนยันและบันทึก";
+            // confirm only when the change makes this device install an image it does not run yet
+            // ("ไม่อัปเดต", or a plan that installs nothing new, saves at once)
+            const before = d.target_fw || null;
+            const after = patch.fw_mode === "hold" ? null : patch.fw_mode === "override" ? patch.fw_override : willGet(patch.group, d.board);
+            if (!after || after === before || after === d.fw) return save();
+            $("#dstate").innerHTML = `<div class="fl-confirm" style="margin:0"><span>เครื่องนี้จะอัปเดตเป็น <b class="fl-mono">${esc(after)}</b>
+                ในรอบเช็กถัดไป (≤ 30 นาที) · กด <b>ยืนยันอัปเดต</b> เพื่อบันทึก</span>
+                <button type="button" class="fl-btn sm" id="dconfirm0">ยกเลิก</button></div>`;
+            $("#dsave").textContent = "ยืนยันอัปเดต";
             $("#dsave").onclick = save;
+            $("#dconfirm0").onclick = () => { closeDrawer(); openDrawer(d.id); };
         };
 
         $("#scrim").hidden = false;
