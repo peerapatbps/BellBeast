@@ -83,7 +83,7 @@
     const isCustom = (d, k) => d[k] !== null && d[k] !== undefined;
     const eff = (d, k) => isCustom(d, k) ? d[k] : defs()[k];
     const customList = (d) => FIELDS.filter((f) => isCustom(d, f.k)).map((f) => f.label)
-        .concat(d.wifi ? ["WiFi ของตัวเอง"] : [], d.fw_pin ? ["ล็อก firmware"] : []);
+        .concat(d.wifi ? ["รหัส WiFi"] : [], d.fw_pin ? ["ล็อก firmware"] : []);
     const customCount = (d) => customList(d).length;
     const chanLabel = { stable: "ใช้จริง", beta: "ทดสอบ", none: "ไม่อัปเดต", pin: "ล็อกไฟล์" };
     const target = (d) => d.target_fw || null;                         // server resolves pin / model track
@@ -289,25 +289,38 @@
         const t = new Date(iso);
         return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}T${pad2(t.getHours())}:${pad2(t.getMinutes())}`;
     }
+    // per-device WiFi password (no fleet-wide set). Without one the device uses the password list built into the
+    // firmware ("bypass": it tries them in turn). SSID / identity are kept for later firmware — ann-1.4.0 uses its own.
     function wifiFields(p, w) {
         return `<div class="fl-form">
-            <label><b>ชื่อ WiFi (SSID)</b><input class="fl-finput" id="${p}Ssid" maxlength="32" value="${esc(w ? w.ssid : ".@MWA WiFi")}"></label>
-            <label><b>Identity (ชื่อผู้ใช้)</b><input class="fl-finput" id="${p}Identity" maxlength="64" value="${esc(w ? w.identity || "" : "")}"></label>
-            <label><b>รหัสปัจจุบัน</b><input class="fl-finput" id="${p}Current" type="password" autocomplete="new-password" placeholder="${w ? "เว้นว่าง = ไม่เปลี่ยน (" + esc(w.current || "") + ")" : "จำเป็น"}"></label>
+            <label><b>รหัสปัจจุบัน</b><input class="fl-finput" id="${p}Current" type="password" autocomplete="new-password" placeholder="${w ? "เว้นว่าง = ไม่เปลี่ยน (" + esc(w.current || "") + ")" : "เว้นว่าง = ไม่ตั้ง (ใช้ bypass)"}"></label>
             <label><b>รหัสถัดไป</b><input class="fl-finput" id="${p}Next" type="password" autocomplete="new-password" placeholder="${w && w.next ? "เว้นว่าง = ไม่เปลี่ยน (" + esc(w.next) + ")" : "ไม่บังคับ"}"></label>
             <label><b>เริ่มใช้รหัสถัดไปเมื่อ</b><input class="fl-finput" id="${p}From" type="datetime-local" value="${localDT(w && w.next_valid_from)}"></label>
-        </div>`;
+        </div>
+        <details class="fl-adv"><summary>SSID / identity</summary><div class="fl-form">
+            <label><b>ชื่อ WiFi (SSID)</b><input class="fl-finput" id="${p}Ssid" maxlength="32" value="${esc(w ? w.ssid : ".@MWA WiFi")}"></label>
+            <label><b>Identity (ชื่อผู้ใช้)</b><input class="fl-finput" id="${p}Identity" maxlength="64" value="${esc(w ? w.identity || "" : "")}"></label>
+        </div><p class="fl-note" style="margin:6px 0 0">firmware ann-1.4.0 ใช้ SSID / identity ที่ฝังในเครื่อง — เก็บไว้สำหรับ firmware รุ่นถัดไป</p></details>`;
     }
+    /** null = nothing typed and nothing set yet (leave the device on bypass). */
     function readWifi(p, w) {
+        const cur = $(`#${p}Current`).value, nx = $(`#${p}Next`).value;
+        if (!w && !cur && !nx) return null;
         const body = { ssid: $(`#${p}Ssid`).value.trim(), identity: $(`#${p}Identity`).value };
         if (!body.ssid) throw new Error(ERR.bad_ssid);
-        const cur = $(`#${p}Current`).value, nx = $(`#${p}Next`).value;
         if (cur) body.current = cur; else if (!w) throw new Error(ERR.bad_current);
         if (nx) body.next = nx;
         body.next_valid_from = $(`#${p}From`).value ? new Date($(`#${p}From`).value).toISOString() : null;
         return body;
     }
-    const wifiLabel = (w) => w ? `${esc(w.ssid)}${w.identity ? " · " + esc(w.identity) : ""}` : "ยังไม่ได้ตั้ง";
+    const nextIn = (w) => {
+        if (!w || !w.next) return "ไม่มีรหัสถัดไป";
+        if (!w.next_valid_from) return "รหัสถัดไป: ใช้ได้ทันที";
+        const dn = Math.ceil((new Date(w.next_valid_from).getTime() - Date.now()) / 86400000);
+        return dn > 0 ? `รหัสถัดไป: อีก ${dn} วัน` : "รหัสถัดไป: ถึงเวลาแล้ว";
+    };
+    const tierCell = (d) => d.wifi_tier === "known" ? '<span class="c-ok">รหัสที่ตั้งไว้</span>'
+        : d.wifi_tier === "bootstrap" ? '<span class="c-warn">bypass</span>' : '<span class="fl-faint">–</span>';
 
     // firmware choice for one device: def | ch:stable | ch:beta | ch:none | pin:<key>
     function fwChoice(d, model) {
@@ -369,10 +382,10 @@
                         <span class="fl-note">ตอนนี้: ${esc(fwPlan(d))}</span></div></div>
                 </div>
                 <div class="fl-dr-sec"><h3>WiFi</h3>
-                    <div class="fl-fctl" id="c-wifi"><div class="fl-seg"><button type="button" aria-pressed="${!d.wifi}" data-wm="def">ใช้ WiFi กลาง · ${wifiLabel(data.wifi)}</button>` +
-                    `<button type="button" aria-pressed="${!!d.wifi}" data-wm="own">กำหนดเฉพาะเครื่องนี้</button></div></div>
-                    <div id="c-wifi-own" ${d.wifi ? "" : "hidden"}>${wifiFields("dw", d.wifi)}
-                        ${d.wifi ? `<p class="fl-note" style="margin:8px 0 0">แก้ล่าสุด ${esc(ts(d.wifi.updated_at))}</p>` : ""}</div>
+                    <p class="fl-note" style="margin:0 0 10px">${d.wifi ? `ตั้งรหัสไว้แล้ว · ${esc(nextIn(d.wifi))} · แก้ล่าสุด ${esc(ts(d.wifi.updated_at))}`
+                        : "ยังไม่ได้ตั้งรหัส — เครื่องใช้ <b>bypass</b> (ไล่ลองรหัสที่ฝังใน firmware)"} · ตอนนี้ต่อด้วย ${tierCell(d)}</p>
+                    <div id="c-wifi">${wifiFields("dw", d.wifi)}
+                        ${d.wifi ? '<label class="fl-note" style="display:flex;gap:6px;align-items:center;margin-top:10px"><input type="checkbox" id="c-wifi-clear"> ล้างรหัสของเครื่องนี้ (กลับไปใช้ bypass)</label>' : ""}</div>
                 </div>
                 <div class="fl-dr-sec"><h3>จัดการเครื่อง</h3><div class="fl-danger">
                     <div class="fl-danger-row"><div class="grow"><b>รีเซ็ตกุญแจเครื่อง</b>ใช้เมื่อเปลี่ยนบอร์ดหรือล้างหน่วยความจำเครื่อง (NVS) เครื่องจะต้องอนุมัติใหม่</div>
@@ -400,11 +413,6 @@
             $("#c-fw").innerHTML = fwChoice(Object.assign({}, d, { fw_pin: null }), m);
             if ($$("#c-fw option").some((o) => o.value === keep)) $("#c-fw").value = keep;
         };
-        $$("#c-wifi .fl-seg button").forEach((b) => b.onclick = () => {
-            $$("#c-wifi .fl-seg button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
-            $("#c-wifi-own").hidden = b.dataset.wm === "def";
-            dirty();
-        });
 
         $$("[data-dz]", body).forEach((b) => b.onclick = () => {
             const rowEl = b.closest(".fl-danger-row");
@@ -438,9 +446,8 @@
                 const fw = $("#c-fw").value;
                 if (fw.startsWith("pin:")) patch.fw_pin = fw.slice(4);
                 else { patch.fw_pin = null; patch.channel = fw === "def" ? null : fw.slice(3); }
-                const ownWifi = $('#c-wifi [data-wm="own"]').getAttribute("aria-pressed") === "true";
-                if (ownWifi) patch.wifi = readWifi("dw", d.wifi);
-                else if (d.wifi) patch.wifi = null;
+                if ($("#c-wifi-clear") && $("#c-wifi-clear").checked) patch.wifi = null;
+                else { const w = readWifi("dw", d.wifi); if (w) patch.wifi = w; }
             } catch (e) { toast(e.message, true); return; }
             run(() => send(devUrl(d.id), "POST", patch), "บันทึก " + (patch.name.trim() || d.id) + " แล้ว · เครื่องจะรับค่าใหม่ในรอบถัดไป", closeDrawer);
         };
@@ -467,7 +474,7 @@
             <p class="fl-lead">ทุกเครื่องใช้ค่ากลางเป็นพื้นฐาน แล้ว “กำหนดเอง” ทับได้รายเครื่องที่แผงตั้งค่าของเครื่อง ลำดับที่เครื่องได้รับ:</p>
             <div class="fl-stages">
                 <div class="fl-stage"><span class="k"><span class="fl-stepn">1</span>ค่าเสียง / zone / รอบดึงข้อมูล</span><div class="s" style="margin-top:4px">ค่ากลางในหน้านี้ → ทับได้รายเครื่อง</div></div>
-                <div class="fl-stage"><span class="k"><span class="fl-stepn">2</span>WiFi</span><div class="s" style="margin-top:4px">WiFi กลาง (แท็บรหัส WiFi) → ${ownWifi} เครื่องใช้ WiFi ของตัวเอง</div></div>
+                <div class="fl-stage"><span class="k"><span class="fl-stepn">2</span>WiFi</span><div class="s" style="margin-top:4px">รหัสรายเครื่องเท่านั้น (ไม่มีค่ากลาง) → ไม่ได้ตั้ง = bypass · ตั้งแล้ว ${ownWifi}/${ok.length} เครื่อง</div></div>
                 <div class="fl-stage"><span class="k"><span class="fl-stepn">3</span>Firmware</span><div class="s" style="margin-top:4px">รุ่นของเครื่อง → กลุ่มใช้จริง/ทดสอบของรุ่นนั้น → ${pinned} เครื่องล็อกไฟล์เอง</div></div>
             </div>
             <div class="fl-fields">${FIELDS.filter((f) => !f.adv).map(row).join("")}</div>
@@ -481,7 +488,7 @@
                     ${ok.length ? ok.map((d) => `<button type="button" class="fl-ov" data-open="${esc(d.id)}">
                         <span class="fl-nm"><span class="fl-dot ${live(d)}"></span><span style="min-width:0"><b>${esc(dname(d))}</b><span class="fl-mono">${esc(d.id)}</span></span></span>
                         <span class="fl-mono">${esc(mname(d.eff_model))}${!d.model && d.reported_model ? ' <span class="fl-faint">(เครื่องแจ้ง)</span>' : ""}</span>
-                        <span>${d.wifi ? `<span class="fl-badge info">เฉพาะเครื่อง</span> ${esc(d.wifi.ssid)}` : '<span class="fl-muted">กลาง</span>'}</span>
+                        <span>${d.wifi ? '<span class="fl-badge info">ตั้งรหัสแล้ว</span>' : '<span class="fl-badge warn">bypass</span>'}</span>
                         <span><span class="fl-mono">${esc(d.fw || "–")}</span> <span class="fl-muted">· ${esc(fwPlan(d))}</span></span>
                         <span class="fl-small fl-muted">${customList(d).map(esc).join(", ") || "–"}</span></button>`).join("")
                         : '<div class="fl-ov"><span class="fl-muted" style="grid-column:1/-1">ยังไม่มีเครื่องที่อนุมัติแล้ว</span></div>'}
@@ -497,68 +504,44 @@
         };
     }
 
-    // ── wifi ──
+    // ── wifi (per device only; no password set = bypass) ──
     function renderWifi() {
-        const w = data.wifi;
         const ok = approved();
-        const known = ok.filter((d) => d.wifi_tier === "known").length;
-        const boot = ok.filter((d) => d.wifi_tier === "bootstrap");
-        const nvf = w && w.next_valid_from ? new Date(w.next_valid_from) : null;
-        const days = nvf ? Math.ceil((nvf.getTime() - Date.now()) / 86400000) : null;
-        const nextState = !w || !w.next ? "ยังไม่ได้ตั้ง" : !nvf ? "ใช้ได้ทันที (ลองต่อจากรหัสปัจจุบัน)" : days > 0 ? `อีก ${days} วัน` : "ถึงเวลาแล้ว เครื่องใช้รหัสนี้ก่อน";
+        const set = ok.filter((d) => d.wifi);
+        const onKnown = ok.filter((d) => d.wifi_tier === "known").length;
+        const onBypass = ok.filter((d) => d.wifi_tier === "bootstrap");
         const v = $("#v-wifi");
-        const own = ok.filter((d) => d.wifi);
-        v.innerHTML = `<div class="fl-panel"><h2>WiFi กลาง</h2>
-            <p class="fl-lead">ใช้กับทุกเครื่องที่ไม่ได้กำหนด WiFi เฉพาะเครื่องไว้ · ตั้งรหัสถัดไปไว้ล่วงหน้าก่อนฝ่าย IT เปลี่ยนรหัส เครื่องจะสลับไปใช้เองตามวันเวลาที่กำหนด · ส่งให้เฉพาะเครื่องที่อนุมัติแล้ว</p>
+        v.innerHTML = `<div class="fl-panel"><h2>รหัส WiFi รายเครื่อง</h2>
+            <p class="fl-lead">ไม่มีรหัสกลาง — ตั้งรหัสให้แต่ละเครื่องที่แผงตั้งค่าของเครื่อง · เครื่องที่ไม่ได้ตั้ง หรือรหัสที่ตั้งต่อไม่ได้ จะใช้ <b style="color:var(--fl-fg)">bypass</b>
+                (ไล่ลองรายการรหัสที่ฝังใน firmware) · ส่งให้เฉพาะเครื่องที่อนุมัติแล้ว</p>
             <div class="fl-flow">
-                <div class="fl-step ${w ? "now" : "off"}"><span class="k">① รหัสปัจจุบัน</span><span class="v">${w ? esc(w.ssid) : "ยังไม่ได้ตั้ง"}</span>
-                    ${w ? `<span class="fl-mono fl-muted">${esc(w.current || "–")}</span><span class="fl-note">identity: ${esc(w.identity || "–")}</span>` : ""}</div>
+                <div class="fl-step now"><span class="k">① รหัสปัจจุบันของเครื่อง</span><span class="v">ตั้งรายเครื่อง</span>
+                    <span class="fl-note">ตั้งแล้ว ${set.length} จาก ${ok.length} เครื่อง</span></div>
                 <span class="fl-arrow">→</span>
-                <div class="fl-step ${w && w.next ? "" : "off"}"><span class="k">② รหัสถัดไป</span>
-                    <span class="v">${nvf ? "เริ่ม " + esc(ts(w.next_valid_from)) : w && w.next ? "ไม่ได้กำหนดวัน" : "ยังไม่ได้ตั้ง"}</span>
-                    ${w && w.next ? `<span class="fl-mono fl-muted">${esc(w.next)}</span>` : ""}<span class="fl-note">${esc(nextState)}</span></div>
+                <div class="fl-step"><span class="k">② รหัสถัดไปของเครื่อง</span><span class="v">ตั้งล่วงหน้าได้</span>
+                    <span class="fl-note">เครื่องสลับไปใช้เองตามวันเวลาที่กำหนด ก่อน IT เปลี่ยนรหัส</span></div>
                 <span class="fl-arrow">→</span>
-                <div class="fl-step"><span class="k">③ รหัสสำรองในเครื่อง</span><span class="v">ฝังใน firmware</span>
-                    <span class="fl-note">ใช้เมื่อ ① และ ② ต่อไม่ได้ · แก้จากหน้านี้ไม่ได้</span></div>
+                <div class="fl-step"><span class="k">③ bypass</span><span class="v">รายการรหัสใน firmware</span>
+                    <span class="fl-note">ใช้เมื่อไม่ได้ตั้ง หรือ ① ② ต่อไม่ได้ · แก้จากหน้านี้ไม่ได้</span></div>
             </div>
-            <p class="fl-note">ตอนนี้ <b style="color:var(--fl-fg)">${known} จาก ${ok.length}</b> เครื่องต่อด้วยรหัสจากระบบ ·
-                ${boot.length ? `<span class="c-warn">${boot.length} เครื่องใช้รหัสสำรอง (${boot.map((d) => esc(dname(d))).join(", ")})</span>` : "ไม่มีเครื่องใช้รหัสสำรอง"}
-                ${w ? " · แก้ล่าสุด " + esc(ts(w.updated_at)) : ""}</p>
-            <div style="margin:14px 0"><button type="button" class="fl-btn primary" id="wedit">${w ? "แก้ไข WiFi กลาง" : "ตั้ง WiFi กลาง"}</button></div>
-            <form id="wform" hidden autocomplete="off">${wifiFields("w", w)}
-            <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:14px"><button type="submit" class="fl-btn primary">บันทึก</button>
-                <button type="button" class="fl-btn" id="wcancel">ยกเลิก</button><span style="flex:1"></span>
-                ${w ? '<button type="button" class="fl-btn ghost-bad" id="wclear">ล้างรหัสทั้งหมด…</button>' : ""}</div>
-            <div id="wclearbox"></div></form>
-            <details class="fl-warnbox"><summary>ข้อควรระวังด้านความปลอดภัย</summary>
-                <p style="margin:8px 0 0">BellBeast ยังไม่มี TLS รหัสจึงส่งผ่าน LAN โรงงานแบบไม่เข้ารหัส ระยะยาวควรย้ายไป SSID เฉพาะอุปกรณ์ IoT หรือ EAP-TLS (Overview §3.4)</p></details>
-        </div>`;
-        v.insertAdjacentHTML("beforeend", `<div class="fl-panel"><h2>เครื่องที่ใช้ WiFi เฉพาะเครื่อง</h2>
-            <p class="fl-lead">เช่น เครื่องที่ติดตั้งในอาคารที่ใช้ SSID อื่น · ตั้งได้ที่แผงตั้งค่าของเครื่อง → WiFi → “กำหนดเฉพาะเครื่องนี้”</p>
-            ${own.length ? `<div class="fl-list">${own.map((d) => {
-                const dn = d.wifi.next_valid_from ? Math.ceil((new Date(d.wifi.next_valid_from).getTime() - Date.now()) / 86400000) : null;
-                return `<button type="button" class="fl-ov" data-open="${esc(d.id)}" style="grid-template-columns:minmax(0,2fr) minmax(0,2fr) minmax(0,2fr) minmax(0,1.4fr)">
+            <p class="fl-note">ตอนนี้ <b style="color:var(--fl-fg)">${onKnown} จาก ${ok.length}</b> เครื่องต่อด้วยรหัสที่ตั้งไว้ ·
+                ${onBypass.length ? `<span class="c-warn">${onBypass.length} เครื่องต่อด้วย bypass (${onBypass.map((d) => esc(dname(d))).join(", ")})</span>` : "ไม่มีเครื่องที่ต่อด้วย bypass"}</p>
+            <div class="fl-list">
+                <div class="fl-ov hd" style="grid-template-columns:minmax(0,2fr) minmax(0,1.3fr) minmax(0,1.6fr) minmax(0,1.2fr) minmax(0,1fr)"><span>เครื่อง</span><span>รหัสที่ตั้ง</span><span>รหัสถัดไป</span><span>ตอนนี้ต่อด้วย</span><span>แก้ล่าสุด</span></div>
+                ${ok.length ? ok.map((d) => `<button type="button" class="fl-ov" data-open="${esc(d.id)}" style="grid-template-columns:minmax(0,2fr) minmax(0,1.3fr) minmax(0,1.6fr) minmax(0,1.2fr) minmax(0,1fr)">
                     <span class="fl-nm"><span class="fl-dot ${live(d)}"></span><span style="min-width:0"><b>${esc(dname(d))}</b><span class="fl-mono">${esc(d.id)}</span></span></span>
-                    <span>${wifiLabel(d.wifi)}</span>
-                    <span class="fl-small fl-muted">${d.wifi.next ? "รหัสถัดไป " + (dn === null ? "ใช้ได้ทันที" : dn > 0 ? `อีก ${dn} วัน` : "ถึงเวลาแล้ว") : "ไม่มีรหัสถัดไป"}</span>
-                    <span class="fl-small">${d.wifi_tier === "known" ? '<span class="c-ok">ต่อด้วยรหัสจากระบบ</span>' : d.wifi_tier === "bootstrap" ? '<span class="c-warn">ใช้รหัสสำรอง</span>' : "–"}</span></button>`;
-            }).join("")}</div>` : '<p class="fl-note">ไม่มี — ทุกเครื่องใช้ WiFi กลาง</p>'}</div>`);
+                    <span>${d.wifi ? `<span class="fl-mono fl-muted">${esc(d.wifi.current || "–")}</span>` : '<span class="fl-badge warn">ไม่ได้ตั้ง → bypass</span>'}</span>
+                    <span class="fl-small fl-muted">${d.wifi ? esc(nextIn(d.wifi)) : "–"}</span>
+                    <span class="fl-small">${tierCell(d)}</span>
+                    <span class="fl-small fl-muted">${d.wifi ? esc(ago(d.wifi.updated_at)) : "–"}</span></button>`).join("")
+                    : '<div class="fl-ov"><span class="fl-muted" style="grid-column:1/-1">ยังไม่มีเครื่องที่อนุมัติแล้ว</span></div>'}
+            </div>
+            <p class="fl-note" style="margin-top:10px">กดที่เครื่องเพื่อตั้ง / เปลี่ยน / ล้างรหัส</p>
+            <details class="fl-warnbox"><summary>ข้อควรระวัง</summary>
+                <p style="margin:8px 0 0">BellBeast ยังไม่มี TLS รหัสจึงส่งผ่าน LAN แบบไม่เข้ารหัส · ทุกเครื่องยังใช้ username พนักงานคนเดียว (ฝังใน firmware)
+                    ซึ่งจำกัดจำนวนเครื่องที่ต่อพร้อมกัน — ระยะยาวควรขอบัญชี IoT แยก หรือ SSID เฉพาะอุปกรณ์จาก IT</p></details>
+        </div>`;
         $$("[data-open]", v).forEach((b) => b.onclick = () => openDrawer(b.dataset.open));
-        const f = $("#wform");
-        $("#wedit").onclick = () => { f.hidden = false; $("#wedit").hidden = true; viewDirty = true; };
-        $("#wcancel").onclick = () => { f.hidden = true; $("#wedit").hidden = false; viewDirty = false; };
-        f.onsubmit = (e) => {
-            e.preventDefault();
-            let body;
-            try { body = readWifi("w", w); } catch (x) { toast(x.message, true); return; }
-            run(() => send("/api/admin/fleet/wifi", "PUT", body), "บันทึก WiFi กลางแล้ว · เครื่องจะรับค่าในรอบถัดไป");
-        };
-        if ($("#wclear")) $("#wclear").onclick = () => {
-            $("#wclearbox").innerHTML = `<div class="fl-confirm" style="margin-top:10px"><span>ล้างรหัส ① และ ② ? เครื่องจะเหลือแค่รหัสสำรองในเครื่อง</span>` +
-                `<button type="button" class="fl-btn sm" id="wc0">ยกเลิก</button><button type="button" class="fl-btn bad sm" id="wc1">ล้างรหัส</button></div>`;
-            $("#wc0").onclick = () => ($("#wclearbox").innerHTML = "");
-            $("#wc1").onclick = () => run(() => send("/api/admin/fleet/wifi", "PUT", { clear: true }), "ล้างรหัส WiFi แล้ว");
-        };
     }
 
     // ── firmware (per hardware model) ──

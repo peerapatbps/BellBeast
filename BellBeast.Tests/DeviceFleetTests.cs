@@ -98,14 +98,15 @@ public sealed class DeviceFleetTests : IClassFixture<BellBeastAdminFactory>, ICl
     {
         var c = _admin.CreateClient();
         var id = NewId(); var key = NewKey();
-        Assert.Equal(HttpStatusCode.OK, (await c.PutAsJsonAsync("/api/admin/fleet/wifi", new
+        await c.SendAsync(Dev(HttpMethod.Get, $"/api/device/{id}/config", key));      // registers as pending
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync($"/api/admin/fleet/device/{id}", new
         {
-            ssid = ".@MWA WiFi", identity = "00102616", current = "pw-current", next = "pw-next", next_valid_from = "2027-01-01T00:00:00+07:00",
+            wifi = new { ssid = ".@MWA WiFi", identity = "test-user", current = "pw-current", next = "pw-next", next_valid_from = "2027-01-01T00:00:00+07:00" },
         })).StatusCode);
 
         var pending = await Json(await c.SendAsync(Dev(HttpMethod.Get, $"/api/device/{id}/config", key)));
         Assert.False(pending.GetProperty("approved").GetBoolean());
-        Assert.Equal(JsonValueKind.Null, pending.GetProperty("wifi").ValueKind);
+        Assert.Equal(JsonValueKind.Null, pending.GetProperty("wifi").ValueKind);   // not before approval
         Assert.Equal(5, pending.GetProperty("poll_sec").GetInt32());
 
         Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync($"/api/admin/fleet/device/{id}", new { approved = true, zones = "rws, dps", remind_sec = 90 })).StatusCode);
@@ -128,7 +129,8 @@ public sealed class DeviceFleetTests : IClassFixture<BellBeastAdminFactory>, ICl
         // admin view masks the passwords
         var view = await c.GetFromJsonAsync<JsonElement>("/api/admin/fleet");
         Assert.DoesNotContain("pw-current", view.ToString());
-        Assert.EndsWith("nt", view.GetProperty("wifi").GetProperty("current").GetString());
+        Assert.False(view.TryGetProperty("wifi", out _));                            // no fleet-wide WiFi any more
+        Assert.EndsWith("nt", (await DeviceRow(c, id)).GetProperty("wifi").GetProperty("current").GetString());
 
         // reset key: next device with a new key re-binds and must be approved again
         Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync($"/api/admin/fleet/device/{id}", new { reset_key = true })).StatusCode);
@@ -186,12 +188,12 @@ public sealed class DeviceFleetTests : IClassFixture<BellBeastAdminFactory>, ICl
     }
 
     [Fact]
-    public async Task Device_Can_Have_Its_Own_Wifi_Or_Fall_Back_To_Fleet_Wifi()
+    public async Task Wifi_Is_Per_Device_And_None_Means_The_Built_In_Bypass()
     {
         var c = _admin.CreateClient();
         var id = NewId(); var key = NewKey();
-        await c.PutAsJsonAsync("/api/admin/fleet/wifi", new { ssid = ".@MWA WiFi", identity = "fleet-user", current = "pw-fleet" });
         await c.SendAsync(Dev(HttpMethod.Get, $"/api/device/{id}/config", key));
+        Assert.Equal(HttpStatusCode.NotFound, (await c.PutAsJsonAsync("/api/admin/fleet/wifi", new { current = "pw-fleet" })).StatusCode);   // no fleet-wide WiFi
 
         // own set needs a current password; bad patch leaves the device untouched
         Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/admin/fleet/device/{id}", new { approved = true, wifi = new { ssid = "Lab-IoT" } })).StatusCode);
@@ -215,10 +217,10 @@ public sealed class DeviceFleetTests : IClassFixture<BellBeastAdminFactory>, ICl
         Assert.Equal("pw-own-device", cfg.GetProperty("wifi").GetProperty("current").GetString());
         Assert.Equal("pw-own-next", cfg.GetProperty("wifi").GetProperty("next").GetString());
 
-        // null → back to the fleet set
+        // null → no WiFi in config: the device clears its known creds and uses its built-in list (bypass)
         await c.PostAsJsonAsync($"/api/admin/fleet/device/{id}", new { wifi = (object?)null });
         cfg = await Json(await c.SendAsync(Dev(HttpMethod.Get, $"/api/device/{id}/config", key)));
-        Assert.Equal("pw-fleet", cfg.GetProperty("wifi").GetProperty("current").GetString());
+        Assert.Equal(JsonValueKind.Null, cfg.GetProperty("wifi").ValueKind);
         await c.DeleteAsync($"/api/admin/fleet/device/{id}");
     }
 
@@ -323,7 +325,7 @@ public sealed class DeviceFleetTests : IClassFixture<BellBeastAdminFactory>, ICl
     {
         var c = _anon.CreateClient();
         Assert.Equal(HttpStatusCode.Unauthorized, (await c.GetAsync("/api/admin/fleet")).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await c.PutAsJsonAsync("/api/admin/fleet/wifi", new { current = "x" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await c.PostAsJsonAsync("/api/admin/fleet/device/ann-x01", new { wifi = new { current = "x" } })).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await c.PostAsJsonAsync("/api/admin/ota/channel", new { channel = "stable" })).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await c.SendAsync(Dev(HttpMethod.Get, $"/api/device/{NewId()}/config", NewKey()))).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await c.GetAsync("/api/ota/manifest")).StatusCode);

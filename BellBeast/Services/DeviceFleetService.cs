@@ -15,7 +15,8 @@ namespace BellBeast.Services;
 /// Later calls must present the same key (only its sha256 is stored). WiFi credentials are served to approved
 /// devices only — over plain HTTP on the plant LAN (BellBeast has no TLS), never logged, never in a URL.
 ///
-/// Per device: WiFi credentials (its own set, or the fleet set) and firmware. A device follows the stable/beta track
+/// Per device: WiFi credentials (no fleet-wide set: a device without its own falls back to the password list built
+/// into the firmware, "bypass") and firmware. A device follows the stable/beta track
 /// of its <b>model</b> (board / hardware rev), or is pinned to one exact image. Firmware images belong to a model, so
 /// "release to all" only reaches devices of that model. Model "" = not specified (single-board fleets, legacy data).
 ///
@@ -55,6 +56,7 @@ public sealed class DeviceFleetService
     {
         public Dictionary<string, DeviceRecord> Devices { get; set; } = new(StringComparer.Ordinal);
         public FleetDefaults Defaults { get; set; } = new();
+        /// <summary>Legacy fleet-wide WiFi — no longer served (WiFi is per device only); dropped on load.</summary>
         public WifiCreds? Wifi { get; set; }
         public OtaState Ota { get; set; } = new();
     }
@@ -68,7 +70,7 @@ public sealed class DeviceFleetService
         public string? Model { get; set; }            // set by admin; null = what the device reports ("" if neither)
         public string? ReportedModel { get; set; }    // optional "model" in the device report
         public string? FwPin { get; set; }            // firmware key (FirmwareInfo.Key); null = follow the model's track
-        public WifiCreds? Wifi { get; set; }          // null = fleet WiFi
+        public WifiCreds? Wifi { get; set; }          // null = none: the device uses its built-in bootstrap list (bypass)
         public string? Zones { get; set; }            // null = fleet default
         public string? Channel { get; set; }          // null = fleet default
         public int? PollSec { get; set; }
@@ -299,7 +301,7 @@ public sealed class DeviceFleetService
         {
             var d = _state.Devices[id];
             var def = _state.Defaults;
-            object? wifi = d.Approved && (d.Wifi ?? _state.Wifi) is { } w && w.Current.Length > 0
+            object? wifi = d.Approved && d.Wifi is { } w && w.Current.Length > 0
                 ? new Dictionary<string, object?>
                 {
                     ["ssid"] = w.Ssid, ["identity"] = w.Identity, ["current"] = w.Current,
@@ -375,7 +377,6 @@ public sealed class DeviceFleetService
             {
                 ok = true,
                 defaults = _state.Defaults,
-                wifi = WifiView(_state.Wifi),
                 ota = new
                 {
                     tracks = _state.Ota.Tracks,
@@ -486,20 +487,6 @@ public sealed class DeviceFleetService
             if (patch.TryGetProperty("lab_sec", out var lb)) { if (!lb.TryGetInt32(out var v) || v is < 60 or > 3600) return "bad_lab_sec"; def.LabSec = v; }
             if (patch.TryGetProperty("scn_sec", out var sn)) { if (!sn.TryGetInt32(out var v) || v is < 10 or > 600) return "bad_scn_sec"; def.ScnSec = v; }
             if (!OptInt(patch, "volume", 0, 100, v => def.Volume = v)) return "bad_volume";
-            Save();
-            return null;
-        }
-    }
-
-    /// <summary>Fleet WiFi (used by every device without its own set).</summary>
-    public string? UpdateWifi(JsonElement body)
-    {
-        lock (_lock)
-        {
-            if (body.TryGetProperty("clear", out var c) && c.ValueKind == JsonValueKind.True) { _state.Wifi = null; Save(); return null; }
-            var (w, err) = ApplyWifi(_state.Wifi, body);
-            if (err is not null) return err;
-            _state.Wifi = w;
             Save();
             return null;
         }
@@ -693,6 +680,7 @@ public sealed class DeviceFleetService
                     if (s.Ota.Channels is { Count: > 0 } legacy && !s.Ota.Tracks.ContainsKey(""))
                         s.Ota.Tracks[""] = new Dictionary<string, string?>(legacy, StringComparer.Ordinal);
                     s.Ota.Channels = null;
+                    s.Wifi = null;                              // fleet-wide WiFi is gone: never served again
                     return s;
                 }
             }

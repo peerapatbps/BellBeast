@@ -115,14 +115,7 @@ public static class FleetEndpoints
             return e is null ? Results.Json(new { ok = true }) : Results.BadRequest(new { ok = false, error = e });
         });
 
-        admin.MapPut("/api/admin/fleet/wifi", async (DeviceFleetService fleet, HttpContext ctx) =>
-        {
-            JsonElement body;
-            try { body = await ctx.Request.ReadFromJsonAsync<JsonElement>(ctx.RequestAborted); }
-            catch (JsonException) { return Results.BadRequest(new { ok = false, error = "bad_json" }); }
-            var e = fleet.UpdateWifi(body);
-            return e is null ? Results.Json(new { ok = true }) : Results.BadRequest(new { ok = false, error = e });
-        });
+        // WiFi is per device only (POST /api/admin/fleet/device/{id} { wifi }); no fleet-wide set.
 
         admin.MapPost("/api/admin/ota/firmware", async (DeviceFleetService fleet, HttpContext ctx) =>
         {
