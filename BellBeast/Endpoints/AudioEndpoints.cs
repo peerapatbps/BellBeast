@@ -26,6 +26,7 @@ public static class AudioEndpoints
     public static void MapAudioEndpoints(this WebApplication app, ApiGroups api)
     {
         var (pub, user, admin) = (api.Public, api.User, api.Admin);
+        var device = api.Device;  // device APIs: page access + registered annunciators (DeviceAccessService)
 
         // ===============================
         // Audio clip library (Overview §3.3) — PCM16 24 kHz mono, the device codec format
@@ -55,7 +56,7 @@ public static class AudioEndpoints
         });
 
         // device download: raw PCM (default) or ?format=wav for browser preview. ETag = sha256; "n_4@v2" accepted (current version served)
-        pub.MapGet("/api/audio/clip/{id}", (string id, AudioLibraryService lib, HttpContext ctx) =>
+        device.MapGet("/api/audio/clip/{id}", (string id, AudioLibraryService lib, HttpContext ctx) =>
         {
             var norm = AudioLibraryService.NormalizeId(id);
             var info = norm is null ? null : lib.Get(norm);

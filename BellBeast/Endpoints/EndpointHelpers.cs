@@ -20,7 +20,7 @@ public static class AuthSchemes
 /// <param name="User">signed in (user or admin cookie) via the deny-by-default fallback policy</param>
 /// <param name="Admin">AdminOnly policy</param>
 /// <param name="Page">anonymous, but needs a live view token from one of our pages (see ViewTokenService)</param>
-public sealed record ApiGroups(RouteGroupBuilder Public, RouteGroupBuilder User, RouteGroupBuilder Admin, RouteGroupBuilder Page);
+public sealed record ApiGroups(RouteGroupBuilder Public, RouteGroupBuilder User, RouteGroupBuilder Admin, RouteGroupBuilder Page, RouteGroupBuilder Device);
 
 /// <summary>Helpers shared by more than one endpoint module.</summary>
 public static class EndpointHelpers

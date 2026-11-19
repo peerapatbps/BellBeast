@@ -158,7 +158,7 @@ public static class ApiAdminEndpoints
 
         static Func<string, bool> PageRoutes(ApiCatalogService catalog)
         {
-            var ids = catalog.List().Where(a => a.Access == ApiCatalogService.AccessPage).Select(a => a.Id).ToHashSet(StringComparer.Ordinal);
+            var ids = catalog.List().Where(a => a.Access is ApiCatalogService.AccessPage or ApiCatalogService.AccessDevice).Select(a => a.Id).ToHashSet(StringComparer.Ordinal);
             return ids.Contains;
         }
 
@@ -187,7 +187,7 @@ public static class ApiAdminEndpoints
                     return new { id = d.Id, name = d.Name, seen_ip = d.SeenIp, seen_at = d.SeenAt, active = d.SeenIp is not null && d.SeenAt > since,
                                  hits = u?.Hits ?? 0, last_used = u?.LastUsed };
                 }),
-                page_routes = catalog.List().Where(a => a.Access == ApiCatalogService.AccessPage).Select(a => a.Id),
+                page_routes = catalog.List().Where(a => a.Access is ApiCatalogService.AccessPage or ApiCatalogService.AccessDevice).Select(a => a.Id),
             };
         }
 

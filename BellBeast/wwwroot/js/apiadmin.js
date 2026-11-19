@@ -40,7 +40,7 @@
         bad_field_name: "ชื่อ field ต้องขึ้นต้นด้วย a-z และใช้ได้แค่ a-z 0-9 _", duplicate_field: "ชื่อ field ซ้ำ", unknown_metric: "Uroboros ไม่มี metric นี้",
         bad_field_text: "หน่วย/คำอธิบายยาวเกินไป", upstream_unavailable: "ติดต่อ Uroboros ไม่ได้", unknown_dataset: "ไม่พบ dataset นี้แล้ว",
         unknown_rejection: "IP นี้ไม่อยู่ในรายการถูกปฏิเสธแล้ว", bad_duration: "ระยะเวลาไม่ถูกต้อง", reason_too_long: "เหตุผลยาวเกิน 200 ตัว", not_banned: "IP นี้ไม่ได้ถูกแบนแล้ว",
-        no_routes: "เลือก API อย่างน้อย 1 ตัว", bad_routes: "รายการ API ไม่ถูกต้อง", not_page_api: "ให้ตั๋วได้เฉพาะ API ของหน้าเว็บ (hash)",
+        no_routes: "เลือก API อย่างน้อย 1 ตัว", bad_routes: "รายการ API ไม่ถูกต้อง", not_page_api: "ให้ตั๋วได้เฉพาะ API ของหน้าเว็บ / อุปกรณ์",
         too_many_passes: "ตั๋วผ่านเต็มแล้ว (200 IP)", unknown_pass: "ไม่พบตั๋วของ IP นี้แล้ว",
     };
     function errText(code) {
@@ -110,7 +110,7 @@
     }
 
     // ── APIs tab ──
-    const ACCESS_LABEL = { public: "สาธารณะ", page: "หน้าเว็บ (hash)", user: "ต้อง login", admin: "admin" };
+    const ACCESS_LABEL = { public: "สาธารณะ", page: "หน้าเว็บ (hash)", device: "อุปกรณ์ + หน้าเว็บ", user: "ต้อง login", admin: "admin" };
 
     function renderApis() {
         const q = query.toLowerCase();
@@ -122,7 +122,7 @@
         $("#v-apis").innerHTML = `
             <div class="ap-toolbar">
                 <input class="ap-search" id="q" type="search" placeholder="ค้นหา route / หมายเหตุ" value="${esc(query)}">
-                ${chip("all", "ทั้งหมด " + apis.length)}${chip("public", "สาธารณะ")}${chip("page", "หน้าเว็บ (hash)")}${chip("user", "ต้อง login")}${chip("admin", "admin")}${chip("off", "ที่ปิดอยู่")}
+                ${chip("all", "ทั้งหมด " + apis.length)}${chip("public", "สาธารณะ")}${chip("page", "หน้าเว็บ (hash)")}${chip("device", "อุปกรณ์")}${chip("user", "ต้อง login")}${chip("admin", "admin")}${chip("off", "ที่ปิดอยู่")}
             </div>
             <table class="ap-table">
                 <thead><tr><th style="width:56px">เปิด</th><th style="width:90px">Method</th><th>Route</th><th style="width:110px">สิทธิ์</th><th style="width:30%">หมายเหตุ</th></tr></thead>

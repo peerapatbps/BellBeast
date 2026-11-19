@@ -101,6 +101,13 @@
     .fl-alarm { font-size: 13px; min-width: 0; overflow-wrap: anywhere; }
     .fl-small { font-size: 12px; }
     .fl-chev { color: var(--fl-faint); font-size: 18px; text-align: right; }
+    /* per-device overview rows (defaults + WiFi tabs) */
+    .fl-ov { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 1.4fr) minmax(0, 2fr) minmax(0, 2fr); gap: 12px; align-items: center;
+             padding: 10px 16px; border-bottom: 1px solid var(--fl-soft); font-size: 13.5px; }
+    .fl-ov:last-child { border-bottom: 0; }
+    .fl-ov.hd { font-size: 12px; color: var(--fl-faint); padding-block: 8px; background: var(--fl-panel2); }
+    button.fl-ov { width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--fl-soft); }
+    button.fl-ov:hover { background: var(--fl-accent-bg); }
     .fl-cl { display: none; }
 
     .fl-panel { background: var(--fl-panel); border: 1px solid var(--fl-line); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
@@ -204,6 +211,8 @@
         .fl-fwrow { grid-template-columns: 1fr; } .fl-fwrow .acts { justify-content: start; }
         .fl-form { grid-template-columns: 1fr; }
         .fl-ev { grid-template-columns: 1fr; gap: 2px; }
+        .fl-ov.hd { display: none; }
+        .fl-ov, button.fl-ov { grid-template-columns: 1fr !important; gap: 4px; }
     }
 </style>
 }
@@ -230,6 +239,7 @@
         <button class="fl-tab" role="tab" type="button" data-tab="defaults">ค่าตั้งกลาง</button>
         <button class="fl-tab" role="tab" type="button" data-tab="wifi">รหัส WiFi</button>
         <button class="fl-tab" role="tab" type="button" data-tab="firmware">อัปเดต Firmware</button>
+        <button class="fl-tab" role="tab" type="button" data-tab="access">การเข้าถึง API</button>
         <button class="fl-tab" role="tab" type="button" data-tab="log">บันทึกเหตุการณ์</button>
     </div>
 
@@ -237,6 +247,7 @@
     <section id="v-defaults" hidden></section>
     <section id="v-wifi" hidden></section>
     <section id="v-firmware" hidden></section>
+    <section id="v-access" hidden></section>
     <section id="v-log" hidden></section>
 </div>
 

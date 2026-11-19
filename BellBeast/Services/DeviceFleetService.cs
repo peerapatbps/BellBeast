@@ -8,24 +8,30 @@ namespace BellBeast.Services;
 
 /// <summary>
 /// Annunciator fleet (iot-device_plan.md §4 / P4): device registry, per-device config, device reports (audit log)
-/// and firmware OTA (manifest + binary, per-channel staged rollout).
+/// and firmware OTA (manifest + binary).
 ///
 /// Device identity: each device generates a random 32-byte key on first boot and sends it as <c>X-Device-Key</c>.
 /// First contact registers the device as <b>pending</b> (trust on first use); an admin approves it in /Admin/Fleet.
 /// Later calls must present the same key (only its sha256 is stored). WiFi credentials are served to approved
 /// devices only — over plain HTTP on the plant LAN (BellBeast has no TLS), never logged, never in a URL.
 ///
-/// Layout: App_Data/fleet/fleet.json (state) · fleet/events.jsonl (report log, trimmed) · fleet/ota/{version}.bin
+/// Per device: WiFi credentials (its own set, or the fleet set) and firmware. A device follows the stable/beta track
+/// of its <b>model</b> (board / hardware rev), or is pinned to one exact image. Firmware images belong to a model, so
+/// "release to all" only reaches devices of that model. Model "" = not specified (single-board fleets, legacy data).
+///
+/// Layout: App_Data/fleet/fleet.json (state) · fleet/events/{device}.jsonl (rolling: newest
+/// <see cref="MaxEventsPerDevice"/> per device) · fleet/ota/{version}.bin (model "") · fleet/ota/{model}/{version}.bin
 /// </summary>
 public sealed class DeviceFleetService
 {
     public const string KeyHeader = "X-Device-Key";
     public const int MaxEventsPerReport = 64;
+    public const int MaxEventsPerDevice = 100;
     public const long MaxFirmwareBytes = 0x3f0000;          // app partition size on the device (partitions/v2/16m.csv)
-    public const long EventsFileCap = 4 * 1024 * 1024;
 
     private static readonly Regex IdRx = new("^[a-z0-9][a-z0-9-]{2,31}$", RegexOptions.Compiled);
     private static readonly Regex KeyRx = new("^[0-9a-f]{64}$", RegexOptions.Compiled);
+    private static readonly Regex ModelRx = new("^[a-z0-9][a-z0-9._-]{0,31}$", RegexOptions.Compiled);
     private static readonly Regex VersionRx = new("^[0-9A-Za-z][0-9A-Za-z._+-]{0,39}$", RegexOptions.Compiled);
     private static readonly Regex ZonesRx = new("^[A-Z0-9_]{1,16}(,[A-Z0-9_]{1,16}){0,15}$", RegexOptions.Compiled);
     private static readonly string[] Channels = ["stable", "beta", "none"];
@@ -39,7 +45,7 @@ public sealed class DeviceFleetService
 
     private readonly string _root;
     private readonly string _statePath;
-    private readonly string _eventsPath;
+    private readonly string _eventsDir;
     private readonly string _fwDir;
     private readonly object _lock = new();
     private FleetState _state;
@@ -59,6 +65,10 @@ public sealed class DeviceFleetService
         public string? Name { get; set; }
         public string? KeySha256 { get; set; }
         public bool Approved { get; set; }
+        public string? Model { get; set; }            // set by admin; null = what the device reports ("" if neither)
+        public string? ReportedModel { get; set; }    // optional "model" in the device report
+        public string? FwPin { get; set; }            // firmware key (FirmwareInfo.Key); null = follow the model's track
+        public WifiCreds? Wifi { get; set; }          // null = fleet WiFi
         public string? Zones { get; set; }            // null = fleet default
         public string? Channel { get; set; }          // null = fleet default
         public int? PollSec { get; set; }
@@ -108,11 +118,20 @@ public sealed class DeviceFleetService
 
     public sealed class OtaState
     {
-        public Dictionary<string, string?> Channels { get; set; } = new(StringComparer.Ordinal);
+        /// <summary>Legacy single-model stable/beta map; moved into <see cref="Tracks"/>[""] on load.</summary>
+        public Dictionary<string, string?>? Channels { get; set; }
+        /// <summary>model → channel (stable/beta) → version.</summary>
+        public Dictionary<string, Dictionary<string, string?>> Tracks { get; set; } = new(StringComparer.Ordinal);
         public List<FirmwareInfo> Firmware { get; set; } = new();
     }
 
-    public sealed record FirmwareInfo(string Version, string Sha256, long Size, DateTimeOffset UploadedAt, string? Note);
+    public sealed record FirmwareInfo(string Version, string Sha256, long Size, DateTimeOffset UploadedAt, string? Note, string? Model = null)
+    {
+        [JsonIgnore] public string Key => KeyOf(Model, Version);
+    }
+
+    /// <summary>"2.1.0" (model "") or "board-a/2.1.0".</summary>
+    public static string KeyOf(string? model, string version) => string.IsNullOrEmpty(model) ? version : model + "/" + version;
 
     // ── device-facing DTOs ──
     public sealed class ReportBody
@@ -123,6 +142,7 @@ public sealed class DeviceFleetService
         public string? WifiTier { get; set; }
         public int? Rssi { get; set; }
         public long? UptimeSec { get; set; }
+        public string? Model { get; set; }            // optional: board/model id the firmware was built for
         public List<ReportEvent>? Events { get; set; }
     }
 
@@ -140,14 +160,26 @@ public sealed class DeviceFleetService
     {
         _root = Path.Combine(env.ContentRootPath, "App_Data", "fleet");
         _statePath = Path.Combine(_root, "fleet.json");
-        _eventsPath = Path.Combine(_root, "events.jsonl");
+        _eventsDir = Path.Combine(_root, "events");
         _fwDir = Path.Combine(_root, "ota");
         Directory.CreateDirectory(_fwDir);
+        Directory.CreateDirectory(_eventsDir);
         _state = Load();
+        MigrateLegacyEvents();
     }
 
     public static bool ValidId(string? id) => id is not null && IdRx.IsMatch(id);
     public static bool ValidVersion(string? v) => v is not null && VersionRx.IsMatch(v);
+    public static bool ValidModel(string? m) => m is not null && ModelRx.IsMatch(m);
+
+    /// <summary>"" or a valid lower-case model; null = invalid.</summary>
+    public static string? NormalizeModel(string? m)
+    {
+        m = (m ?? "").Trim().ToLowerInvariant();
+        return m.Length == 0 || ValidModel(m) ? m : null;
+    }
+
+    private static string EffModel(DeviceRecord d) => d.Model ?? d.ReportedModel ?? "";
 
     /// <summary>"rws, dps" -> "RWS,DPS"; "" -> ""; invalid -> null.</summary>
     public static string? NormalizeZones(string? zones)
@@ -189,6 +221,24 @@ public sealed class DeviceFleetService
     }
 
     /// <summary>
+    /// Device APIs (alarm feed, clips, ...): true when <paramref name="id"/> is an approved device and the key is
+    /// its key. Never registers a device (only report/config/manifest do). Refreshes the seen IP in memory only —
+    /// a 5 s alarm poll must not rewrite fleet.json; the next report persists it.
+    /// </summary>
+    public bool VerifyApproved(string id, string key, string? ip)
+    {
+        if (!ValidId(id) || !KeyRx.IsMatch(key)) return false;
+        var keySha = Encoding.ASCII.GetBytes(Sha(key));
+        lock (_lock)
+        {
+            if (!_state.Devices.TryGetValue(id, out var d) || !d.Approved || d.KeySha256 is null) return false;
+            if (!CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(d.KeySha256), keySha)) return false;
+            if (ip is not null) { d.SeenIp = ip; d.SeenAt = DateTimeOffset.UtcNow; }
+            return true;
+        }
+    }
+
+    /// <summary>
     /// The approved device whose key last checked out from this connection IP within <paramref name="window"/>,
     /// or null. Used for IP passes: the IP comes from the connection, never from what the device reports.
     /// </summary>
@@ -224,6 +274,7 @@ public sealed class DeviceFleetService
             if (!string.IsNullOrWhiteSpace(body.WifiTier)) d.WifiTier = Trunc(body.WifiTier, 16);
             if (body.Rssi is not null) d.Rssi = body.Rssi;
             if (body.UptimeSec is not null) d.UptimeSec = body.UptimeSec;
+            if (NormalizeModel(body.Model) is { Length: > 0 } rm) d.ReportedModel = rm;
             foreach (var e in events)
             {
                 var at = e.Ts is > 1_600_000_000 ? DateTimeOffset.FromUnixTimeSeconds(e.Ts.Value) : now;
@@ -248,7 +299,7 @@ public sealed class DeviceFleetService
         {
             var d = _state.Devices[id];
             var def = _state.Defaults;
-            object? wifi = d.Approved && _state.Wifi is { } w && w.Current.Length > 0
+            object? wifi = d.Approved && (d.Wifi ?? _state.Wifi) is { } w && w.Current.Length > 0
                 ? new Dictionary<string, object?>
                 {
                     ["ssid"] = w.Ssid, ["identity"] = w.Identity, ["current"] = w.Current,
@@ -274,24 +325,48 @@ public sealed class DeviceFleetService
         }
     }
 
+    /// <summary>
+    /// What a device should run: its pin, else its model's track for its channel (channel "pin" = pinned).
+    /// Never hands out an image of another model — a pin left behind after the model changed yields nothing.
+    /// </summary>
     public (string Channel, FirmwareInfo? Firmware) ManifestFor(string? id)
     {
-        lock (_lock)
-        {
-            var ch = id is not null && _state.Devices.TryGetValue(id, out var d) && d.Channel is not null ? d.Channel : _state.Defaults.Channel;
-            if (ch == "none" || !_state.Ota.Channels.TryGetValue(ch, out var v) || v is null) return (ch, null);
-            return (ch, _state.Ota.Firmware.FirstOrDefault(f => f.Version == v));
-        }
+        lock (_lock) return Target(id is not null && _state.Devices.TryGetValue(id, out var d) ? d : null);
     }
 
-    public string FirmwarePath(string version) => Path.Combine(_fwDir, version + ".bin");
-
-    public FirmwareInfo? GetFirmware(string version)
+    private (string Channel, FirmwareInfo? Firmware) Target(DeviceRecord? d)
     {
-        lock (_lock) return _state.Ota.Firmware.FirstOrDefault(f => f.Version == version);
+        var model = d is null ? "" : EffModel(d);
+        if (d?.FwPin is { } pin)
+        {
+            var fw = _state.Ota.Firmware.FirstOrDefault(f => f.Key == pin);
+            return ("pin", fw is not null && (fw.Model ?? "") == model ? fw : null);
+        }
+        var ch = d?.Channel ?? _state.Defaults.Channel;
+        if (ch == "none" || !_state.Ota.Tracks.TryGetValue(model, out var tr) || !tr.TryGetValue(ch, out var v) || v is null) return (ch, null);
+        return (ch, _state.Ota.Firmware.FirstOrDefault(f => (f.Model ?? "") == model && f.Version == v));
     }
+
+    public string FirmwarePath(string? model, string version) =>
+        string.IsNullOrEmpty(model) ? Path.Combine(_fwDir, version + ".bin") : Path.Combine(_fwDir, model, version + ".bin");
+
+    public FirmwareInfo? GetFirmware(string? model, string version)
+    {
+        model ??= "";
+        lock (_lock) return _state.Ota.Firmware.FirstOrDefault(f => (f.Model ?? "") == model && f.Version == version);
+    }
+
+    /// <summary>Download path the manifest points at.</summary>
+    public static string FirmwareUrl(FirmwareInfo fw) =>
+        string.IsNullOrEmpty(fw.Model) ? $"/api/ota/firmware/{fw.Version}" : $"/api/ota/firmware/{fw.Model}/{fw.Version}";
 
     // ── admin ──
+    private static object? WifiView(WifiCreds? w) => w is null ? null : new
+    {
+        ssid = w.Ssid, identity = w.Identity, current = Mask(w.Current), next = Mask(w.Next),
+        next_valid_from = w.NextValidFrom, updated_at = w.UpdatedAt,
+    };
+
     public object AdminView()
     {
         lock (_lock)
@@ -300,17 +375,29 @@ public sealed class DeviceFleetService
             {
                 ok = true,
                 defaults = _state.Defaults,
-                wifi = _state.Wifi is { } w ? new
+                wifi = WifiView(_state.Wifi),
+                ota = new
                 {
-                    ssid = w.Ssid, identity = w.Identity, current = Mask(w.Current), next = Mask(w.Next),
-                    next_valid_from = w.NextValidFrom, updated_at = w.UpdatedAt,
-                } : null,
-                ota = new { channels = _state.Ota.Channels, firmware = _state.Ota.Firmware.OrderByDescending(f => f.UploadedAt) },
-                devices = _state.Devices.Values.OrderBy(d => d.Id, StringComparer.Ordinal).Select(d => new
+                    tracks = _state.Ota.Tracks,
+                    models = _state.Ota.Firmware.Select(f => f.Model ?? "")
+                        .Concat(_state.Devices.Values.Select(EffModel))
+                        .Concat(_state.Ota.Tracks.Keys)
+                        .Distinct().OrderBy(m => m, StringComparer.Ordinal),
+                    firmware = _state.Ota.Firmware.OrderByDescending(f => f.UploadedAt)
+                        .Select(f => new { f.Version, model = f.Model ?? "", key = f.Key, f.Sha256, f.Size, f.UploadedAt, f.Note }),
+                },
+                devices = _state.Devices.Values.OrderBy(d => d.Id, StringComparer.Ordinal).Select(d =>
                 {
-                    d.Id, d.Name, has_key = d.KeySha256 is not null, d.Approved, d.Zones, d.Channel, d.PollSec, d.RemindSec, d.LabSec, d.ScnSec, d.Volume,
-                    d.CreatedAt, d.LastSeen, d.Fw, d.Ip, d.SeenIp, d.SeenAt, d.Partition, d.WifiTier, d.Rssi, d.UptimeSec,
-                    d.LastPlayedAt, d.LastPlayedAlarm, d.LastAckAt, d.LastAckAlarm, d.LastFallbackAt, d.LastOta, d.Reports,
+                    var (tch, tfw) = Target(d);
+                    return new
+                    {
+                        d.Id, d.Name, has_key = d.KeySha256 is not null, d.Approved,
+                        d.Model, d.ReportedModel, eff_model = EffModel(d), d.FwPin, target_channel = tch, target_fw = tfw?.Version,
+                        wifi = WifiView(d.Wifi),
+                        d.Zones, d.Channel, d.PollSec, d.RemindSec, d.LabSec, d.ScnSec, d.Volume,
+                        d.CreatedAt, d.LastSeen, d.Fw, d.Ip, d.SeenIp, d.SeenAt, d.Partition, d.WifiTier, d.Rssi, d.UptimeSec,
+                        d.LastPlayedAt, d.LastPlayedAlarm, d.LastAckAt, d.LastAckAlarm, d.LastFallbackAt, d.LastOta, d.Reports,
+                    };
                 }),
             };
         }
@@ -322,24 +409,55 @@ public sealed class DeviceFleetService
         lock (_lock)
         {
             if (!_state.Devices.TryGetValue(id, out var d)) return "device_not_found";
-            if (Str(patch, "name", out var name)) d.Name = string.IsNullOrWhiteSpace(name) ? null : Trunc(name.Trim(), 60);
-            if (patch.TryGetProperty("approved", out var ap) && ap.ValueKind is JsonValueKind.True or JsonValueKind.False) d.Approved = ap.GetBoolean();
+            // validate everything on a copy first, so a bad field leaves the device untouched
+            var n = Clone(d);
+            if (Str(patch, "name", out var name)) n.Name = string.IsNullOrWhiteSpace(name) ? null : Trunc(name.Trim(), 60);
+            if (patch.TryGetProperty("approved", out var ap) && ap.ValueKind is JsonValueKind.True or JsonValueKind.False) n.Approved = ap.GetBoolean();
             if (Str(patch, "zones", out var z))
             {
-                if (z is null) d.Zones = null;
-                else { var nz = NormalizeZones(z); if (nz is null) return "bad_zones"; d.Zones = nz; }
+                if (z is null) n.Zones = null;
+                else { var nz = NormalizeZones(z); if (nz is null) return "bad_zones"; n.Zones = nz; }
             }
             if (Str(patch, "channel", out var ch))
             {
                 if (ch is not null && !Channels.Contains(ch)) return "bad_channel";
-                d.Channel = ch;
+                n.Channel = ch;
             }
-            if (!OptInt(patch, "poll_sec", 1, 60, v => d.PollSec = v)) return "bad_poll_sec";
-            if (!OptInt(patch, "remind_sec", 0, 3600, v => d.RemindSec = v)) return "bad_remind_sec";
-            if (!OptInt(patch, "lab_sec", 60, 3600, v => d.LabSec = v)) return "bad_lab_sec";
-            if (!OptInt(patch, "scn_sec", 10, 600, v => d.ScnSec = v)) return "bad_scn_sec";
-            if (!OptInt(patch, "volume", 0, 100, v => d.Volume = v)) return "bad_volume";
-            if (patch.TryGetProperty("reset_key", out var rk) && rk.ValueKind == JsonValueKind.True) { d.KeySha256 = null; d.Approved = false; }
+            if (Str(patch, "model", out var model))
+            {
+                var nm = NormalizeModel(model);
+                if (nm is null) return "bad_model";
+                n.Model = nm.Length == 0 ? null : nm;
+            }
+            if (Str(patch, "fw_pin", out var pin))
+            {
+                if (string.IsNullOrEmpty(pin)) n.FwPin = null;
+                else
+                {
+                    var fw = _state.Ota.Firmware.FirstOrDefault(f => f.Key == pin);
+                    if (fw is null) return "firmware_not_found";
+                    if ((fw.Model ?? "") != EffModel(n)) return "fw_model_mismatch";
+                    n.FwPin = pin;
+                }
+            }
+            if (patch.TryGetProperty("wifi", out var wj))
+            {
+                if (wj.ValueKind == JsonValueKind.Null) n.Wifi = null;
+                else if (wj.ValueKind != JsonValueKind.Object) return "bad_wifi";
+                else
+                {
+                    var (w, err) = ApplyWifi(n.Wifi, wj);
+                    if (err is not null) return err;
+                    n.Wifi = w;
+                }
+            }
+            if (!OptInt(patch, "poll_sec", 1, 60, v => n.PollSec = v)) return "bad_poll_sec";
+            if (!OptInt(patch, "remind_sec", 0, 3600, v => n.RemindSec = v)) return "bad_remind_sec";
+            if (!OptInt(patch, "lab_sec", 60, 3600, v => n.LabSec = v)) return "bad_lab_sec";
+            if (!OptInt(patch, "scn_sec", 10, 600, v => n.ScnSec = v)) return "bad_scn_sec";
+            if (!OptInt(patch, "volume", 0, 100, v => n.Volume = v)) return "bad_volume";
+            if (patch.TryGetProperty("reset_key", out var rk) && rk.ValueKind == JsonValueKind.True) { n.KeySha256 = null; n.Approved = false; }
+            _state.Devices[id] = n;
             Save();
             return null;
         }
@@ -351,6 +469,7 @@ public sealed class DeviceFleetService
         {
             if (!_state.Devices.Remove(id)) return false;
             Save();
+            try { File.Delete(EventsPath(id)); } catch (IOException) { }
             return true;
         }
     }
@@ -372,37 +491,53 @@ public sealed class DeviceFleetService
         }
     }
 
+    /// <summary>Fleet WiFi (used by every device without its own set).</summary>
     public string? UpdateWifi(JsonElement body)
     {
         lock (_lock)
         {
             if (body.TryGetProperty("clear", out var c) && c.ValueKind == JsonValueKind.True) { _state.Wifi = null; Save(); return null; }
-            var w = _state.Wifi ?? new WifiCreds();
-            if (Str(body, "ssid", out var ssid)) { if (string.IsNullOrWhiteSpace(ssid) || ssid.Length > 32) return "bad_ssid"; w.Ssid = ssid; }
-            if (Str(body, "identity", out var ident)) w.Identity = Trunc(ident ?? "", 64)!;
-            if (Str(body, "current", out var cur)) { if (string.IsNullOrEmpty(cur) || cur.Length > 63) return "bad_current"; w.Current = cur; }
-            if (Str(body, "next", out var next)) { if (next is { Length: > 63 }) return "bad_next"; w.Next = string.IsNullOrEmpty(next) ? null : next; }
-            if (body.TryGetProperty("next_valid_from", out var nvf))
-            {
-                if (nvf.ValueKind == JsonValueKind.Null) w.NextValidFrom = null;
-                else if (nvf.ValueKind == JsonValueKind.String && DateTimeOffset.TryParse(nvf.GetString(), out var t)) w.NextValidFrom = t;
-                else return "bad_next_valid_from";
-            }
-            if (w.Current.Length == 0) return "bad_current";
-            w.UpdatedAt = DateTimeOffset.UtcNow;
+            var (w, err) = ApplyWifi(_state.Wifi, body);
+            if (err is not null) return err;
             _state.Wifi = w;
             Save();
             return null;
         }
     }
 
-    public string? SetChannel(string channel, string? version)
+    /// <summary>Merges a WiFi patch into a copy of <paramref name="existing"/> (fields left out keep their value).</summary>
+    private static (WifiCreds? Wifi, string? Error) ApplyWifi(WifiCreds? existing, JsonElement body)
+    {
+        var w = existing is null ? new WifiCreds() : new WifiCreds
+        {
+            Ssid = existing.Ssid, Identity = existing.Identity, Current = existing.Current,
+            Next = existing.Next, NextValidFrom = existing.NextValidFrom, UpdatedAt = existing.UpdatedAt,
+        };
+        if (Str(body, "ssid", out var ssid)) { if (string.IsNullOrWhiteSpace(ssid) || ssid.Length > 32) return (null, "bad_ssid"); w.Ssid = ssid; }
+        if (Str(body, "identity", out var ident)) w.Identity = Trunc(ident ?? "", 64)!;
+        if (Str(body, "current", out var cur)) { if (string.IsNullOrEmpty(cur) || cur.Length > 63) return (null, "bad_current"); w.Current = cur; }
+        if (Str(body, "next", out var next)) { if (next is { Length: > 63 }) return (null, "bad_next"); w.Next = string.IsNullOrEmpty(next) ? null : next; }
+        if (body.TryGetProperty("next_valid_from", out var nvf))
+        {
+            if (nvf.ValueKind == JsonValueKind.Null) w.NextValidFrom = null;
+            else if (nvf.ValueKind == JsonValueKind.String && DateTimeOffset.TryParse(nvf.GetString(), out var t)) w.NextValidFrom = t;
+            else return (null, "bad_next_valid_from");
+        }
+        if (w.Current.Length == 0) return (null, "bad_current");
+        w.UpdatedAt = DateTimeOffset.UtcNow;
+        return (w, null);
+    }
+
+    /// <summary>Points a model's stable/beta track at one of that model's images (version null = clear).</summary>
+    public string? SetChannel(string? model, string channel, string? version)
     {
         if (channel is not ("stable" or "beta")) return "bad_channel";
+        if (NormalizeModel(model) is not { } m) return "bad_model";
         lock (_lock)
         {
-            if (version is not null && _state.Ota.Firmware.All(f => f.Version != version)) return "firmware_not_found";
-            _state.Ota.Channels[channel] = version;
+            if (version is not null && !_state.Ota.Firmware.Any(f => (f.Model ?? "") == m && f.Version == version)) return "firmware_not_found";
+            if (!_state.Ota.Tracks.TryGetValue(m, out var tr)) _state.Ota.Tracks[m] = tr = new(StringComparer.Ordinal);
+            tr[channel] = version;
             Save();
             return null;
         }
@@ -420,12 +555,13 @@ public sealed class DeviceFleetService
     }
 
     /// <summary>
-    /// Stores a firmware image. <paramref name="version"/> may be null = take the version embedded in the image.
-    /// A label that differs from the embedded version is rejected — the device compares the manifest version with
-    /// what it runs, so a mismatch would make it reinstall the same image forever.
+    /// Stores a firmware image for <paramref name="model"/> ("" = not specified). <paramref name="version"/> may be
+    /// null = take the version embedded in the image. A label that differs from the embedded version is rejected —
+    /// the device compares the manifest version with what it runs, so a mismatch would reinstall the same image forever.
     /// </summary>
-    public FirmwareInfo SaveFirmware(string? version, byte[] bin, string? note)
+    public FirmwareInfo SaveFirmware(string? version, byte[] bin, string? note, string? model = null)
     {
+        var m = NormalizeModel(model) ?? throw new ArgumentException("bad_model");
         if (bin.Length < 1024 || bin.Length > MaxFirmwareBytes) throw new ArgumentException("bad_size");
         if (bin[0] != 0xE9) throw new ArgumentException("not_esp_image");          // ESP app image magic
         var embedded = EmbeddedVersion(bin) ?? throw new ArgumentException("no_app_descriptor");
@@ -433,76 +569,114 @@ public sealed class DeviceFleetService
         if (version != embedded) throw new ArgumentException($"version_mismatch: image is {embedded}");
         if (!ValidVersion(version)) throw new ArgumentException("bad_version");
         var sha = Convert.ToHexString(SHA256.HashData(bin)).ToLowerInvariant();
-        var info = new FirmwareInfo(version, sha, bin.Length, DateTimeOffset.UtcNow, string.IsNullOrWhiteSpace(note) ? null : Trunc(note.Trim(), 120));
+        var info = new FirmwareInfo(version, sha, bin.Length, DateTimeOffset.UtcNow,
+            string.IsNullOrWhiteSpace(note) ? null : Trunc(note.Trim(), 120), m.Length == 0 ? null : m);
         lock (_lock)
         {
-            File.WriteAllBytes(FirmwarePath(version), bin);
-            _state.Ota.Firmware.RemoveAll(f => f.Version == version);
+            var path = FirmwarePath(info.Model, version);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllBytes(path, bin);
+            _state.Ota.Firmware.RemoveAll(f => f.Key == info.Key);
             _state.Ota.Firmware.Add(info);
             Save();
         }
         return info;
     }
 
-    public string? DeleteFirmware(string version)
+    public string? DeleteFirmware(string? model, string version)
     {
+        if (NormalizeModel(model) is not { } m) return "bad_model";
+        var key = KeyOf(m, version);
         lock (_lock)
         {
-            if (_state.Ota.Channels.Values.Contains(version)) return "firmware_in_use";
-            if (_state.Ota.Firmware.RemoveAll(f => f.Version == version) == 0) return "firmware_not_found";
-            try { File.Delete(FirmwarePath(version)); } catch (IOException) { }
+            if (_state.Ota.Tracks.TryGetValue(m, out var tr) && tr.Values.Contains(version)) return "firmware_in_use";
+            if (_state.Devices.Values.Any(d => d.FwPin == key)) return "firmware_pinned";
+            if (_state.Ota.Firmware.RemoveAll(f => f.Key == key) == 0) return "firmware_not_found";
+            try { File.Delete(FirmwarePath(m, version)); } catch (IOException) { }
             Save();
             return null;
         }
     }
 
-    /// <summary>Newest-first events (optionally for one device).</summary>
+    /// <summary>Newest-first events (optionally for one device). Each device keeps only its newest <see cref="MaxEventsPerDevice"/>.</summary>
     public List<JsonElement> RecentEvents(string? device, int n)
     {
         n = Math.Clamp(n, 1, 1000);
         lock (_lock)
         {
-            if (!File.Exists(_eventsPath)) return [];
-            var result = new List<JsonElement>();
-            foreach (var line in File.ReadLines(_eventsPath).Reverse())
-            {
-                if (result.Count >= n) break;
-                try
+            IEnumerable<string> files = device is null
+                ? Directory.EnumerateFiles(_eventsDir, "*.jsonl")
+                : ValidId(device) && File.Exists(EventsPath(device)) ? [EventsPath(device)] : [];
+            var all = new List<(DateTimeOffset Rx, JsonElement E)>();
+            foreach (var f in files)
+                foreach (var line in File.ReadLines(f).Reverse())                 // newest first within a device
                 {
-                    var e = JsonDocument.Parse(line).RootElement.Clone();
-                    if (device is null || (e.TryGetProperty("device", out var dv) && dv.GetString() == device)) result.Add(e);
+                    try
+                    {
+                        var e = JsonDocument.Parse(line).RootElement.Clone();
+                        var rx = e.TryGetProperty("rx", out var r) && r.TryGetDateTimeOffset(out var t) ? t : DateTimeOffset.MinValue;
+                        all.Add((rx, e));
+                    }
+                    catch (JsonException) { }
                 }
-                catch (JsonException) { }
-            }
-            return result;
+            return all.OrderByDescending(x => x.Rx).Take(n).Select(x => x.E).ToList();   // stable sort keeps same-batch order
         }
     }
 
     // ── internals ──
+    private string EventsPath(string id) => Path.Combine(_eventsDir, id + ".jsonl");
+
+    /// <summary>Rolling per-device log: append, then keep only the newest <see cref="MaxEventsPerDevice"/> lines.</summary>
     private void AppendEvents(string id, IEnumerable<ReportEvent> events)
     {
         var rx = DateTimeOffset.UtcNow;
-        var sb = new StringBuilder();
-        foreach (var e in events)
+        var lines = events.Select(e => JsonSerializer.Serialize(new
         {
-            sb.Append(JsonSerializer.Serialize(new
+            rx,
+            device = id,
+            ts = e.Ts is > 1_600_000_000 ? DateTimeOffset.FromUnixTimeSeconds(e.Ts.Value) : (DateTimeOffset?)null,
+            type = Trunc(e.Type, 16) ?? "unknown",
+            alarm_id = Trunc(e.AlarmId, 64),
+            detail = Trunc(e.Detail, 200),
+        }, LineOpts)).ToList();
+        if (lines.Count > 0) WriteEvents(id, lines);
+    }
+
+    private void WriteEvents(string id, List<string> newLines)
+    {
+        var path = EventsPath(id);
+        var old = File.Exists(path) ? File.ReadAllLines(path) : [];
+        if (old.Length + newLines.Count <= MaxEventsPerDevice) { File.AppendAllLines(path, newLines); return; }
+        var tmp = path + ".tmp";
+        File.WriteAllLines(tmp, old.Concat(newLines).TakeLast(MaxEventsPerDevice));
+        File.Move(tmp, path, overwrite: true);
+    }
+
+    /// <summary>Old single fleet/events.jsonl → per-device files (newest 100 each); the old file is kept as .migrated.</summary>
+    private void MigrateLegacyEvents()
+    {
+        var legacy = Path.Combine(_root, "events.jsonl");
+        if (!File.Exists(legacy)) return;
+        try
+        {
+            var byDev = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            foreach (var line in File.ReadLines(legacy))
             {
-                rx,
-                device = id,
-                ts = e.Ts is > 1_600_000_000 ? DateTimeOffset.FromUnixTimeSeconds(e.Ts.Value) : (DateTimeOffset?)null,
-                type = Trunc(e.Type, 16) ?? "unknown",
-                alarm_id = Trunc(e.AlarmId, 64),
-                detail = Trunc(e.Detail, 200),
-            }, LineOpts)).Append('\n');
+                try
+                {
+                    using var doc = JsonDocument.Parse(line);
+                    if (doc.RootElement.TryGetProperty("device", out var dv) && dv.GetString() is { } id && ValidId(id))
+                    {
+                        if (!byDev.TryGetValue(id, out var l)) byDev[id] = l = [];
+                        l.Add(line);
+                    }
+                }
+                catch (JsonException) { }
+            }
+            foreach (var (id, l) in byDev) WriteEvents(id, l.TakeLast(MaxEventsPerDevice).ToList());
+            File.Move(legacy, legacy + ".migrated", overwrite: true);
         }
-        if (sb.Length == 0) return;
-        File.AppendAllText(_eventsPath, sb.ToString());
-        var fi = new FileInfo(_eventsPath);
-        if (fi.Length > EventsFileCap)
-        {
-            var lines = File.ReadAllLines(_eventsPath);
-            File.WriteAllLines(_eventsPath, lines.Skip(lines.Length / 2));      // keep the newer half
-        }
+        catch (IOException) { }
     }
 
     private FleetState Load()
@@ -515,6 +689,10 @@ public sealed class DeviceFleetService
                 if (s is not null)
                 {
                     s.Devices = new Dictionary<string, DeviceRecord>(s.Devices, StringComparer.Ordinal);
+                    s.Ota.Tracks = new Dictionary<string, Dictionary<string, string?>>(s.Ota.Tracks ?? new(), StringComparer.Ordinal);
+                    if (s.Ota.Channels is { Count: > 0 } legacy && !s.Ota.Tracks.ContainsKey(""))
+                        s.Ota.Tracks[""] = new Dictionary<string, string?>(legacy, StringComparer.Ordinal);
+                    s.Ota.Channels = null;
                     return s;
                 }
             }

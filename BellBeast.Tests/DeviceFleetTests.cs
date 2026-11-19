@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using BellBeast.Services;
 using Xunit;
 
 /// <summary>
@@ -182,6 +183,120 @@ public sealed class DeviceFleetTests : IClassFixture<BellBeastAdminFactory>, ICl
         var junk = new MultipartFormDataContent { { new StringContent("9.9.9"), "version" } };
         junk.Add(new ByteArrayContent(new byte[2048]), "file", "x.bin");
         Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsync("/api/admin/ota/firmware", junk)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Device_Can_Have_Its_Own_Wifi_Or_Fall_Back_To_Fleet_Wifi()
+    {
+        var c = _admin.CreateClient();
+        var id = NewId(); var key = NewKey();
+        await c.PutAsJsonAsync("/api/admin/fleet/wifi", new { ssid = ".@MWA WiFi", identity = "fleet-user", current = "pw-fleet" });
+        await c.SendAsync(Dev(HttpMethod.Get, $"/api/device/{id}/config", key));
+
+        // own set needs a current password; bad patch leaves the device untouched
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/admin/fleet/device/{id}", new { approved = true, wifi = new { ssid = "Lab-IoT" } })).StatusCode);
+        Assert.False((await DeviceRow(c, id)).GetProperty("approved").GetBoolean());
+
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync($"/api/admin/fleet/device/{id}", new
+        {
+            approved = true, wifi = new { ssid = "Lab-IoT", identity = "lab", current = "pw-own-device" },
+        })).StatusCode);
+        var cfg = await Json(await c.SendAsync(Dev(HttpMethod.Get, $"/api/device/{id}/config", key)));
+        Assert.Equal("Lab-IoT", cfg.GetProperty("wifi").GetProperty("ssid").GetString());
+        Assert.Equal("pw-own-device", cfg.GetProperty("wifi").GetProperty("current").GetString());
+
+        var view = await c.GetStringAsync("/api/admin/fleet");
+        Assert.DoesNotContain("pw-own-device", view);
+        Assert.Equal("Lab-IoT", (await DeviceRow(c, id)).GetProperty("wifi").GetProperty("ssid").GetString());
+
+        // partial patch keeps the password
+        await c.PostAsJsonAsync($"/api/admin/fleet/device/{id}", new { wifi = new { next = "pw-own-next" } });
+        cfg = await Json(await c.SendAsync(Dev(HttpMethod.Get, $"/api/device/{id}/config", key)));
+        Assert.Equal("pw-own-device", cfg.GetProperty("wifi").GetProperty("current").GetString());
+        Assert.Equal("pw-own-next", cfg.GetProperty("wifi").GetProperty("next").GetString());
+
+        // null → back to the fleet set
+        await c.PostAsJsonAsync($"/api/admin/fleet/device/{id}", new { wifi = (object?)null });
+        cfg = await Json(await c.SendAsync(Dev(HttpMethod.Get, $"/api/device/{id}/config", key)));
+        Assert.Equal("pw-fleet", cfg.GetProperty("wifi").GetProperty("current").GetString());
+        await c.DeleteAsync($"/api/admin/fleet/device/{id}");
+    }
+
+    private static MultipartFormDataContent Upload(byte[] bin, string? model)
+    {
+        var form = new MultipartFormDataContent();
+        if (model is not null) form.Add(new StringContent(model), "model");
+        form.Add(new ByteArrayContent(bin), "file", "xiaozhi.bin");
+        return form;
+    }
+
+    [Fact]
+    public async Task Firmware_Follows_Device_Model_Track_Or_Pin()
+    {
+        var c = _admin.CreateClient();
+        var (a, ka) = (NewId(), NewKey());
+        var (b, kb) = (NewId(), NewKey());
+        var binA = Image("3.0.0-mt"); var binB = Image("3.0.0-mt"); var binB2 = Image("3.0.1-mt");
+        // same version for two models is fine — images are kept per model
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsync("/api/admin/ota/firmware", Upload(binA, "Board-A"))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsync("/api/admin/ota/firmware", Upload(binB, "board-b"))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsync("/api/admin/ota/firmware", Upload(binB2, "board-b"))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsync("/api/admin/ota/firmware", Upload(binA, "bad model!"))).StatusCode);
+
+        await c.SendAsync(Dev(HttpMethod.Post, $"/api/device/{a}/report", ka, new { fw = "2.0.0", model = "board-a" }));   // model as reported
+        await c.SendAsync(Dev(HttpMethod.Get, $"/api/device/{b}/config", kb));
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync($"/api/admin/fleet/device/{b}", new { model = "board-b" })).StatusCode);
+
+        // releasing board-a to stable reaches only board-a devices
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/admin/ota/channel", new { model = "board-a", channel = "stable", version = "3.0.1-mt" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync("/api/admin/ota/channel", new { model = "board-a", channel = "stable", version = "3.0.0-mt" })).StatusCode);
+        var ma = await Json(await c.SendAsync(Dev(HttpMethod.Get, $"/api/ota/manifest?device_id={a}", ka)));
+        Assert.Equal("3.0.0-mt", ma.GetProperty("version").GetString());
+        Assert.Equal(binA, await c.GetByteArrayAsync(ma.GetProperty("url").GetString()));
+        var mb = await Json(await c.SendAsync(Dev(HttpMethod.Get, $"/api/ota/manifest?device_id={b}", kb)));
+        Assert.Equal(JsonValueKind.Null, mb.GetProperty("version").ValueKind);
+
+        // pin: exact image for one device; another model's image is refused
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync($"/api/admin/fleet/device/{b}", new { fw_pin = "board-a/3.0.0-mt" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsJsonAsync($"/api/admin/fleet/device/{b}", new { fw_pin = "board-b/3.0.1-mt" })).StatusCode);
+        mb = await Json(await c.SendAsync(Dev(HttpMethod.Get, $"/api/ota/manifest?device_id={b}", kb)));
+        Assert.Equal("pin", mb.GetProperty("channel").GetString());
+        Assert.Equal("3.0.1-mt", mb.GetProperty("version").GetString());
+        Assert.Equal(binB2, await c.GetByteArrayAsync(mb.GetProperty("url").GetString()));
+        var row = await DeviceRow(c, b);
+        Assert.Equal("3.0.1-mt", row.GetProperty("target_fw").GetString());
+
+        // pinned / released images cannot be deleted; an unused one can
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.DeleteAsync("/api/admin/ota/firmware/3.0.1-mt?model=board-b")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.DeleteAsync("/api/admin/ota/firmware/3.0.0-mt?model=board-a")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await c.DeleteAsync("/api/admin/ota/firmware/3.0.0-mt?model=board-b")).StatusCode);
+
+        // model changed under a pin → nothing is served rather than the wrong board's image
+        await c.PostAsJsonAsync($"/api/admin/fleet/device/{b}", new { model = "board-c" });
+        mb = await Json(await c.SendAsync(Dev(HttpMethod.Get, $"/api/ota/manifest?device_id={b}", kb)));
+        Assert.Equal(JsonValueKind.Null, mb.GetProperty("version").ValueKind);
+
+        await c.PostAsJsonAsync($"/api/admin/fleet/device/{b}", new { fw_pin = (string?)null });
+        await c.PostAsJsonAsync("/api/admin/ota/channel", new { model = "board-a", channel = "stable", version = (string?)null });
+        await c.DeleteAsync($"/api/admin/fleet/device/{a}");
+        await c.DeleteAsync($"/api/admin/fleet/device/{b}");
+    }
+
+    [Fact]
+    public async Task Event_Log_Keeps_Newest_100_Per_Device()
+    {
+        var c = _admin.CreateClient();
+        var id = NewId(); var key = NewKey();
+        for (var r = 0; r < 3; r++)
+            await c.SendAsync(Dev(HttpMethod.Post, $"/api/device/{id}/report", key, new
+            {
+                events = Enumerable.Range(0, 50).Select(i => new { type = "health", detail = $"r{r}-{i}" }).ToArray(),
+            }));
+        var ev = (await c.GetFromJsonAsync<JsonElement>($"/api/admin/fleet/events?device={id}&n=1000")).GetProperty("events").EnumerateArray().ToList();
+        Assert.Equal(DeviceFleetService.MaxEventsPerDevice, ev.Count);
+        Assert.Equal("r2-49", ev[0].GetProperty("detail").GetString());     // newest first
+        Assert.Equal("r1-0", ev[^1].GetProperty("detail").GetString());     // registered + r0-* rolled off
+        await c.DeleteAsync($"/api/admin/fleet/device/{id}");
     }
 
     [Fact]

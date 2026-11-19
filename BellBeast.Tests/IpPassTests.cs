@@ -31,7 +31,12 @@ public sealed class IpPassTests : IClassFixture<IpPassFactory>, IClassFixture<Be
     private readonly IpPassFactory _f;
     private readonly BellBeastAdminFactory _admin;
 
-    public IpPassTests(IpPassFactory f, BellBeastAdminFactory admin) { _f = f; _admin = admin; }
+    public IpPassTests(IpPassFactory f, BellBeastAdminFactory admin)
+    {
+        _f = f; _admin = admin;
+        // measure IpPassService alone: device APIs enforced, without the device-access IP bridge
+        Assert.Null(f.Services.GetRequiredService<DeviceAccessService>().Update("enforce", false, "test"));
+    }
 
     private HttpClient Client(string ip)
     {
@@ -163,12 +168,13 @@ public sealed class IpPassTests : IClassFixture<IpPassFactory>, IClassFixture<Be
         var view = JsonDocument.Parse(await c.GetStringAsync("/api/admin/ip/passes")).RootElement;
         var pageRoutes = view.GetProperty("page_routes").EnumerateArray().Select(x => x.GetString()).ToList();
         Assert.Contains("GET " + ChemApi, pageRoutes);
-        Assert.DoesNotContain("GET /api/alarm/active", pageRoutes);                      // public: needs no pass
+        Assert.Contains("GET /api/alarm/active", pageRoutes);                            // device APIs can be passed too
+        Assert.DoesNotContain("GET /api/stage", pageRoutes);                             // public: needs no pass
         Assert.Equal("GET " + ClApi, view.GetProperty("fleet_routes")[0].GetString());
 
         Assert.Equal("bad_ip", await Post("/api/admin/ip/passes", new { ip = "not-an-ip", routes = new[] { "GET " + ChemApi } }));
         Assert.Equal("no_routes", await Post("/api/admin/ip/passes", new { ip = "10.65.0.1", routes = Array.Empty<string>() }));
-        Assert.StartsWith("not_page_api:", await Post("/api/admin/ip/passes", new { ip = "10.65.0.1", routes = new[] { "GET /api/alarm/active" } }));
+        Assert.StartsWith("not_page_api:", await Post("/api/admin/ip/passes", new { ip = "10.65.0.1", routes = new[] { "GET /api/stage" } }));
         Assert.StartsWith("not_page_api:", await Post("/api/admin/ip/passes", new { ip = "10.65.0.1", routes = new[] { "POST /api/process" } }));
         Assert.StartsWith("not_page_api:", await Post("/api/admin/ip/passes/fleet", new { routes = new[] { "GET /api/admin/ip/bans" } }));
 

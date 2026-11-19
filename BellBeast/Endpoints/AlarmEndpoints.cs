@@ -26,6 +26,7 @@ public static class AlarmEndpoints
     public static void MapAlarmEndpoints(this WebApplication app, ApiGroups api)
     {
         var (pub, user, admin) = (api.Public, api.User, api.Admin);
+        var device = api.Device;  // device APIs: page access + registered annunciators (DeviceAccessService)
 
         // ===============================
         // Alarm feed (Uroboros alarm engine → devices) + monitor proxies
@@ -34,7 +35,7 @@ public static class AlarmEndpoints
         // Device / dashboard → current alarm state, optionally for given zone(s): /api/alarm/active?zone=RWS,DPS
         // Level-based: Uroboros posts the FULL state every ~30 s into the room; this just filters it.
         // ack is the device's own job — nothing is sent back to Uroboros.
-        pub.MapGet("/api/alarm/active", (IotRoomService iotRoom, HttpContext ctx) =>
+        device.MapGet("/api/alarm/active", (IotRoomService iotRoom, HttpContext ctx) =>
         {
             var zones = AlarmFeedService.ParseZones(ctx.Request.Query["zone"].FirstOrDefault());
             var (state, updatedAt, online) = iotRoom.GetDeviceState(AlarmFeedService.EngineDeviceName);
@@ -44,7 +45,7 @@ public static class AlarmEndpoints
 
         // Device touch screen → compact LAB view (5 groups × 4 units + 16 status dots), statuses worked out here
         // with the same rules as the MHxView LAB card (LABview.js) — see Services/LabGlanceService.cs
-        pub.MapGet("/api/device/lab/glance", async (HttpContext ctx, LabGlanceService svc) =>
+        device.MapGet("/api/device/lab/glance", async (HttpContext ctx, LabGlanceService svc) =>
         {
             var backendCfg = Backend(app);
             var baseUrl = backendCfg.BaseUrl;
@@ -58,7 +59,7 @@ public static class AlarmEndpoints
 
         // Device 30 s loop → active scenario / epidemic + threshold revision (LabVenture /api/scenarios/log).
         // A new revision drops the glance cache so the device's next glance carries the new limits.
-        pub.MapGet("/api/device/lab/scenario", async (HttpContext ctx, LabGlanceService svc) =>
+        device.MapGet("/api/device/lab/scenario", async (HttpContext ctx, LabGlanceService svc) =>
         {
             var lvBase = (app.Configuration["LabVenture:BaseUrl"] ?? "http://localhost:8889").TrimEnd('/');
             var json = await svc.GetScenarioJsonAsync(lvBase, ctx.RequestAborted);

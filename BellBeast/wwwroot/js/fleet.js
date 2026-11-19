@@ -36,6 +36,8 @@
         bad_channel: "กลุ่มรับอัปเดตไม่ถูกต้อง", bad_ssid: "ต้องใส่ชื่อ WiFi (ไม่เกิน 32 ตัว)", bad_current: "ต้องใส่รหัสปัจจุบัน (ไม่เกิน 63 ตัว)",
         bad_next: "รหัสถัดไปยาวเกิน 63 ตัว", bad_next_valid_from: "วันเวลาเริ่มใช้รหัสถัดไปไม่ถูกต้อง",
         device_not_found: "ไม่พบเครื่องนี้ในระบบแล้ว", firmware_not_found: "ไม่พบไฟล์ firmware รุ่นนี้",
+        bad_model: "ชื่อรุ่นใช้ได้เฉพาะ a–z, 0–9, . _ - ไม่เกิน 32 ตัว", fw_model_mismatch: "ไฟล์นี้เป็นของรุ่นอื่น ล็อกให้เครื่องนี้ไม่ได้",
+        firmware_in_use: "ไฟล์นี้ยังตั้งเป็นใช้จริง/ทดสอบอยู่", firmware_pinned: "มีเครื่องล็อกไฟล์นี้อยู่ ปลดล็อกก่อนจึงลบได้", bad_wifi: "ค่า WiFi ไม่ถูกต้อง",
     };
     const errText = (code) => ERR[code] || code;
 
@@ -59,8 +61,12 @@
     const approved = () => devs().filter((d) => d.approved);
     const pending = () => devs().filter((d) => !d.approved);
     const defs = () => (data && data.defaults) || {};
-    const chans = () => (data && data.ota && data.ota.channels) || {};
+    const tracks = () => (data && data.ota && data.ota.tracks) || {};
+    const chans = (m) => tracks()[m || ""] || {};                      // stable/beta of one model
     const firmware = () => (data && data.ota && data.ota.firmware) || [];
+    const models = () => (data && data.ota && data.ota.models) || [];
+    const mname = (m) => m || "ไม่ระบุรุ่น";
+    const fwOf = (m) => firmware().filter((f) => (f.model || "") === (m || ""));
     const dname = (d) => d.name || "ยังไม่ได้ตั้งชื่อ";
     const zlist = (s) => (s || "").split(",").map((z) => z.trim()).filter(Boolean);
 
@@ -69,17 +75,27 @@
         { k: "zones", label: "Zone ที่ให้ดัง", help: "เครื่องจะดังเฉพาะ alarm ของ zone ที่เลือก (alarm ที่ไม่มี zone ดังทุกเครื่อง)", kind: "zones" },
         { k: "volume", label: "ระดับเสียง", help: "0–100 · ว่าง = ใช้ค่าที่ตั้งไว้ในเครื่อง", unit: "%", min: 0, max: 100, nullable: true },
         { k: "remind_sec", label: "ดังซ้ำถ้ายังไม่มีคนรับทราบ ทุก", help: "0 = ดังครั้งเดียว", unit: "วินาที", min: 0, max: 3600 },
-        { k: "channel", label: "รับอัปเดต firmware", help: "เครื่องในกลุ่มทดสอบจะได้รุ่นใหม่ก่อน", kind: "channel" },
+        { k: "channel", label: "รับอัปเดต firmware", help: "เครื่องในกลุ่มทดสอบจะได้รุ่นใหม่ก่อน · ไฟล์ที่ได้จริงเลือกตามรุ่นของเครื่อง", kind: "channel", dev: false },
         { k: "poll_sec", label: "เช็ก alarm ใหม่ทุก", help: "ยิ่งถี่ยิ่งดังเร็ว แต่ใช้เครือข่ายมากขึ้น", unit: "วินาที", min: 1, max: 60, adv: true },
         { k: "lab_sec", label: "ดึงผลแล็บมาแสดงทุก", help: "ดึงทันทีอยู่แล้วเมื่อมี alarm แล็บใหม่หรือสถานการณ์เปลี่ยน", unit: "วินาที", min: 60, max: 3600, adv: true },
         { k: "scn_sec", label: "เช็กสถานการณ์/โรคระบาดทุก", help: "จาก LabVenture", unit: "วินาที", min: 10, max: 600, adv: true },
     ];
     const isCustom = (d, k) => d[k] !== null && d[k] !== undefined;
     const eff = (d, k) => isCustom(d, k) ? d[k] : defs()[k];
-    const customCount = (d) => FIELDS.filter((f) => isCustom(d, f.k)).length;
-    const chanLabel = { stable: "ใช้จริง", beta: "ทดสอบ", none: "ไม่อัปเดต" };
-    const target = (d) => chans()[eff(d, "channel") || "stable"] || null;
+    const customList = (d) => FIELDS.filter((f) => isCustom(d, f.k)).map((f) => f.label)
+        .concat(d.wifi ? ["WiFi ของตัวเอง"] : [], d.fw_pin ? ["ล็อก firmware"] : []);
+    const customCount = (d) => customList(d).length;
+    const chanLabel = { stable: "ใช้จริง", beta: "ทดสอบ", none: "ไม่อัปเดต", pin: "ล็อกไฟล์" };
+    const target = (d) => d.target_fw || null;                         // server resolves pin / model track
     const behind = (d) => { const t = target(d); return !!t && d.fw !== t; };
+    const pinVer = (d) => d.fw_pin ? d.fw_pin.split("/").pop() : null;
+    // "ตามกลุ่มใช้จริง → 3.0.0" etc.
+    function fwPlan(d) {
+        if (d.fw_pin) return d.target_fw ? `ล็อก ${d.target_fw}` : `ล็อก ${pinVer(d)} (คนละรุ่น ไม่ส่ง)`;
+        const ch = eff(d, "channel") || "stable";
+        if (ch === "none") return "ไม่อัปเดต";
+        return `${chanLabel[ch]} → ${d.target_fw || "ยังไม่ได้ตั้ง"}`;
+    }
     function fmt(f, v) {
         if (f.kind === "zones") return zlist(v).length ? zlist(v).join(", ") : "ทุก zone";
         if (f.kind === "channel") return chanLabel[v] || v || "–";
@@ -112,10 +128,13 @@
     }
     const zoneChips = (s) => zlist(s).length ? zlist(s).map((z) => `<span class="fl-z">${esc(z)}</span>`).join("") : '<span class="fl-z all">ทุก zone</span>';
     function fwCell(d) {
-        if (!d.fw) return '<span class="fl-faint">–</span>';
-        const t = target(d), ch = eff(d, "channel");
+        const mdl = d.eff_model ? `<div class="fl-faint fl-small fl-mono">${esc(d.eff_model)}</div>` : "";
+        if (!d.fw) return '<span class="fl-faint">–</span>' + mdl;
+        const t = target(d), ch = d.target_channel;
         const tag = ch === "none" ? '<span class="fl-badge plain">ปิดอัปเดต</span>' : behind(d) ? `<span class="fl-badge warn">รอ ${esc(t)}</span>` : "";
-        return `<span class="fl-mono">${esc(d.fw)}</span> ${ch === "beta" ? '<span class="fl-badge info">ทดสอบ</span>' : ""} ${tag}`;
+        const kind = ch === "pin" ? '<span class="fl-badge info" title="ล็อกไฟล์ firmware เฉพาะเครื่อง">ล็อก</span>'
+            : ch === "beta" ? '<span class="fl-badge info">ทดสอบ</span>' : "";
+        return `<span class="fl-mono">${esc(d.fw)}</span> ${kind} ${tag}${mdl}`;
     }
     function acked(d) {
         return !!(d.last_ack_at && d.last_played_at && d.last_ack_alarm === d.last_played_alarm &&
@@ -135,12 +154,12 @@
         const lost = ok.length - on;
         const pend = pending().length;
         const beh = ok.filter(behind).length;
-        const c = chans();
+        const nm = models().length;
         const tiles = [
             ["all", "", '<span class="fl-dot on"></span>ทำงานปกติ', `${on} <small>/ ${ok.length}</small>`, "ติดต่อได้ใน 3 นาที"],
             ["lost", lost ? "t-bad" : "", '<span class="fl-dot off"></span>ขาดการติดต่อ', lost, lost ? "กดเพื่อดูเครื่อง" : "ไม่มี"],
             ["pending", pend ? "t-warn" : "", '<span class="fl-dot pend"></span>รออนุมัติ', pend, pend ? "เครื่องใหม่" : "ไม่มี"],
-            ["behind", beh ? "t-warn" : "", "firmware ไม่ล่าสุด", beh, `ใช้จริง ${esc(c.stable || "–")} · ทดสอบ ${esc(c.beta || "–")}`],
+            ["behind", beh ? "t-warn" : "", "firmware ไม่ตรงเป้าหมาย", beh, nm > 1 ? `${nm} รุ่นฮาร์ดแวร์` : `ใช้จริง ${esc(chans(models()[0]).stable || "–")}`],
         ];
         $("#strip").innerHTML = tiles.map(([f, cls, l, n, s]) =>
             `<button type="button" class="fl-tile ${cls} ${view === "devices" && filter === f && f !== "all" ? "sel" : ""}" data-f="${f}">` +
@@ -160,7 +179,7 @@
         if (!$("#devlist", v)) {
             v.innerHTML = `<div id="pendbox"></div>
                 <div class="fl-toolbar">
-                    <input class="fl-search" id="q" placeholder="ค้นหาชื่อ, รหัสเครื่อง, zone, IP" autocomplete="off">
+                    <input class="fl-search" id="q" placeholder="ค้นหาชื่อ, รหัสเครื่อง, zone, IP, รุ่น" autocomplete="off">
                     <div class="fl-chipset" id="fchips"></div>
                 </div>
                 <div class="fl-list" id="devlist"></div>
@@ -186,13 +205,13 @@
         let list = approved();
         if (filter === "lost") list = list.filter((d) => live(d) !== "on");
         if (filter === "behind") list = list.filter(behind);
-        if (query) list = list.filter((d) => [d.id, d.name, eff(d, "zones"), d.ip].join(" ").toLowerCase().includes(query));
+        if (query) list = list.filter((d) => [d.id, d.name, eff(d, "zones"), d.ip, d.eff_model, d.fw].join(" ").toLowerCase().includes(query));
 
         const empty = !approved().length ? "ยังไม่มีเครื่องที่อนุมัติแล้ว" : "ไม่มีเครื่องตรงกับตัวกรอง";
         $("#devlist").innerHTML = `<div class="fl-lrow hd"><span>เครื่อง</span><span>Zone ที่ดัง</span><span>Firmware</span><span>สัญญาณ</span><span>Alarm ที่ดังล่าสุด</span><span>ติดต่อล่าสุด</span><span></span></div>` +
             (list.length ? list.map((d) => `<button type="button" class="fl-lrow" data-open="${esc(d.id)}">
                 <span class="fl-nm"><span class="fl-dot ${live(d)}"></span><span style="min-width:0"><b>${esc(dname(d))}</b><span class="fl-mono">${esc(d.id)}</span>
-                    ${customCount(d) ? ` <span class="fl-badge plain" title="ค่าที่ตั้งต่างจากค่ากลาง">ตั้งเอง ${customCount(d)}</span>` : ""}</span></span>
+                    ${customCount(d) ? ` <span class="fl-badge plain" title="${esc("ตั้งเอง: " + customList(d).join(", "))}">ตั้งเอง ${customCount(d)}</span>` : ""}</span></span>
                 <span><span class="fl-cl">Zone</span><span class="fl-zones">${zoneChips(eff(d, "zones"))}</span></span>
                 <span><span class="fl-cl">Firmware</span>${fwCell(d)}</span>
                 <span><span class="fl-cl">สัญญาณ</span>${bars(d.rssi)}</span>
@@ -224,9 +243,8 @@
                 `<input placeholder="+ zone" maxlength="16" title="พิมพ์ชื่อ zone แล้วกด Enter"></div>`;
         }
         if (f.kind === "channel") {
-            const c = chans();
             return `<span class="fl-inp"><select id="${idp}-channel">` + ["stable", "beta", "none"].map((k) =>
-                `<option value="${k}" ${k === v ? "selected" : ""}>${chanLabel[k]}${k !== "none" ? " (" + esc(c[k] || "ยังไม่ได้ตั้ง") + ")" : ""}</option>`).join("") + "</select></span>";
+                `<option value="${k}" ${k === v ? "selected" : ""}>${chanLabel[k]}</option>`).join("") + "</select></span>";
         }
         return `<span class="fl-inp"><input id="${idp}-${f.k}" type="number" min="${f.min}" max="${f.max}" value="${esc(v ?? "")}"><span class="unit">${f.unit}</span></span>`;
     }
@@ -262,6 +280,45 @@
         const n = Number(raw);
         if (!Number.isInteger(n) || n < f.min || n > f.max) throw new Error(`“${f.label}” ต้องเป็นจำนวนเต็ม ${f.min}–${f.max}`);
         return n;
+    }
+
+    // ── wifi form (fleet tab + device drawer) ──
+    const pad2 = (n) => String(n).padStart(2, "0");
+    function localDT(iso) {
+        if (!iso) return "";
+        const t = new Date(iso);
+        return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}T${pad2(t.getHours())}:${pad2(t.getMinutes())}`;
+    }
+    function wifiFields(p, w) {
+        return `<div class="fl-form">
+            <label><b>ชื่อ WiFi (SSID)</b><input class="fl-finput" id="${p}Ssid" maxlength="32" value="${esc(w ? w.ssid : ".@MWA WiFi")}"></label>
+            <label><b>Identity (ชื่อผู้ใช้)</b><input class="fl-finput" id="${p}Identity" maxlength="64" value="${esc(w ? w.identity || "" : "")}"></label>
+            <label><b>รหัสปัจจุบัน</b><input class="fl-finput" id="${p}Current" type="password" autocomplete="new-password" placeholder="${w ? "เว้นว่าง = ไม่เปลี่ยน (" + esc(w.current || "") + ")" : "จำเป็น"}"></label>
+            <label><b>รหัสถัดไป</b><input class="fl-finput" id="${p}Next" type="password" autocomplete="new-password" placeholder="${w && w.next ? "เว้นว่าง = ไม่เปลี่ยน (" + esc(w.next) + ")" : "ไม่บังคับ"}"></label>
+            <label><b>เริ่มใช้รหัสถัดไปเมื่อ</b><input class="fl-finput" id="${p}From" type="datetime-local" value="${localDT(w && w.next_valid_from)}"></label>
+        </div>`;
+    }
+    function readWifi(p, w) {
+        const body = { ssid: $(`#${p}Ssid`).value.trim(), identity: $(`#${p}Identity`).value };
+        if (!body.ssid) throw new Error(ERR.bad_ssid);
+        const cur = $(`#${p}Current`).value, nx = $(`#${p}Next`).value;
+        if (cur) body.current = cur; else if (!w) throw new Error(ERR.bad_current);
+        if (nx) body.next = nx;
+        body.next_valid_from = $(`#${p}From`).value ? new Date($(`#${p}From`).value).toISOString() : null;
+        return body;
+    }
+    const wifiLabel = (w) => w ? `${esc(w.ssid)}${w.identity ? " · " + esc(w.identity) : ""}` : "ยังไม่ได้ตั้ง";
+
+    // firmware choice for one device: def | ch:stable | ch:beta | ch:none | pin:<key>
+    function fwChoice(d, model) {
+        const c = chans(model), defCh = defs().channel || "stable";
+        const to = (ch) => ch === "none" ? "" : " → " + (c[ch] || "ยังไม่ได้ตั้ง");
+        const opts = [["def", `ใช้ค่ากลาง · ${chanLabel[defCh]}${to(defCh)}`], ["ch:stable", "ใช้จริง" + to("stable")],
+            ["ch:beta", "ทดสอบ" + to("beta")], ["ch:none", "ไม่อัปเดต (คงรุ่นที่มีอยู่)"]]
+            .concat(fwOf(model).map((f) => ["pin:" + f.key, `ล็อกไฟล์ ${f.version}${f.note ? " · " + f.note : ""}`]));
+        const cur = d.fw_pin ? "pin:" + d.fw_pin : d.channel ? "ch:" + d.channel : "def";
+        if (!opts.some(([v]) => v === cur)) opts.push([cur, `ล็อก ${pinVer(d)} (ไฟล์ของรุ่นอื่น — จะไม่ถูกส่ง)`]);
+        return opts.map(([v, l]) => `<option value="${esc(v)}" ${v === cur ? "selected" : ""}>${esc(l)}</option>`).join("");
     }
 
     // ── device drawer ──
@@ -300,8 +357,22 @@
                 <div class="fl-dr-sec"><h3>ตั้งค่า</h3>
                     <div class="fl-field" style="border-top:0"><div class="fl-fl"><b>ชื่อเครื่อง</b><span>ชื่อที่คนในโรงงานเรียก เช่น ตำแหน่งที่ติดตั้ง</span></div>
                         <div class="fl-fctl"><input class="fl-finput" id="c-name" maxlength="60" value="${esc(d.name || "")}" placeholder="เช่น ห้องควบคุมกลาง"></div></div>
-                    <div class="fl-fields">${FIELDS.filter((f) => !f.adv).map(row).join("")}</div>
+                    <div class="fl-fields">${FIELDS.filter((f) => !f.adv && f.dev !== false).map(row).join("")}</div>
                     <details class="fl-adv"><summary>ตั้งค่าขั้นสูง (รอบการดึงข้อมูล)</summary><div class="fl-fields">${FIELDS.filter((f) => f.adv).map(row).join("")}</div></details>
+                </div>
+                <div class="fl-dr-sec"><h3>Firmware</h3>
+                    <div class="fl-field" style="border-top:0"><div class="fl-fl"><b>รุ่นฮาร์ดแวร์</b><span>เครื่องจะได้เฉพาะไฟล์ของรุ่นนี้ · เว้นว่าง = ${d.reported_model ? "ตามที่เครื่องแจ้ง (" + esc(d.reported_model) + ")" : "ไม่ระบุรุ่น"}</span></div>
+                        <div class="fl-fctl"><input class="fl-finput" id="c-model" list="c-models" maxlength="32" autocomplete="off" value="${esc(d.model || "")}" placeholder="${esc(d.reported_model || "ไม่ระบุรุ่น")}">
+                        <datalist id="c-models">${models().filter(Boolean).map((m) => `<option value="${esc(m)}">`).join("")}</datalist></div></div>
+                    <div class="fl-field"><div class="fl-fl"><b>ไฟล์ที่จะส่งให้เครื่องนี้</b><span>ตามกลุ่ม (ใช้จริง/ทดสอบของรุ่นนี้) หรือล็อกไฟล์เฉพาะเครื่อง</span></div>
+                        <div class="fl-fctl"><span class="fl-inp"><select id="c-fw" style="max-width:320px">${fwChoice(d, d.eff_model)}</select></span>
+                        <span class="fl-note">ตอนนี้: ${esc(fwPlan(d))}</span></div></div>
+                </div>
+                <div class="fl-dr-sec"><h3>WiFi</h3>
+                    <div class="fl-fctl" id="c-wifi"><div class="fl-seg"><button type="button" aria-pressed="${!d.wifi}" data-wm="def">ใช้ WiFi กลาง · ${wifiLabel(data.wifi)}</button>` +
+                    `<button type="button" aria-pressed="${!!d.wifi}" data-wm="own">กำหนดเฉพาะเครื่องนี้</button></div></div>
+                    <div id="c-wifi-own" ${d.wifi ? "" : "hidden"}>${wifiFields("dw", d.wifi)}
+                        ${d.wifi ? `<p class="fl-note" style="margin:8px 0 0">แก้ล่าสุด ${esc(ts(d.wifi.updated_at))}</p>` : ""}</div>
                 </div>
                 <div class="fl-dr-sec"><h3>จัดการเครื่อง</h3><div class="fl-danger">
                     <div class="fl-danger-row"><div class="grow"><b>รีเซ็ตกุญแจเครื่อง</b>ใช้เมื่อเปลี่ยนบอร์ดหรือล้างหน่วยความจำเครื่อง (NVS) เครื่องจะต้องอนุมัติใหม่</div>
@@ -323,6 +394,17 @@
             dirty();
         }));
         wireZones(body, dirty);
+        $("#c-model").onchange = () => {
+            const m = $("#c-model").value.trim().toLowerCase() || d.reported_model || "";
+            const keep = $("#c-fw").value;
+            $("#c-fw").innerHTML = fwChoice(Object.assign({}, d, { fw_pin: null }), m);
+            if ($$("#c-fw option").some((o) => o.value === keep)) $("#c-fw").value = keep;
+        };
+        $$("#c-wifi .fl-seg button").forEach((b) => b.onclick = () => {
+            $$("#c-wifi .fl-seg button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+            $("#c-wifi-own").hidden = b.dataset.wm === "def";
+            dirty();
+        });
 
         $$("[data-dz]", body).forEach((b) => b.onclick = () => {
             const rowEl = b.closest(".fl-danger-row");
@@ -352,6 +434,13 @@
                     const own = $('.fl-seg [data-mode="own"]', fe).getAttribute("aria-pressed") === "true";
                     patch[f.k] = own ? readControl(f, "c") : null;
                 });
+                patch.model = $("#c-model").value.trim();
+                const fw = $("#c-fw").value;
+                if (fw.startsWith("pin:")) patch.fw_pin = fw.slice(4);
+                else { patch.fw_pin = null; patch.channel = fw === "def" ? null : fw.slice(3); }
+                const ownWifi = $('#c-wifi [data-wm="own"]').getAttribute("aria-pressed") === "true";
+                if (ownWifi) patch.wifi = readWifi("dw", d.wifi);
+                else if (d.wifi) patch.wifi = null;
             } catch (e) { toast(e.message, true); return; }
             run(() => send(devUrl(d.id), "POST", patch), "บันทึก " + (patch.name.trim() || d.id) + " แล้ว · เครื่องจะรับค่าใหม่ในรอบถัดไป", closeDrawer);
         };
@@ -373,12 +462,31 @@
                 <div class="fl-fctl">${control(f, def[f.k], "d")}</div></div>`;
         };
         const v = $("#v-defaults");
+        const ownWifi = ok.filter((d) => d.wifi).length, pinned = ok.filter((d) => d.fw_pin).length;
         v.innerHTML = `<div class="fl-panel"><h2>ค่าตั้งกลาง</h2>
-            <p class="fl-lead">ค่าที่ทุกเครื่องใช้ ถ้าเครื่องนั้นไม่ได้ “กำหนดเอง” ไว้ แก้ที่นี่ครั้งเดียว มีผลกับทุกเครื่องที่ใช้ค่ากลาง</p>
+            <p class="fl-lead">ทุกเครื่องใช้ค่ากลางเป็นพื้นฐาน แล้ว “กำหนดเอง” ทับได้รายเครื่องที่แผงตั้งค่าของเครื่อง ลำดับที่เครื่องได้รับ:</p>
+            <div class="fl-stages">
+                <div class="fl-stage"><span class="k"><span class="fl-stepn">1</span>ค่าเสียง / zone / รอบดึงข้อมูล</span><div class="s" style="margin-top:4px">ค่ากลางในหน้านี้ → ทับได้รายเครื่อง</div></div>
+                <div class="fl-stage"><span class="k"><span class="fl-stepn">2</span>WiFi</span><div class="s" style="margin-top:4px">WiFi กลาง (แท็บรหัส WiFi) → ${ownWifi} เครื่องใช้ WiFi ของตัวเอง</div></div>
+                <div class="fl-stage"><span class="k"><span class="fl-stepn">3</span>Firmware</span><div class="s" style="margin-top:4px">รุ่นของเครื่อง → กลุ่มใช้จริง/ทดสอบของรุ่นนั้น → ${pinned} เครื่องล็อกไฟล์เอง</div></div>
+            </div>
             <div class="fl-fields">${FIELDS.filter((f) => !f.adv).map(row).join("")}</div>
             <details class="fl-adv"><summary>ตั้งค่าขั้นสูง (รอบการดึงข้อมูล)</summary><div class="fl-fields">${FIELDS.filter((f) => f.adv).map(row).join("")}</div></details>
             <div style="display:flex;gap:10px;align-items:center;margin-top:14px"><button type="button" class="fl-btn primary" id="dsaveall">บันทึกค่ากลาง</button>
-            <span class="fl-note" id="ddirty"></span></div></div>`;
+            <span class="fl-note" id="ddirty"></span></div></div>
+            <div class="fl-panel"><h2>ภาพรวมรายเครื่อง</h2>
+                <p class="fl-lead">แต่ละเครื่องได้ค่าอะไรจริง · กดที่แถวเพื่อแก้</p>
+                <div class="fl-list">
+                    <div class="fl-ov hd"><span>เครื่อง</span><span>รุ่น</span><span>WiFi</span><span>Firmware ที่จะได้</span><span>ตั้งเองต่างจากค่ากลาง</span></div>
+                    ${ok.length ? ok.map((d) => `<button type="button" class="fl-ov" data-open="${esc(d.id)}">
+                        <span class="fl-nm"><span class="fl-dot ${live(d)}"></span><span style="min-width:0"><b>${esc(dname(d))}</b><span class="fl-mono">${esc(d.id)}</span></span></span>
+                        <span class="fl-mono">${esc(mname(d.eff_model))}${!d.model && d.reported_model ? ' <span class="fl-faint">(เครื่องแจ้ง)</span>' : ""}</span>
+                        <span>${d.wifi ? `<span class="fl-badge info">เฉพาะเครื่อง</span> ${esc(d.wifi.ssid)}` : '<span class="fl-muted">กลาง</span>'}</span>
+                        <span><span class="fl-mono">${esc(d.fw || "–")}</span> <span class="fl-muted">· ${esc(fwPlan(d))}</span></span>
+                        <span class="fl-small fl-muted">${customList(d).map(esc).join(", ") || "–"}</span></button>`).join("")
+                        : '<div class="fl-ov"><span class="fl-muted" style="grid-column:1/-1">ยังไม่มีเครื่องที่อนุมัติแล้ว</span></div>'}
+                </div></div>`;
+        $$("[data-open]", v).forEach((b) => b.onclick = () => openDrawer(b.dataset.open));
         const mark = () => { viewDirty = true; $("#ddirty").textContent = "มีการแก้ไขที่ยังไม่บันทึก"; };
         v.oninput = mark; v.onchange = mark;
         wireZones(v, mark);
@@ -399,8 +507,9 @@
         const days = nvf ? Math.ceil((nvf.getTime() - Date.now()) / 86400000) : null;
         const nextState = !w || !w.next ? "ยังไม่ได้ตั้ง" : !nvf ? "ใช้ได้ทันที (ลองต่อจากรหัสปัจจุบัน)" : days > 0 ? `อีก ${days} วัน` : "ถึงเวลาแล้ว เครื่องใช้รหัสนี้ก่อน";
         const v = $("#v-wifi");
-        v.innerHTML = `<div class="fl-panel"><h2>รหัส WiFi ที่ส่งให้เครื่อง</h2>
-            <p class="fl-lead">ตั้งรหัสถัดไปไว้ล่วงหน้าก่อนฝ่าย IT เปลี่ยนรหัส เครื่องจะสลับไปใช้เองตามวันเวลาที่กำหนด ไม่ต้องไปตั้งทีละเครื่อง · ส่งให้เฉพาะเครื่องที่อนุมัติแล้ว</p>
+        const own = ok.filter((d) => d.wifi);
+        v.innerHTML = `<div class="fl-panel"><h2>WiFi กลาง</h2>
+            <p class="fl-lead">ใช้กับทุกเครื่องที่ไม่ได้กำหนด WiFi เฉพาะเครื่องไว้ · ตั้งรหัสถัดไปไว้ล่วงหน้าก่อนฝ่าย IT เปลี่ยนรหัส เครื่องจะสลับไปใช้เองตามวันเวลาที่กำหนด · ส่งให้เฉพาะเครื่องที่อนุมัติแล้ว</p>
             <div class="fl-flow">
                 <div class="fl-step ${w ? "now" : "off"}"><span class="k">① รหัสปัจจุบัน</span><span class="v">${w ? esc(w.ssid) : "ยังไม่ได้ตั้ง"}</span>
                     ${w ? `<span class="fl-mono fl-muted">${esc(w.current || "–")}</span><span class="fl-note">identity: ${esc(w.identity || "–")}</span>` : ""}</div>
@@ -415,14 +524,8 @@
             <p class="fl-note">ตอนนี้ <b style="color:var(--fl-fg)">${known} จาก ${ok.length}</b> เครื่องต่อด้วยรหัสจากระบบ ·
                 ${boot.length ? `<span class="c-warn">${boot.length} เครื่องใช้รหัสสำรอง (${boot.map((d) => esc(dname(d))).join(", ")})</span>` : "ไม่มีเครื่องใช้รหัสสำรอง"}
                 ${w ? " · แก้ล่าสุด " + esc(ts(w.updated_at)) : ""}</p>
-            <div style="margin:14px 0"><button type="button" class="fl-btn primary" id="wedit">${w ? "แก้ไขรหัส WiFi" : "ตั้งรหัส WiFi"}</button></div>
-            <form id="wform" hidden autocomplete="off"><div class="fl-form">
-                <label><b>ชื่อ WiFi (SSID)</b><input class="fl-finput" id="wSsid" maxlength="32"></label>
-                <label><b>Identity (ชื่อผู้ใช้)</b><input class="fl-finput" id="wIdentity" maxlength="64"></label>
-                <label><b>รหัสปัจจุบัน</b><input class="fl-finput" id="wCurrent" type="password" autocomplete="new-password" placeholder="${w ? "เว้นว่าง = ไม่เปลี่ยน" : "จำเป็น"}"></label>
-                <label><b>รหัสถัดไป</b><input class="fl-finput" id="wNext" type="password" autocomplete="new-password" placeholder="เว้นว่าง = ไม่เปลี่ยน"></label>
-                <label><b>เริ่มใช้รหัสถัดไปเมื่อ</b><input class="fl-finput" id="wFrom" type="datetime-local"></label>
-            </div>
+            <div style="margin:14px 0"><button type="button" class="fl-btn primary" id="wedit">${w ? "แก้ไข WiFi กลาง" : "ตั้ง WiFi กลาง"}</button></div>
+            <form id="wform" hidden autocomplete="off">${wifiFields("w", w)}
             <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:14px"><button type="submit" class="fl-btn primary">บันทึก</button>
                 <button type="button" class="fl-btn" id="wcancel">ยกเลิก</button><span style="flex:1"></span>
                 ${w ? '<button type="button" class="fl-btn ghost-bad" id="wclear">ล้างรหัสทั้งหมด…</button>' : ""}</div>
@@ -430,22 +533,25 @@
             <details class="fl-warnbox"><summary>ข้อควรระวังด้านความปลอดภัย</summary>
                 <p style="margin:8px 0 0">BellBeast ยังไม่มี TLS รหัสจึงส่งผ่าน LAN โรงงานแบบไม่เข้ารหัส ระยะยาวควรย้ายไป SSID เฉพาะอุปกรณ์ IoT หรือ EAP-TLS (Overview §3.4)</p></details>
         </div>`;
+        v.insertAdjacentHTML("beforeend", `<div class="fl-panel"><h2>เครื่องที่ใช้ WiFi เฉพาะเครื่อง</h2>
+            <p class="fl-lead">เช่น เครื่องที่ติดตั้งในอาคารที่ใช้ SSID อื่น · ตั้งได้ที่แผงตั้งค่าของเครื่อง → WiFi → “กำหนดเฉพาะเครื่องนี้”</p>
+            ${own.length ? `<div class="fl-list">${own.map((d) => {
+                const dn = d.wifi.next_valid_from ? Math.ceil((new Date(d.wifi.next_valid_from).getTime() - Date.now()) / 86400000) : null;
+                return `<button type="button" class="fl-ov" data-open="${esc(d.id)}" style="grid-template-columns:minmax(0,2fr) minmax(0,2fr) minmax(0,2fr) minmax(0,1.4fr)">
+                    <span class="fl-nm"><span class="fl-dot ${live(d)}"></span><span style="min-width:0"><b>${esc(dname(d))}</b><span class="fl-mono">${esc(d.id)}</span></span></span>
+                    <span>${wifiLabel(d.wifi)}</span>
+                    <span class="fl-small fl-muted">${d.wifi.next ? "รหัสถัดไป " + (dn === null ? "ใช้ได้ทันที" : dn > 0 ? `อีก ${dn} วัน` : "ถึงเวลาแล้ว") : "ไม่มีรหัสถัดไป"}</span>
+                    <span class="fl-small">${d.wifi_tier === "known" ? '<span class="c-ok">ต่อด้วยรหัสจากระบบ</span>' : d.wifi_tier === "bootstrap" ? '<span class="c-warn">ใช้รหัสสำรอง</span>' : "–"}</span></button>`;
+            }).join("")}</div>` : '<p class="fl-note">ไม่มี — ทุกเครื่องใช้ WiFi กลาง</p>'}</div>`);
+        $$("[data-open]", v).forEach((b) => b.onclick = () => openDrawer(b.dataset.open));
         const f = $("#wform");
-        const pad = (n) => String(n).padStart(2, "0");
-        $("#wedit").onclick = () => {
-            $("#wSsid").value = w ? w.ssid : ".@MWA WiFi";
-            $("#wIdentity").value = w ? w.identity || "" : "";
-            if (nvf) $("#wFrom").value = `${nvf.getFullYear()}-${pad(nvf.getMonth() + 1)}-${pad(nvf.getDate())}T${pad(nvf.getHours())}:${pad(nvf.getMinutes())}`;
-            f.hidden = false; $("#wedit").hidden = true; viewDirty = true;
-        };
+        $("#wedit").onclick = () => { f.hidden = false; $("#wedit").hidden = true; viewDirty = true; };
         $("#wcancel").onclick = () => { f.hidden = true; $("#wedit").hidden = false; viewDirty = false; };
         f.onsubmit = (e) => {
             e.preventDefault();
-            const body = { ssid: $("#wSsid").value.trim(), identity: $("#wIdentity").value };
-            if ($("#wCurrent").value) body.current = $("#wCurrent").value;
-            if ($("#wNext").value) body.next = $("#wNext").value;
-            body.next_valid_from = $("#wFrom").value ? new Date($("#wFrom").value).toISOString() : null;
-            run(() => send("/api/admin/fleet/wifi", "PUT", body), "บันทึก WiFi แล้ว · เครื่องจะรับค่าในรอบถัดไป");
+            let body;
+            try { body = readWifi("w", w); } catch (x) { toast(x.message, true); return; }
+            run(() => send("/api/admin/fleet/wifi", "PUT", body), "บันทึก WiFi กลางแล้ว · เครื่องจะรับค่าในรอบถัดไป");
         };
         if ($("#wclear")) $("#wclear").onclick = () => {
             $("#wclearbox").innerHTML = `<div class="fl-confirm" style="margin-top:10px"><span>ล้างรหัส ① และ ② ? เครื่องจะเหลือแค่รหัสสำรองในเครื่อง</span>` +
@@ -455,75 +561,92 @@
         };
     }
 
-    // ── firmware ──
+    // ── firmware (per hardware model) ──
+    let fwModel = null;        // model shown in the firmware tab ("" = not specified)
     function renderFirmware() {
-        const ok = approved(), c = chans(), fws = firmware();
-        const on = (v) => ok.filter((d) => d.fw === v);
-        const inCh = (ch) => ok.filter((d) => (eff(d, "channel") || "stable") === ch);
+        const ok = approved(), ms = models();
+        if (fwModel === null || !ms.includes(fwModel)) fwModel = ms[0] ?? "";
+        const m = fwModel, c = chans(m), fws = fwOf(m);
+        const mine = ok.filter((d) => (d.eff_model || "") === m);
+        const on = (ver) => mine.filter((d) => d.fw === ver);
+        const inCh = (ch) => mine.filter((d) => !d.fw_pin && (eff(d, "channel") || "stable") === ch);
+        const pinned = mine.filter((d) => d.fw_pin);
         const done = (ch) => inCh(ch).filter((d) => c[ch] && d.fw === c[ch]).length;
         const latest = fws[0];
+        const q = (ver) => "/api/admin/ota/firmware/" + encodeURIComponent(ver) + (m ? "?model=" + encodeURIComponent(m) : "");
         const v = $("#v-firmware");
         v.innerHTML = `<div class="fl-panel"><h2>อัปเดต Firmware</h2>
-            <p class="fl-lead">อัปโหลดไฟล์ → ส่งให้เครื่องทดสอบ 1–2 เครื่องก่อน → ถ้าไม่มีปัญหา ค่อยปล่อยให้ทุกเครื่อง</p>
+            <p class="fl-lead">แยกตามรุ่นฮาร์ดแวร์ — ไฟล์ของรุ่นหนึ่งจะไม่ถูกส่งให้อีกรุ่น · อัปโหลด → ส่งให้กลุ่มทดสอบของรุ่นนั้นก่อน → ปล่อยให้ทุกเครื่องของรุ่นนั้น ·
+                เครื่องไหนต้องใช้ไฟล์เฉพาะ ให้ “ล็อกไฟล์” ที่แผงตั้งค่าของเครื่อง</p>
+            <div class="fl-toolbar"><span class="fl-muted fl-small">รุ่น</span><div class="fl-chipset" id="fwModels">${ms.map((x) =>
+                `<button type="button" class="fl-chip" aria-pressed="${x === m}" data-m="${esc(x)}">${esc(mname(x))} <span class="fl-faint">${ok.filter((d) => (d.eff_model || "") === x).length}</span></button>`).join("")}</div></div>
             <div class="fl-stages">
-                <div class="fl-stage"><span class="k"><span class="fl-stepn">1</span>อัปโหลดล่าสุด</span><div class="v">${esc(latest ? latest.version : "–")}</div>
-                    <div class="s">${latest ? esc(ts(latest.uploaded_at)) : "ยังไม่มีไฟล์"}</div></div>
+                <div class="fl-stage"><span class="k"><span class="fl-stepn">1</span>อัปโหลดล่าสุด · ${esc(mname(m))}</span><div class="v">${esc(latest ? latest.version : "–")}</div>
+                    <div class="s">${latest ? esc(ts(latest.uploaded_at)) : "ยังไม่มีไฟล์ของรุ่นนี้"}</div></div>
                 <div class="fl-stage"><span class="k"><span class="fl-stepn">2</span>กลุ่มทดสอบ</span><div class="v">${esc(c.beta || "–")}</div>
-                    <div class="s">${inCh("beta").length ? `อัปเดตแล้ว ${done("beta")}/${inCh("beta").length} เครื่อง` : "ยังไม่มีเครื่องในกลุ่มทดสอบ"}</div></div>
-                <div class="fl-stage"><span class="k"><span class="fl-stepn">3</span>ใช้จริงทุกเครื่อง</span><div class="v">${esc(c.stable || "–")}</div>
-                    <div class="s">อัปเดตแล้ว ${done("stable")}/${inCh("stable").length} เครื่อง</div></div>
+                    <div class="s">${inCh("beta").length ? `อัปเดตแล้ว ${done("beta")}/${inCh("beta").length} เครื่อง` : "ยังไม่มีเครื่องรุ่นนี้ในกลุ่มทดสอบ"}</div></div>
+                <div class="fl-stage"><span class="k"><span class="fl-stepn">3</span>ใช้จริงทุกเครื่องของรุ่นนี้</span><div class="v">${esc(c.stable || "–")}</div>
+                    <div class="s">อัปเดตแล้ว ${done("stable")}/${inCh("stable").length} เครื่อง${pinned.length ? ` · ล็อกไฟล์เอง ${pinned.length} เครื่อง` : ""}</div></div>
             </div>
             <div class="fl-drop"><div class="grow"><b>อัปโหลดไฟล์ใหม่</b>
-                <div class="fl-note">ไฟล์ <span class="fl-mono">build/xiaozhi.bin</span> · ระบบอ่านเลขรุ่นจากไฟล์ให้เอง</div></div>
+                <div class="fl-note">ไฟล์ <span class="fl-mono">build/xiaozhi.bin</span> · ระบบอ่านเลขรุ่น firmware จากไฟล์ให้เอง</div></div>
                 <input type="file" id="fwFile" accept=".bin">
-                <input class="fl-finput" id="fwNote" placeholder="หมายเหตุ เช่น แก้อะไร" style="max-width:240px">
-                <details style="font-size:13px"><summary class="fl-muted" style="cursor:pointer">ระบุเลขรุ่นเอง</summary>
+                <label class="fl-note" style="display:grid;gap:2px">รุ่นฮาร์ดแวร์<input class="fl-finput" id="fwModel" list="fwModelList" maxlength="32" autocomplete="off" value="${esc(m)}" placeholder="ไม่ระบุรุ่น" style="max-width:180px"></label>
+                <datalist id="fwModelList">${ms.filter(Boolean).map((x) => `<option value="${esc(x)}">`).join("")}</datalist>
+                <input class="fl-finput" id="fwNote" placeholder="หมายเหตุ เช่น แก้อะไร" style="max-width:220px">
+                <details style="font-size:13px"><summary class="fl-muted" style="cursor:pointer">ระบุเลข firmware เอง</summary>
                     <input class="fl-finput" id="fwVersion" placeholder="ต้องตรงกับ PROJECT_VER" style="max-width:200px;margin-top:6px"></details>
                 <button type="button" class="fl-btn primary" id="fwUpload">อัปโหลด</button></div>
             <p class="fl-note" style="margin:0 0 6px">เครื่องจะไม่อัปเดตระหว่างมี alarm ที่ยังไม่รับทราบ · ถ้ารุ่นใหม่ดึง alarm ไม่สำเร็จใน 5 นาที เครื่องจะย้อนกลับรุ่นเดิมเอง</p>
             <div>${fws.length ? fws.map((f) => {
                 const isB = c.beta === f.version, isS = c.stable === f.version, n = on(f.version);
+                const pins = ok.filter((d) => d.fw_pin === f.key);
                 const acts = (isS ? '<span class="fl-badge ok">ใช้จริงอยู่</span>' : "") +
                     (isB ? '<span class="fl-badge info">กำลังทดสอบ</span>' : "") +
+                    (pins.length ? `<span class="fl-badge plain" title="${esc(pins.map(dname).join(", "))}">ล็อก ${pins.length} เครื่อง</span>` : "") +
                     (!isB && !isS ? `<button type="button" class="fl-btn sm" data-ch="beta" data-v="${esc(f.version)}">ส่งให้กลุ่มทดสอบ</button>` : "") +
-                    (!isS ? `<button type="button" class="fl-btn ${isB ? "primary" : ""} sm" data-ch="stable" data-v="${esc(f.version)}">ปล่อยให้ทุกเครื่อง</button>` : "") +
-                    (!isB && !isS ? `<button type="button" class="fl-btn ghost-bad sm" data-del="${esc(f.version)}">ลบ…</button>` : "");
+                    (!isS ? `<button type="button" class="fl-btn ${isB ? "primary" : ""} sm" data-ch="stable" data-v="${esc(f.version)}">ปล่อยให้ทุกเครื่องรุ่นนี้</button>` : "") +
+                    (!isB && !isS && !pins.length ? `<button type="button" class="fl-btn ghost-bad sm" data-del="${esc(f.version)}">ลบ…</button>` : "");
                 return `<div class="fl-fwrow"><div><div class="ver">${esc(f.version)}</div>
                     <div class="fl-faint fl-small">${esc(ts(f.uploaded_at))} · ${(f.size / 1048576).toFixed(2)} MB</div>
                     <div class="fl-faint fl-small fl-mono" title="sha256">${esc((f.sha256 || "").slice(0, 12))}…</div></div>
                     <div><div>${f.note ? esc(f.note) : '<span class="fl-faint">ไม่มีหมายเหตุ</span>'}</div>
                     <div class="fl-note">${n.length ? "ใช้อยู่ " + n.length + " เครื่อง: " + n.map((d) => esc(dname(d))).join(", ") : "ไม่มีเครื่องใช้รุ่นนี้"}</div></div>
-                    <div class="acts" data-row="${esc(f.version)}">${acts}</div></div>`;
-            }).join("") : '<p class="fl-note">ยังไม่มีไฟล์ firmware</p>'}</div>
-            <p class="fl-note">เลือกว่าเครื่องไหนอยู่กลุ่มทดสอบได้ที่แผงตั้งค่าของเครื่อง (“รับอัปเดต firmware”) · กลุ่มทดสอบตอนนี้:
-                ${inCh("beta").map((d) => esc(dname(d))).join(", ") || "ไม่มี"}</p>
+                    <div class="acts">${acts}</div></div>`;
+            }).join("") : '<p class="fl-note">ยังไม่มีไฟล์ firmware ของรุ่นนี้</p>'}</div>
+            <p class="fl-note">กลุ่มทดสอบของรุ่นนี้: ${inCh("beta").map((d) => esc(dname(d))).join(", ") || "ไม่มี"} ·
+                ล็อกไฟล์: ${pinned.map((d) => `${esc(dname(d))} (${esc(pinVer(d))})`).join(", ") || "ไม่มี"} · ตั้งกลุ่ม/ล็อกไฟล์ได้ที่แผงตั้งค่าของเครื่อง</p>
         </div>`;
         v.oninput = () => (viewDirty = true);
         v.onchange = () => (viewDirty = true);
+        $$("#fwModels .fl-chip").forEach((b) => b.onclick = () => { fwModel = b.dataset.m; viewDirty = false; renderFirmware(); });
         $$("[data-ch]", v).forEach((b) => b.onclick = () => {
             const ch = b.dataset.ch, ver = b.dataset.v;
-            run(() => send("/api/admin/ota/channel", "POST", { channel: ch, version: ver }),
-                ch === "beta" ? "ส่ง " + ver + " ให้กลุ่มทดสอบแล้ว" : "ปล่อย " + ver + " ให้ทุกเครื่องแล้ว");
+            run(() => send("/api/admin/ota/channel", "POST", { model: m, channel: ch, version: ver }),
+                (ch === "beta" ? "ส่ง " + ver + " ให้กลุ่มทดสอบ" : "ปล่อย " + ver + " ให้ทุกเครื่อง") + "ของรุ่น " + mname(m) + " แล้ว");
         });
         $$("[data-del]", v).forEach((b) => b.onclick = () => {
             const ver = b.dataset.del, acts = b.parentElement;
             if ($(".fl-confirm", acts.parentElement)) return;
             const c2 = document.createElement("div");
             c2.className = "fl-confirm"; c2.style.gridColumn = "1 / -1";
-            c2.innerHTML = `<span>ลบไฟล์ firmware <b class="fl-mono">${esc(ver)}</b> ใช่ไหม?</span><button type="button" class="fl-btn sm">ยกเลิก</button><button type="button" class="fl-btn bad sm">ลบไฟล์</button>`;
+            c2.innerHTML = `<span>ลบไฟล์ firmware <b class="fl-mono">${esc(ver)}</b> ของรุ่น ${esc(mname(m))} ใช่ไหม?</span><button type="button" class="fl-btn sm">ยกเลิก</button><button type="button" class="fl-btn bad sm">ลบไฟล์</button>`;
             acts.parentElement.appendChild(c2);
             c2.children[1].onclick = () => c2.remove();
-            c2.children[2].onclick = () => run(() => api("/api/admin/ota/firmware/" + encodeURIComponent(ver), { method: "DELETE" }), "ลบ " + ver + " แล้ว");
+            c2.children[2].onclick = () => run(() => api(q(ver), { method: "DELETE" }), "ลบ " + ver + " แล้ว");
         });
         $("#fwUpload").onclick = () => {
             const file = $("#fwFile").files[0];
             if (!file) { toast("เลือกไฟล์ .bin ก่อน", true); return; }
+            const model = $("#fwModel").value.trim().toLowerCase();
+            if (model && !/^[a-z0-9][a-z0-9._-]{0,31}$/.test(model)) { toast(ERR.bad_model, true); return; }
             const fd = new FormData();
             fd.append("version", $("#fwVersion").value.trim());
             fd.append("note", $("#fwNote").value);
+            fd.append("model", model);
             fd.append("file", file);
             $("#fwUpload").disabled = true; $("#fwUpload").textContent = "กำลังอัปโหลด…";
-            run(() => api("/api/admin/ota/firmware", { method: "POST", body: fd }), "อัปโหลดแล้ว").finally(() => {
+            run(() => api("/api/admin/ota/firmware", { method: "POST", body: fd }), "อัปโหลดแล้ว (รุ่น " + mname(model) + ")", () => (fwModel = model)).finally(() => {
                 const b = $("#fwUpload"); if (b) { b.disabled = false; b.textContent = "อัปโหลด"; }
             });
         };
@@ -535,7 +658,7 @@
         boot: ["เปิดเครื่อง", "plain"], wifi: ["WiFi", "plain"], ota: ["อัปเดต", "plain"], health: ["สุขภาพเครื่อง", "plain"],
     };
     async function loadEvents() {
-        const j = await api("/api/admin/fleet/events?n=300" + (logDev ? "&device=" + encodeURIComponent(logDev) : ""));
+        const j = await api("/api/admin/fleet/events?n=" + (logDev ? 100 : 500) + (logDev ? "&device=" + encodeURIComponent(logDev) : ""));
         events = j.events || [];
     }
     function renderLog() {
@@ -556,13 +679,93 @@
                 return `<div class="fl-ev"><span class="t"${devTime}>${esc(tsSec(e.rx))}</span><span>${esc(dev ? dname(dev) : e.device)}</span>` +
                     `<span><span class="fl-badge ${cls}">${esc(lbl)}</span></span><span class="tx">${text || '<span class="fl-faint">–</span>'}</span></div>`;
             }).join("") : '<div class="fl-ev"><span class="fl-muted">ไม่มีเหตุการณ์ตรงกับตัวกรอง</span></div>'}</div>
-            <p class="fl-note" style="margin-top:8px">แสดง 300 รายการล่าสุด · ชี้ที่เวลาเพื่อดูเวลาของเครื่อง (ถ้านาฬิกาเครื่องต่างจากเซิร์ฟเวอร์)</p>`;
+            <p class="fl-note" style="margin-top:8px">ระบบเก็บ 100 เหตุการณ์ล่าสุดต่อเครื่อง (เก่ากว่านั้นถูกลบอัตโนมัติ) · ทุกเครื่องรวมกันแสดงสูงสุด 500 รายการ · ชี้ที่เวลาเพื่อดูเวลาของเครื่อง (ถ้านาฬิกาเครื่องต่างจากเซิร์ฟเวอร์)</p>`;
         $("#evDevice").onchange = (e) => { logDev = e.target.value; loadEvents().then(renderLog).catch((x) => toast(x.message, true)); };
         $$(".fl-chip", v).forEach((b) => b.onclick = () => { const t = b.dataset.t; logTypes.has(t) ? logTypes.delete(t) : logTypes.add(t); renderLog(); });
     }
 
+    // ── device API access (shadow / enforce, key vs IP pass) ──
+    let access = null;        // /api/admin/fleet/access
+    async function loadAccess() { access = await api("/api/admin/fleet/access"); }
+    const VIA = { key: ["กุญแจเครื่อง", "ok"], ip_pass: ["IP pass (firmware เก่า)", "warn"] };
+    const MISS = { no_device_key: "ไม่มีกุญแจเครื่อง / token", device_key_invalid: "กุญแจไม่ถูกต้อง หรือเครื่องยังไม่อนุมัติ" };
+    function renderAccess() {
+        const v = $("#v-access");
+        if (!access) { v.innerHTML = '<div class="fl-panel"><p class="fl-note">กำลังโหลด…</p></div>'; return; }
+        const a = access, ok = approved();
+        const enforce = a.mode === "enforce";
+        // newest way each approved device came in (the in-memory record starts when BellBeast starts)
+        const viaOf = (id) => (a.callers || []).filter((c) => c.device === id).sort((x, y) => new Date(y.last_at) - new Date(x.last_at))[0] || null;
+        const onKey = ok.filter((d) => (viaOf(d.id) || {}).via === "key").length;
+        const onIp = ok.filter((d) => (viaOf(d.id) || {}).via === "ip_pass");
+        const misses = a.misses || [];
+        v.innerHTML = `<div class="fl-panel"><h2>การเข้าถึง API ของอุปกรณ์</h2>
+            <p class="fl-lead">API ที่อุปกรณ์ใช้ (alarm, เสียง, ผลแล็บ, คลอรีน, IoT room, ไฟล์ firmware) เปิดให้เฉพาะ: หน้าเว็บของเรา (view token), คนที่ login,
+                ตัวเซิร์ฟเวอร์เอง (Uroboros) และ <b style="color:var(--fl-fg)">เครื่องที่อนุมัติแล้ว</b> — ด้วยกุญแจเครื่อง หรือ IP pass ระหว่างที่ยังมีเครื่อง firmware เก่า</p>
+            <div class="fl-stages">
+                <div class="fl-stage"><span class="k"><span class="fl-stepn">1</span>โหมด</span><div class="v">${enforce ? "บล็อกจริง" : "เฝ้าดู (shadow)"}</div>
+                    <div class="s">${enforce ? "คนที่ไม่มีสิทธิ์ได้ 401" : "ยังไม่บล็อกใคร แค่บันทึกว่าใครจะโดนบล็อก"}</div></div>
+                <div class="fl-stage"><span class="k"><span class="fl-stepn">2</span>เครื่องที่ส่งกุญแจแล้ว</span><div class="v">${onKey} <small class="fl-muted">/ ${ok.length}</small></div>
+                    <div class="s">${onIp.length ? `ยังใช้ IP pass ${onIp.length} เครื่อง` : "ไม่มีเครื่องที่ยังพึ่ง IP pass"}</div></div>
+                <div class="fl-stage"><span class="k"><span class="fl-stepn">3</span>${enforce ? "ถูกบล็อก" : "จะโดนบล็อก"}</span><div class="v">${misses.length} <small class="fl-muted">IP</small></div>
+                    <div class="s">${misses.length ? "ดูรายการด้านล่างก่อนเปิดบล็อกจริง" : "ยังไม่เจอผู้เรียกที่ไม่มีสิทธิ์"}</div></div>
+            </div>
+            <div class="fl-fields">
+                <div class="fl-field"><div class="fl-fl"><b>โหมด</b><span>เริ่มจากเฝ้าดู 1–2 วัน ถ้ารายการ “จะโดนบล็อก” มีแต่สิ่งที่ไม่ใช่ของเรา ค่อยเปลี่ยนเป็นบล็อกจริง</span></div>
+                    <div class="fl-fctl"><div class="fl-seg" id="axMode"><button type="button" aria-pressed="${!enforce}" data-v="shadow">เฝ้าดู (shadow)</button>` +
+                    `<button type="button" aria-pressed="${enforce}" data-v="enforce">บล็อกจริง</button></div><div id="axModeConfirm"></div></div></div>
+                <div class="fl-field"><div class="fl-fl"><b>IP pass สำหรับ firmware เก่า</b>
+                    <span>เครื่องที่อนุมัติแล้วเข้าได้จาก IP ที่รายงานตัวล่าสุด (${esc(a.window_min)} นาที) · ปิดได้เมื่อทุกเครื่องส่งกุญแจแล้ว (ช่อง ② = ${ok.length}/${ok.length})</span></div>
+                    <div class="fl-fctl"><div class="fl-seg" id="axIp"><button type="button" aria-pressed="${a.allow_ip_pass}" data-v="1">เปิด</button>` +
+                    `<button type="button" aria-pressed="${!a.allow_ip_pass}" data-v="0">ปิด</button></div><div id="axIpConfirm"></div></div></div>
+            </div>
+            ${a.updated_at ? `<p class="fl-note">แก้ล่าสุด ${esc(ts(a.updated_at))}${a.updated_by ? " โดย " + esc(a.updated_by) : ""}</p>` : ""}
+        </div>
+        <div class="fl-panel"><h2>เครื่องที่อนุมัติแล้ว เข้ามาด้วยวิธีไหน</h2>
+            <p class="fl-lead">นับตั้งแต่ BellBeast เริ่มทำงานครั้งล่าสุด</p>
+            <div class="fl-list"><div class="fl-ov hd"><span>เครื่อง</span><span>Firmware</span><span>เข้าด้วย</span><span>ครั้ง · API ล่าสุด</span><span>ล่าสุด</span></div>
+            ${ok.length ? ok.map((d) => {
+                const c = viaOf(d.id), [lbl, cls] = c ? VIA[c.via] || [c.via, "plain"] : ["ยังไม่เห็นเรียก API", "plain"];
+                return `<button type="button" class="fl-ov" data-open="${esc(d.id)}">
+                    <span class="fl-nm"><span class="fl-dot ${live(d)}"></span><span style="min-width:0"><b>${esc(dname(d))}</b><span class="fl-mono">${esc(d.id)}</span></span></span>
+                    <span class="fl-mono">${esc(d.fw || "–")}</span><span><span class="fl-badge ${cls}">${esc(lbl)}</span></span>
+                    <span class="fl-small fl-muted">${c ? `${esc(c.hits)} ครั้ง · <span class="fl-mono">${esc(c.last_route)}</span>` : "–"}</span>
+                    <span class="fl-small">${c ? esc(ago(c.last_at)) : "–"}</span></button>`;
+            }).join("") : '<div class="fl-ov"><span class="fl-muted" style="grid-column:1/-1">ยังไม่มีเครื่องที่อนุมัติแล้ว</span></div>'}</div></div>
+        <div class="fl-panel"><h2>${enforce ? "ถูกบล็อก" : "จะโดนบล็อกถ้าเปิดบล็อกจริง"}</h2>
+            <p class="fl-lead">IP ที่เรียก API ของอุปกรณ์โดยไม่มีสิทธิ์ — ถ้าเป็นของเราเอง (เช่น PC จอแสดงผล) ให้เพิ่ม IP pass ที่หน้า API Access แท็บ IP หรืออนุมัติเครื่องนั้นในแท็บอุปกรณ์</p>
+            <div class="fl-list"><div class="fl-ov hd"><span>IP</span><span>ครั้ง</span><span>เหตุผล</span><span>API ล่าสุด</span><span>ล่าสุด</span></div>
+            ${misses.length ? misses.map((m) => `<div class="fl-ov"><span class="fl-mono">${esc(m.ip)}</span><span>${esc(m.count)}</span>
+                <span class="fl-small">${esc(MISS[m.reason] || m.reason)}</span><span class="fl-mono fl-small">${esc(m.last_route)}</span>
+                <span class="fl-small">${esc(ago(m.last_at))} <button type="button" class="fl-btn sm" data-clear="${esc(m.ip)}" style="margin-left:6px">ล้าง</button></span></div>`).join("")
+                : '<div class="fl-ov"><span class="fl-muted" style="grid-column:1/-1">ไม่มี</span></div>'}</div></div>`;
+
+        const put = (body, msg) => run(async () => { access = await send("/api/admin/fleet/access", "PUT", body); }, msg);
+        const confirmBox = (box, text, label, go) => {
+            box.innerHTML = `<div class="fl-confirm" style="margin-top:8px"><span>${text}</span><button type="button" class="fl-btn sm">ยกเลิก</button><button type="button" class="fl-btn bad sm">${label}</button></div>`;
+            box.querySelectorAll("button")[0].onclick = () => (box.innerHTML = "");
+            box.querySelectorAll("button")[1].onclick = go;
+        };
+        $$("#axMode button").forEach((b) => b.onclick = () => {
+            if ((b.dataset.v === "enforce") === enforce) return;
+            if (b.dataset.v === "shadow") return put({ mode: "shadow" }, "กลับเป็นโหมดเฝ้าดูแล้ว · ไม่บล็อกใคร");
+            confirmBox($("#axModeConfirm"), `เปิดบล็อกจริง? ${misses.length ? `<b>${misses.length} IP</b> ในรายการด้านล่างจะเรียก API ไม่ได้ทันที` : "ยังไม่พบผู้เรียกที่จะโดนบล็อก"}`,
+                "เปิดบล็อกจริง", () => put({ mode: "enforce" }, "เปิดบล็อกจริงแล้ว"));
+        });
+        $$("#axIp button").forEach((b) => b.onclick = () => {
+            const on = b.dataset.v === "1";
+            if (on === a.allow_ip_pass) return;
+            if (on) return put({ allow_ip_pass: true }, "เปิด IP pass แล้ว");
+            confirmBox($("#axIpConfirm"), onIp.length ? `ยังมี <b>${onIp.length} เครื่อง</b> ที่ใช้ IP pass (${onIp.map((d) => esc(dname(d))).join(", ")}) ${enforce ? "จะเรียก API ไม่ได้ทันที" : "จะเข้ารายการ “จะโดนบล็อก”"}`
+                : "ปิด IP pass? เครื่องต้องส่งกุญแจเครื่องเท่านั้น", "ปิด IP pass", () => put({ allow_ip_pass: false }, "ปิด IP pass แล้ว"));
+        });
+        $$("[data-clear]", v).forEach((b) => b.onclick = () =>
+            run(async () => { access = await api("/api/admin/fleet/access/miss/" + encodeURIComponent(b.dataset.clear), { method: "DELETE" }); }, "ล้างแล้ว"));
+        $$("[data-open]", v).forEach((b) => b.onclick = () => openDrawer(b.dataset.open));
+    }
+
     // ── routing / loading ──
-    const VIEWS = { devices: renderDevices, defaults: renderDefaults, wifi: renderWifi, firmware: renderFirmware, log: renderLog };
+    const VIEWS = { devices: renderDevices, defaults: renderDefaults, wifi: renderWifi, firmware: renderFirmware, access: renderAccess, log: renderLog };
     function renderAll(force) {
         if (!data) return;
         renderStrip();
@@ -576,12 +779,14 @@
         view = name;
         try { if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name); } catch { /* ignore */ }
         if (name === "log") loadEvents().then(() => renderAll(true)).catch((e) => toast(e.message, true));
+        if (name === "access") loadAccess().then(() => renderAll(true)).catch((e) => toast(e.message, true));
         renderAll(true);
     }
 
     async function load() {
         data = await api("/api/admin/fleet");
         if (view === "log") await loadEvents();
+        if (view === "access") await loadAccess();
         showErr("");
         $("#updated").textContent = "อัปเดต " + new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
         renderAll(false);

@@ -198,6 +198,7 @@ builder.Services.AddSingleton<ApiCatalogService>();
 builder.Services.AddSingleton<ApiClientService>();
 builder.Services.AddSingleton<IpAccessService>();
 builder.Services.AddSingleton<IpPassService>();
+builder.Services.AddSingleton<DeviceAccessService>();
 builder.Services.AddSingleton<ViewTokenService>();
 builder.Services.AddSingleton<RejectMemes>();
 builder.Services.AddHostedService<ViewTrafficPublisher>();
@@ -270,7 +271,8 @@ var api = new ApiGroups(
     Public: app.MapGroup("").AllowAnonymous(),
     User: app.MapGroup(""),                                // deny-by-default fallback policy
     Admin: app.MapGroup("").RequireAuthorization("AdminOnly"),
-    Page: app.MapGroup("").AllowAnonymous().RequireViewToken());  // APIs behind our public pages
+    Page: app.MapGroup("").AllowAnonymous().RequireViewToken(),   // APIs behind our public pages
+    Device: app.MapGroup("").AllowAnonymous().RequireViewToken().WithMetadata(new DeviceApi()));  // + registered annunciators
 
 app.MapSessionEndpoints(api);
 app.MapProxyEndpoints(api);

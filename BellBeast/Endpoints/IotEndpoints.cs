@@ -27,6 +27,7 @@ public static class IotEndpoints
     public static void MapIotEndpoints(this WebApplication app, ApiGroups api)
     {
         var (pub, user, admin) = (api.Public, api.User, api.Admin);
+        var device = api.Device;  // device APIs: page access + registered annunciators (DeviceAccessService)
         var page = api.Page;   // public pages' APIs: anonymous + live view token
 
         // ===============================
@@ -67,7 +68,7 @@ public static class IotEndpoints
         // ===============================
 
         // Device → join room (first time or after reconnect)
-        pub.MapPost("/api/iot/room/join", (IotRoomService iotRoom, IpAccessService ips, HttpContext ctx) =>
+        device.MapPost("/api/iot/room/join", (IotRoomService iotRoom, IpAccessService ips, HttpContext ctx) =>
         {
             IotJoinRequest? body;
             try { body = ctx.Request.ReadFromJsonAsync<IotJoinRequest>().GetAwaiter().GetResult(); }
@@ -83,7 +84,7 @@ public static class IotEndpoints
         });
 
         // Device → heartbeat / poll for pending command
-        pub.MapPost("/api/iot/room/poll", (IotRoomService iotRoom, HttpContext ctx) =>
+        device.MapPost("/api/iot/room/poll", (IotRoomService iotRoom, HttpContext ctx) =>
         {
             IotPollRequest? body;
             try { body = ctx.Request.ReadFromJsonAsync<IotPollRequest>().GetAwaiter().GetResult(); }
@@ -103,14 +104,14 @@ public static class IotEndpoints
         });
 
         // Browser → get current member list
-        pub.MapGet("/api/iot/room/members", (IotRoomService iotRoom) =>
+        device.MapGet("/api/iot/room/members", (IotRoomService iotRoom) =>
         {
             var members = iotRoom.GetMembers();
             return Results.Ok(new { members });
         });
 
         // Browser → get room log
-        pub.MapGet("/api/iot/room/log", (IotRoomService iotRoom, HttpContext ctx) =>
+        device.MapGet("/api/iot/room/log", (IotRoomService iotRoom, HttpContext ctx) =>
         {
             int last = 50;
             if (int.TryParse(ctx.Request.Query["last"], out var q) && q > 0 && q <= 200) last = q;
@@ -119,7 +120,7 @@ public static class IotEndpoints
         });
 
         // Host → send command to a device
-        pub.MapPost("/api/iot/room/command", (IotRoomService iotRoom, IpAccessService ips, HttpContext ctx) =>
+        device.MapPost("/api/iot/room/command", (IotRoomService iotRoom, IpAccessService ips, HttpContext ctx) =>
         {
             IotCommandRequest? body;
             try { body = ctx.Request.ReadFromJsonAsync<IotCommandRequest>().GetAwaiter().GetResult(); }
@@ -143,7 +144,7 @@ public static class IotEndpoints
         });
 
         // Device → post telemetry / state
-        pub.MapPost("/api/iot/room/data", async (IotRoomService iotRoom, IpAccessService ips, HttpContext ctx) =>
+        device.MapPost("/api/iot/room/data", async (IotRoomService iotRoom, IpAccessService ips, HttpContext ctx) =>
         {
             IotDataRequest? body;
             try { body = await ctx.Request.ReadFromJsonAsync<IotDataRequest>(); }
@@ -161,7 +162,7 @@ public static class IotEndpoints
         });
 
         // Device / dashboard → get device state(s)
-        pub.MapGet("/api/iot/room/data", (IotRoomService iotRoom, HttpContext ctx) =>
+        device.MapGet("/api/iot/room/data", (IotRoomService iotRoom, HttpContext ctx) =>
         {
             var key = ctx.Request.Query["key"].FirstOrDefault();
             var deviceName = ctx.Request.Query["deviceName"].FirstOrDefault();
@@ -170,7 +171,7 @@ public static class IotEndpoints
         });
 
         // Dashboard → one-shot snapshot (members + states + log)
-        pub.MapGet("/api/iot/room/snapshot", (IotRoomService iotRoom, HttpContext ctx) =>
+        device.MapGet("/api/iot/room/snapshot", (IotRoomService iotRoom, HttpContext ctx) =>
         {
             int last = 50;
             if (int.TryParse(ctx.Request.Query["last"], out var q) && q > 0 && q <= 200) last = q;

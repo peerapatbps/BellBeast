@@ -27,6 +27,7 @@ public static class FleetEndpoints
     public static void MapFleetEndpoints(this WebApplication app, ApiGroups api)
     {
         var (pub, user, admin) = (api.Public, api.User, api.Admin);
+        var device = api.Device;  // device APIs: page access + registered annunciators (DeviceAccessService)
 
         // ===============================
         // Annunciator fleet (P4): device report / config / OTA + admin (iot-device_plan.md §4)
@@ -67,17 +68,21 @@ public static class FleetEndpoints
             ctx.Response.Headers.CacheControl = "no-store";
             return Results.Json(fw is null
                 ? new { ok = true, channel, version = (string?)null, size = 0L, sha256 = (string?)null, url = (string?)null }
-                : new { ok = true, channel, version = (string?)fw.Version, size = fw.Size, sha256 = (string?)fw.Sha256, url = (string?)$"/api/ota/firmware/{fw.Version}" });
+                : new { ok = true, channel, version = (string?)fw.Version, size = fw.Size, sha256 = (string?)fw.Sha256, url = (string?)DeviceFleetService.FirmwareUrl(fw) });
         });
 
-        pub.MapGet("/api/ota/firmware/{version}", (string version, DeviceFleetService fleet, HttpContext ctx) =>
+        // firmware download: /api/ota/firmware/{version} (model not specified) or /api/ota/firmware/{model}/{version}
+        static IResult Firmware(DeviceFleetService fleet, HttpContext ctx, string model, string version)
         {
-            if (!DeviceFleetService.ValidVersion(version) || fleet.GetFirmware(version) is not { } fw) return Results.NotFound(new { ok = false, error = "firmware_not_found" });
-            var path = fleet.FirmwarePath(version);
+            if (!DeviceFleetService.ValidVersion(version) || (model.Length > 0 && !DeviceFleetService.ValidModel(model))
+                || fleet.GetFirmware(model, version) is not { } fw) return Results.NotFound(new { ok = false, error = "firmware_not_found" });
+            var path = fleet.FirmwarePath(model, version);
             if (!File.Exists(path)) return Results.NotFound(new { ok = false, error = "firmware_file_missing" });
             ctx.Response.Headers["X-Firmware-Sha256"] = fw.Sha256;
-            return Results.File(path, "application/octet-stream", $"annunciator-{version}.bin");
-        });
+            return Results.File(path, "application/octet-stream", model.Length > 0 ? $"annunciator-{model}-{version}.bin" : $"annunciator-{version}.bin");
+        }
+        device.MapGet("/api/ota/firmware/{version}", (string version, DeviceFleetService fleet, HttpContext ctx) => Firmware(fleet, ctx, "", version));
+        device.MapGet("/api/ota/firmware/{model}/{version}", (string model, string version, DeviceFleetService fleet, HttpContext ctx) => Firmware(fleet, ctx, model, version));
 
         // admin (/Admin/Fleet)
         admin.MapGet("/api/admin/fleet", (DeviceFleetService fleet) => Results.Json(fleet.AdminView(), DeviceFleetService.JsonOpts));
@@ -129,13 +134,14 @@ public static class FleetEndpoints
             if (file is null || file.Length == 0 || file.Length > DeviceFleetService.MaxFirmwareBytes) return Results.BadRequest(new { ok = false, error = "bad_size" });
             using var ms = new MemoryStream();
             await file.CopyToAsync(ms, ctx.RequestAborted);
-            try { return Results.Json(new { ok = true, firmware = fleet.SaveFirmware(version.Length > 0 ? version : null, ms.ToArray(), form["note"]) }); }
+            try { return Results.Json(new { ok = true, firmware = fleet.SaveFirmware(version.Length > 0 ? version : null, ms.ToArray(), form["note"], form["model"]) }); }
             catch (ArgumentException ex) { return Results.BadRequest(new { ok = false, error = ex.Message }); }
         });
 
-        admin.MapDelete("/api/admin/ota/firmware/{version}", (string version, DeviceFleetService fleet) =>
+        // ?model= picks the model's image ("" / absent = model not specified)
+        admin.MapDelete("/api/admin/ota/firmware/{version}", (string version, DeviceFleetService fleet, HttpContext ctx) =>
         {
-            var e = fleet.DeleteFirmware(version);
+            var e = fleet.DeleteFirmware(ctx.Request.Query["model"].FirstOrDefault(), version);
             return e is null ? Results.Json(new { ok = true }) : Results.BadRequest(new { ok = false, error = e });
         });
 
@@ -146,9 +152,41 @@ public static class FleetEndpoints
             catch (JsonException) { return Results.BadRequest(new { ok = false, error = "bad_json" }); }
             var channel = ConfigArg(body, "channel") ?? "";
             var version = ConfigArg(body, "version");
-            var e = fleet.SetChannel(channel, string.IsNullOrWhiteSpace(version) ? null : version);
+            var e = fleet.SetChannel(ConfigArg(body, "model"), channel, string.IsNullOrWhiteSpace(version) ? null : version);
             return e is null ? Results.Json(new { ok = true }) : Results.BadRequest(new { ok = false, error = e });
         });
+
+        // ── device API access (DeviceAccessService): shadow/enforce, IP-pass bridge, who gets in how ──
+        object AccessView(DeviceAccessService access)
+        {
+            var s = access.Current;
+            return new
+            {
+                ok = true,
+                mode = s.Mode, allow_ip_pass = s.AllowIpPass, updated_at = s.UpdatedAt, updated_by = s.UpdatedBy,
+                window_min = (int)IpPassService.FleetWindow.TotalMinutes,
+                callers = access.Callers(),
+                misses = access.Misses(),
+            };
+        }
+
+        admin.MapGet("/api/admin/fleet/access", (DeviceAccessService access) => Results.Json(AccessView(access), DeviceFleetService.JsonOpts));
+
+        admin.MapPut("/api/admin/fleet/access", async (DeviceAccessService access, HttpContext ctx) =>
+        {
+            JsonElement body;
+            try { body = await ctx.Request.ReadFromJsonAsync<JsonElement>(ctx.RequestAborted); }
+            catch (JsonException) { return Results.BadRequest(new { ok = false, error = "bad_json" }); }
+            bool? ipPass = body.ValueKind == JsonValueKind.Object && body.TryGetProperty("allow_ip_pass", out var ap)
+                && ap.ValueKind is JsonValueKind.True or JsonValueKind.False ? ap.GetBoolean() : null;
+            var e = access.Update(ConfigArg(body, "mode"), ipPass, ctx.User.Identity?.Name);
+            return e is null ? Results.Json(AccessView(access), DeviceFleetService.JsonOpts) : Results.BadRequest(new { ok = false, error = e });
+        });
+
+        admin.MapDelete("/api/admin/fleet/access/miss/{ip}", (string ip, DeviceAccessService access) =>
+            IpAccessService.Parse(ip) is { } canon && access.ClearMiss(canon)
+                ? Results.Json(AccessView(access), DeviceFleetService.JsonOpts)
+                : Results.NotFound(new { ok = false, error = "unknown_miss" }));
 
         // device auth helper: 400 bad id/key, 403 key mismatch, null = ok (unknown devices register as pending)
         static IResult? FleetAuth(DeviceFleetService fleet, HttpContext ctx, string id)

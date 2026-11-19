@@ -362,7 +362,7 @@ public static class DashboardEndpoints
             await ProxySummaryAsync(ctx, await svc.GetEventSummaryAsync($"{baseUrl}{eventSummaryPath}", ctx.RequestAborted));
         });
 
-        page.MapGet("/api/cldetector/summary", async (HttpContext ctx, SummaryProxyService svc) =>
+        api.Device.MapGet("/api/cldetector/summary", async (HttpContext ctx, SummaryProxyService svc) =>
         {
             var backendCfg = Backend(app);
             var baseUrl = backendCfg.BaseUrl;

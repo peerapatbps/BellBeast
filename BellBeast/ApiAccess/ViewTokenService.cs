@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using BellBeast.Endpoints;
+using BellBeast.Services;
 
 namespace BellBeast.ApiAccess;
 
@@ -202,6 +203,26 @@ public sealed class ViewTokenMiddleware
                     ViewTokenService.Verdict.WrongIp => "view_token_wrong_ip",
                     _ => "view_token_expired",
                 };
+                if (endpoint.Metadata.GetMetadata<DeviceApi>() is not null)
+                {
+                    // device APIs: a registered annunciator (key, or its IP pass); shadow mode only records the rest
+                    var devices = ctx.RequestServices.GetRequiredService<DeviceAccessService>();
+                    var route = ApiCatalogService.IdOf(endpoint) ?? ctx.Request.Path.ToString();
+                    var (via, dev) = devices.Check(ctx, ip);
+                    if (via != DeviceAccessService.Via.None)
+                    {
+                        devices.RecordAllowed(ip, dev, via, route);
+                        await _next(ctx);
+                        return;
+                    }
+                    reason = ctx.Request.Headers.ContainsKey(DeviceFleetService.KeyHeader) ? "device_key_invalid" : "no_device_key";
+                    devices.RecordMiss(ip, route, reason, blocked: devices.Enforcing);
+                    if (!devices.Enforcing)
+                    {
+                        await _next(ctx);
+                        return;
+                    }
+                }
                 views.RecordRejection(ip, ctx.Request.Path, reason);   // real reason: admin IP tab only
                 const string error = ViewTokenService.PublicError;      // callers get no hint why
                 ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
