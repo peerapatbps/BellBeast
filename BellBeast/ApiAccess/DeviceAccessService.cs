@@ -82,6 +82,9 @@ public sealed class DeviceAccessService
         var c = _callers.GetOrAdd(ip + "|" + (device ?? ""), _ => new Counter());
         lock (c) { c.Device = device; c.Via = via == Via.Key ? "key" : "ip_pass"; c.Hits++; c.LastAt = DateTimeOffset.UtcNow; c.LastRoute = route; }
         Trim(_callers, x => x.LastAt);
+        // misses from this IP were (almost always) the same device before it was approved / updated:
+        // drop them so "would be blocked" only lists callers that still fail (a new miss puts the IP back)
+        _misses.TryRemove(ip, out _);
     }
 
     /// <summary>A caller with no valid way in: recorded (shadow) or blocked (enforce).</summary>

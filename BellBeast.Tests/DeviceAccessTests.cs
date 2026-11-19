@@ -64,6 +64,19 @@ public sealed class DeviceAccessTests : IClassFixture<IpPassFactory>
     }
 
     [Fact]
+    public async Task A_Device_That_Gets_In_Later_Leaves_The_Would_Block_List()
+    {
+        Assert.Null(Access.Update("shadow", true, "test"));
+        var (id, key) = await Device("10.70.3.1", approved: false);
+        await Client("10.70.3.1").SendAsync(Get(Feed, id, key));                      // pending: recorded
+        Assert.Contains(Access.Misses(), m => m.Ip == "10.70.3.1");
+
+        Assert.Null(Fleet.UpdateDevice(id, JsonSerializer.SerializeToElement(new { approved = true })));
+        await Client("10.70.3.1").SendAsync(Get(Feed, id, key));                      // approved: gets in by key
+        Assert.DoesNotContain(Access.Misses(), m => m.Ip == "10.70.3.1");
+    }
+
+    [Fact]
     public async Task Enforce_Allows_Approved_Device_Key_From_Any_Ip_And_Blocks_The_Rest()
     {
         Assert.Null(Access.Update("enforce", false, "test"));
