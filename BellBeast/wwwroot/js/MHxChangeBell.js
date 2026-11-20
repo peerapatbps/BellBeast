@@ -142,13 +142,15 @@
         render();
     }
 
-    function countCl(type) {
+    /** คลอรีนนับเป็น "เหตุการณ์": 1 ต่อ (ประเภท, สถานี) ที่มีถังอย่างน้อย 1 — ไม่ใช่จำนวนถัง */
+    function countClEvents(type) {
         if (!state.cl) return 0;
-        return STATIONS.reduce(function (n, s) { return n + state.cl[type][s.id].length; }, 0);
+        return STATIONS.reduce(function (n, s) { return n + (state.cl[type][s.id].length ? 1 : 0); }, 0);
     }
 
+    /** badge = เหตุการณ์คลอรีน + เที่ยวรถ PACl/Alum */
     function total() {
-        var n = countCl("Rec") + countCl("Ret") + countCl("Tiu") + countCl("Unl");
+        var n = countClEvents("Rec") + countClEvents("Ret") + countClEvents("Tiu") + countClEvents("Unl");
         if (state.trips) n += state.trips.PACL.length + state.trips.ALUM.length;
         return n;
     }
@@ -205,6 +207,7 @@
         bell.addEventListener("click", function (e) {
             e.stopPropagation();
             menu.hidden = !menu.hidden;
+            if (!menu.hidden) closeIotMenu();
             if (!menu.hidden) {                    // วางใต้กระดิ่ง (topbar อยู่ใต้ nav ของ layout)
                 var rc = bell.getBoundingClientRect();
                 menu.style.top = Math.round(rc.bottom + 6) + "px";
@@ -223,7 +226,17 @@
             if (e.key === "Escape") menu.hidden = true;
         });
 
+        // กดกระดิ่งแดง (IoT) → ปิดเมนูน้ำเงิน (IoT หยุด propagation ที่ตัวกระดิ่ง จึงต้องฟังที่ปุ่มเอง)
+        var iot = document.getElementById("btnIotAlarm");
+        if (iot) iot.addEventListener("click", function () { menu.hidden = true; });
+
         return { bell: bell, badge: badge, menu: menu };
+    }
+
+    /** เมนู IoT (MHxIotAlarm.js) — ปิดเมื่อเปิดเมนูน้ำเงิน ให้แสดงทีละอัน */
+    function closeIotMenu() {
+        var m = document.querySelector(".iota-menu");
+        if (m) m.hidden = true;
     }
 
     function row(label, n, detail, cls) {
