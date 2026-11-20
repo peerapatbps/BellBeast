@@ -286,9 +286,7 @@
             return sec;
         }
         list.forEach(function (t) {
-            var parts = [];
-            if (t.company) parts.push(t.company);
-            parts.push(t.tonnes.toFixed(1) + " ตัน");
+            var parts = ["1 คัน", t.tonnes.toFixed(1) + " ตัน"];
             if (t.tanks.length) parts.push("ถัง " + t.tanks.join(" "));
             sec.appendChild(row(t.time || "—", 1, parts.join(" · ")));
         });
