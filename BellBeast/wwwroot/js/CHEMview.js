@@ -75,6 +75,37 @@
         CL2B: { stream: "CHEM2", key: "cl_lineD" }
     };
 
+    /* =========================
+       TANK PREDICTION (port ของ TruckSidecar Predictor.Predict)
+       ฐาน = ค่าที่ใหม่กว่าระหว่าง API (Aquadat ราย 2 ชม.) กับ "ระดับหลังเติม" ที่พนักงานบันทึกใน sidecar
+             (จาก chem.db ผ่าน /api/chem_report — เวลาของค่า = เวลาชั่งออก ไม่ใช่เวลากดบันทึก)
+       อัตราใช้ (ถัง ON เท่านั้น):
+         1) อัตราจ่ายจริง flow×dose ของเฟสในกลุ่มถังร่วม ÷ จำนวนถังที่ ON ในกลุ่ม (ถ้า > 0)
+         2) ค่าเริ่มต้นต่อสาร ÷ จำนวนถังที่ ON ของสารนั้น
+       (sidecar มีขั้นเฉลี่ยจากประวัติ API ระหว่าง 1 กับ 2 — การ์ดไม่มีประวัติจึงข้ามขั้นนั้น)
+       ระดับ = ฐาน − อัตรา × ชม.ที่ผ่านไปจากฐาน, ตัดที่ 0 .. max(พิกัด, ฐาน)
+    ========================= */
+
+    const TANKS = [
+        { name: "ALUM A", chem: "ALUM", lvl: STATUS.ALUM12_TANK_A_VAL, st: STATUS.ALUM12_TANK_A, cap: CAP_ALUM_M3, phases: ["P1", "P2"], bind: "ALUM1.TANKA" },
+        { name: "ALUM B", chem: "ALUM", lvl: STATUS.ALUM12_TANK_B_VAL, st: STATUS.ALUM12_TANK_B, cap: CAP_ALUM_M3, phases: ["P1", "P2"], bind: "ALUM1.TANKB" },
+        { name: "ALUM C", chem: "ALUM", lvl: STATUS.ALUM2_TANK_C_VAL, st: STATUS.ALUM2_TANK_C, cap: CAP_ALUM_M3, phases: ["P3", "P4"], bind: "ALUM2.TANKA" },
+        { name: "ALUM D", chem: "ALUM", lvl: STATUS.ALUM2_TANK_D_VAL, st: STATUS.ALUM2_TANK_D, cap: CAP_ALUM_M3, phases: ["P3", "P4"], bind: "ALUM2.TANKB" },
+        { name: "PACL A", chem: "PACL", lvl: STATUS.PACL12_TANK_A_VAL, st: STATUS.PACL12_TANK_A, cap: CAP_PACL_A_M3, phases: ["P1", "P2"], bind: "PACL1.TANKA" },
+        { name: "PACL B", chem: "PACL", lvl: STATUS.PACL12_TANK_B_VAL, st: STATUS.PACL12_TANK_B, cap: CAP_PACL_B1_M3, phases: ["P1", "P2"], bind: "PACL1.TANKB" },
+        { name: "PACL C", chem: "PACL", lvl: STATUS.PACL2_TANK_C_VAL, st: STATUS.PACL2_TANK_C, cap: CAP_PACL_A_M3, phases: ["P3", "P4"], bind: "PACL2.TANKA" },
+        { name: "PACL D", chem: "PACL", lvl: STATUS.PACL2_TANK_D_VAL, st: STATUS.PACL2_TANK_D, cap: CAP_PACL_B2_M3, phases: ["P3", "P4"], bind: "PACL2.TANKB" }
+    ];
+
+    /** ยอดใช้ทั้งระบบ m³/ชม. ต่อสาร (เหมือน defaultUsagePerHour ใน TruckSidecar config.json) — แบ่งตามจำนวนถังที่ ON */
+    const DEFAULT_USAGE_M3H = { ALUM: 1.25, PACL: 1.0 };
+    /** อัตราจ่ายจริงเก่ากว่านี้ไม่ใช้ (เหมือน MaxDoseAgeHours ของ sidecar) */
+    const MAX_DOSE_AGE_H = 6;
+
+    const REFILL_PATH = "/api/chem_report";
+    const REFILL_POLL_MS = 120000;     // chem.db เปลี่ยนเมื่อมีการ upload ใหม่เท่านั้น ไม่ต้องดึงถี่
+    const REFILL_LOOKBACK_DAYS = 2;    // ดูเที่ยวที่ชั่งออกย้อนหลังกี่วัน (API ราย 2 ชม. จะแซงค่านี้อยู่แล้ว)
+
     let _inflight = null;
 
     /* =========================
@@ -311,6 +342,233 @@
     }
 
     /* =========================
+       TANK PREDICTION
+    ========================= */
+
+    /** "yyyy-MM-dd HH:mm[:ss]" → Date (เวลาท้องถิ่น) */
+    function parseLocalTs(s) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/.exec(String(s ?? "").trim());
+        if (!m) return null;
+        const d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+        return isNaN(d.getTime()) ? null : d;
+    }
+
+    function ymd(d) {
+        const p = n => String(n).padStart(2, "0");
+        return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    }
+
+    function hhmm(d) {
+        const p = n => String(n).padStart(2, "0");
+        return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    }
+
+    function tankKey(name) {
+        return String(name ?? "").trim().replace(/\s+/g, " ").toUpperCase();
+    }
+
+    /**
+     * ระดับหลังเติมล่าสุดต่อถังจาก chem.db (เหมือน RecordStore.LatestAfterReadings)
+     * เวลา = เวลาชั่งออก (DoneAt) — ไม่มี (Uroboros รุ่นเก่า) → เวลากดบันทึก (AfterAt) — ไม่มีทั้งคู่ = ข้าม
+     */
+    function latestAfterReadings(rows) {
+        const out = {};
+        for (const r of (Array.isArray(rows) ? rows : [])) {
+            for (const f of (Array.isArray(r?.Fills) ? r.Fills : [])) {
+                if (f?.LevelAfter == null || f.LevelAfter === "") continue;
+                const lvl = numOrNull(f.LevelAfter);
+                if (lvl == null) continue;
+                const at = parseLocalTs(r.DoneAt) || parseLocalTs(f.AfterAt);
+                if (!at) continue;
+                const k = tankKey(f.Tank);
+                if (!out[k] || at > out[k].at)
+                    out[k] = { at, level: lvl, wash: !!r.IsWash, truck: r.Truck || "" };
+            }
+        }
+        return out;
+    }
+
+    async function fetchRefills(section) {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - REFILL_LOOKBACK_DAYS);
+        const ac = new AbortController();
+        const t = setTimeout(() => ac.abort(), TIMEOUT_MS * 2);
+        try {
+            const r = await fetch(apiUrl(REFILL_PATH), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ startDate: ymd(start), endDate: ymd(now), dateField: "DAYOUT" }),
+                cache: "no-store",
+                signal: ac.signal
+            });
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            const j = await r.json();
+            if (!j || j.ok !== true) throw new Error("chem_report not ok");
+            section._chemRefills = latestAfterReadings(j.rows);
+        } finally {
+            clearTimeout(t);
+        }
+    }
+
+    /** ดึงระดับหลังเติมเป็นระยะ (ไม่บล็อกการ render) — ล้มเหลว = ใช้ค่าเดิม/ใช้แต่ API */
+    function maybeRefreshRefills(section) {
+        const now = Date.now();
+        if (section._chemRefillBusy || now - (section._chemRefillAt || 0) < REFILL_POLL_MS) return;
+        section._chemRefillBusy = true;
+        section._chemRefillAt = now;
+        fetchRefills(section)
+            .then(() => { if (section._chemLast) renderTanks(section, section._chemLast); })
+            .catch(() => { })
+            .finally(() => { section._chemRefillBusy = false; });
+    }
+
+    /** อัตราจ่ายจริง m³/ชม. ของเฟสหนึ่ง ต่อสาร — null = ไม่ทราบ flow */
+    function phaseRateM3h(p, chem, phase) {
+        const flow = pickValue(p, FLOW_ID[phase]);
+        if (flow == null) return null;
+        const dose = pickValue(p, DOSE[chem][phase]) ?? 0;        // dose ว่าง = เฟสนี้ไม่จ่าย
+        const factor = chem === "ALUM" ? FACT_ALUM : FACT_PACL;
+        const lh = rateLh(flow, dose, factor, phase === "P3" || phase === "P4");
+        return Math.max(0, lh) / 1000;
+    }
+
+    function predictTanks(p, refills, now) {
+        const isOn = t => normalizeState(t.status) === "on";
+        const rows = TANKS.map(t => {
+            const o = pickById(p, t.lvl);
+            const raw = o ? (o.value ?? o.val ?? o.v ?? o.num) : null;
+            const lv = raw == null || raw === "" ? null : numOrNull(raw);   // Number(null) = 0 → ต้องกันก่อน
+            return {
+                ...t,
+                status: pickStatus(p, t.st),
+                api: lv == null ? null : { level: lv, at: parseLocalTs(o.ts ?? o.time ?? o.timestamp) },
+                op: refills?.[tankKey(t.name)] || null
+            };
+        });
+
+        // อัตราจ่ายจริงใช้ได้เมื่อ flow ไม่เก่าเกิน MAX_DOSE_AGE_H
+        const flowTs = Object.values(FLOW_ID)
+            .map(id => parseLocalTs(pickById(p, id)?.ts))
+            .filter(Boolean)
+            .reduce((a, b) => (a && a > b ? a : b), null);
+        const doseFresh = flowTs == null || (now - flowTs) / 3600000 <= MAX_DOSE_AGE_H;
+
+        return rows.map(t => {
+            let base = null;
+            if (t.op && (!t.api || !t.api.at || t.op.at > t.api.at))
+                base = { level: t.op.level, at: t.op.at, src: t.op.wash ? "พนักงานบันทึกหลังล้างถัง" : "พนักงานบันทึกหลังเติม" };
+            else if (t.api)
+                base = { level: t.api.level, at: t.api.at, src: "API" };
+            if (!base) return { tank: t, pred: null };
+
+            let rate = 0, rateSrc = "ไม่ทราบสถานะถัง";
+            if (t.status != null && t.status !== "") {
+                if (!isOn(t)) {
+                    rateSrc = "ถังไม่ได้ ON";
+                } else {
+                    const group = rows.filter(o => o.chem === t.chem && o.phases.join() === t.phases.join());
+                    const onInGroup = Math.max(1, group.filter(isOn).length);
+                    let groupRate = null;
+                    if (doseFresh) {
+                        for (const ph of t.phases) {
+                            const r = phaseRateM3h(p, t.chem, ph);
+                            if (r != null) groupRate = (groupRate ?? 0) + r;
+                        }
+                    }
+                    if (groupRate != null && groupRate > 0) {
+                        rate = groupRate / onInGroup;
+                        rateSrc = `อัตราจ่ายจริง ${t.phases.join("+")} ${groupRate.toFixed(2)} m³/ชม. ÷ ${onInGroup} ถัง`;
+                    } else if (DEFAULT_USAGE_M3H[t.chem] > 0) {
+                        const onCount = Math.max(1, rows.filter(o => o.chem === t.chem && isOn(o)).length);
+                        rate = DEFAULT_USAGE_M3H[t.chem] / onCount;
+                        rateSrc = `ค่าเริ่มต้น ${DEFAULT_USAGE_M3H[t.chem]} m³/ชม. ÷ ${onCount} ถัง`;
+                    }
+                }
+            }
+
+            const elapsedH = base.at ? Math.max(0, (now - base.at) / 3600000) : 0;
+            const level = Math.min(Math.max(base.level - rate * elapsedH, 0), Math.max(t.cap, base.level));
+            return { tank: t, pred: { level, base, rate, rateSrc, elapsedH } };
+        });
+    }
+
+    /** เวลาบนป้ายที่มา: วันนี้ = HH:mm, วันอื่น = dd/MM (ป้ายแคบ) */
+    function srcTime(d, now) {
+        if (!d) return "";
+        const p = n => String(n).padStart(2, "0");
+        return d.toDateString() === now.toDateString()
+            ? `${p(d.getHours())}:${p(d.getMinutes())}`
+            : `${p(d.getDate())}/${p(d.getMonth() + 1)}`;
+    }
+
+    /** แถบลายปะ "ใช้ไปแล้ว" — สร้างครั้งแรกที่ต้องใช้ (markup เดิมมีแค่ chem-fill) */
+    function usedBand(box) {
+        const well = box?.querySelector(".chem-well");
+        if (!well) return null;
+        let el = well.querySelector(".chem-used");
+        if (!el) {
+            el = document.createElement("div");
+            el.className = "chem-used";
+            el.hidden = true;
+            const fill = well.querySelector(".chem-fill");
+            if (fill) fill.after(el); else well.prepend(el);
+        }
+        return el;
+    }
+
+    function renderTanks(scope, p) {
+        const now = new Date();
+        for (const { tank: t, pred } of predictTanks(p, scope._chemRefills, now)) {
+            const fmtLv = v => (t.chem === "PACL" ? fmt1(v) : fmtInt(v));
+            const box = scope.querySelector(`[data-bind-fill="${t.bind}.FILL"]`);
+            const band = usedBand(box);
+            const src = box?.querySelector(".chem-src");
+            if (!pred) {
+                setText(scope, `${t.bind}.READ`, null);
+                setFill(scope, `${t.bind}.FILL`, 0);
+                if (band) band.hidden = true;
+                if (src) { src.textContent = `${fmtInt(t.cap)} m³`; src.className = "chem-src"; }
+                if (box) { box.removeAttribute("title"); box.classList.remove("read-light"); }
+                continue;
+            }
+
+            const fillPct = Math.min(100, pctFill(pred.level, t.cap));
+            setText(scope, `${t.bind}.READ`, fmtLv(pred.level));
+            setFill(scope, `${t.bind}.FILL`, fillPct);
+            box?.classList.toggle("read-light", fillPct < 55);
+
+            // ลายปะ: จากระดับปัจจุบันขึ้นไปถึงระดับฐาน — เฉพาะถังที่กำลังถูกใช้ (อัตรา > 0)
+            const used = pred.base.level - pred.level;
+            if (band) {
+                const usedPct = Math.min(pctFill(used, t.cap), Math.max(0, 100 - fillPct));
+                band.hidden = !(pred.rate > 0 && usedPct >= 0.3);
+                box.style.setProperty("--used", band.hidden ? 0 : usedPct);
+            }
+
+            // ป้ายที่มาของฐาน: API (เทา) / เติม-ล้าง จาก chem.db (ฟ้า)
+            const fromRefill = pred.base.src !== "API";
+            if (src) {
+                const verb = fromRefill ? (pred.base.src.includes("ล้าง") ? "ล้าง" : "เติม") : "API";
+                src.textContent = `${verb} ${srcTime(pred.base.at, now)}`.trim();
+                src.className = "chem-src " + (fromRefill ? "src-refill" : "src-api");
+            }
+
+            if (box) {
+                const lines = [
+                    `${t.name}: ${fmtLv(pred.level)} / ${fmtInt(t.cap)} m³`,
+                    `ฐาน: ${pred.base.src} ${fmtLv(pred.base.level)} m³` + (pred.base.at ? ` @ ${hhmm(pred.base.at)}` : ""),
+                    `อัตราใช้: ${pred.rate.toFixed(3)} m³/ชม. (${pred.rateSrc})`,
+                    pred.rate > 0 ? `ผ่านไป ${pred.elapsedH.toFixed(2)} ชม. → −${(pred.rate * pred.elapsedH).toFixed(3)} m³` : null,
+                    t.api && pred.base.src !== "API"
+                        ? `API ล่าสุด: ${fmtLv(t.api.level)} m³` + (t.api.at ? ` @ ${hhmm(t.api.at)}` : "")
+                        : null
+                ].filter(Boolean);
+                box.title = lines.join("\n");
+            }
+        }
+    }
+
+    /* =========================
        RENDER
     ========================= */
 
@@ -339,12 +597,6 @@
         const a1Ta = pickValue(p, STATUS.ALUM12_TANK_A_VAL);
         const a1Tb = pickValue(p, STATUS.ALUM12_TANK_B_VAL);
 
-        setText(scope, "ALUM1.TANKA.READ", fmtInt(a1Ta));
-        setText(scope, "ALUM1.TANKB.READ", fmtInt(a1Tb));
-
-        setFill(scope, "ALUM1.TANKA.FILL", pctFill(a1Ta, CAP_ALUM_M3));
-        setFill(scope, "ALUM1.TANKB.FILL", pctFill(a1Tb, CAP_ALUM_M3));
-
         const alum1TankA = pickStatus(p, STATUS.ALUM12_TANK_A);
         const alum1TankB = pickStatus(p, STATUS.ALUM12_TANK_B);
 
@@ -368,12 +620,6 @@
 
         const p1Ta = pickValue(p, STATUS.PACL12_TANK_A_VAL);
         const p1Tb = pickValue(p, STATUS.PACL12_TANK_B_VAL);
-
-        setText(scope, "PACL1.TANKA.READ", fmtInt(p1Ta));
-        setText(scope, "PACL1.TANKB.READ", fmtInt(p1Tb));
-
-        setFill(scope, "PACL1.TANKA.FILL", pctFill(p1Ta, CAP_PACL_A_M3));
-        setFill(scope, "PACL1.TANKB.FILL", pctFill(p1Tb, CAP_PACL_B1_M3));
 
         const pacl1TankA = pickStatus(p, STATUS.PACL12_TANK_A);
         const pacl1TankB = pickStatus(p, STATUS.PACL12_TANK_B);
@@ -403,12 +649,6 @@
         const a2Ta = pickValue(p, STATUS.ALUM2_TANK_C_VAL);
         const a2Tb = pickValue(p, STATUS.ALUM2_TANK_D_VAL);
 
-        setText(scope, "ALUM2.TANKA.READ", fmtInt(a2Ta));
-        setText(scope, "ALUM2.TANKB.READ", fmtInt(a2Tb));
-
-        setFill(scope, "ALUM2.TANKA.FILL", pctFill(a2Ta, CAP_ALUM_M3));
-        setFill(scope, "ALUM2.TANKB.FILL", pctFill(a2Tb, CAP_ALUM_M3));
-
 
         const alum2TankA = pickStatus(p, STATUS.ALUM2_TANK_C);
         const alum2TankB = pickStatus(p, STATUS.ALUM2_TANK_D);
@@ -434,11 +674,8 @@
         const p2Ta = pickValue(p, STATUS.PACL2_TANK_C_VAL);
         const p2Tb = pickValue(p, STATUS.PACL2_TANK_D_VAL);
 
-        setText(scope, "PACL2.TANKA.READ", fmtInt(p2Ta));
-        setText(scope, "PACL2.TANKB.READ", fmtInt(p2Tb));
-
-        setFill(scope, "PACL2.TANKA.FILL", pctFill(p2Ta, CAP_PACL_A_M3));
-        setFill(scope, "PACL2.TANKB.FILL", pctFill(p2Tb, CAP_PACL_B2_M3));
+        // ระดับถัง ALUM/PACL: API + ระดับหลังเติมจาก chem.db → คาดการณ์แบบ TruckSidecar
+        renderTanks(scope, p);
 
         const pacl2TankC = pickStatus(p, STATUS.PACL2_TANK_C);
         const pacl2TankD = pickStatus(p, STATUS.PACL2_TANK_D);
@@ -584,7 +821,9 @@
     ========================= */
 
     async function refreshSection(section) {
+        maybeRefreshRefills(section);
         const data = await fetchChemSummary(section, getSummaryPath(section), TIMEOUT_MS);
+        section._chemLast = data;
         renderAll(section, data);
     }
 
@@ -644,6 +883,6 @@
 
     }
 
-    window.CHEMView = { initWithin, destroyWithin, restartWithin };
+    window.CHEMView = { initWithin, destroyWithin, restartWithin, predictTanks, latestAfterReadings };
 
 })();

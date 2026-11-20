@@ -13,6 +13,47 @@
         z-index: 100000 !important;
         pointer-events: auto !important;
     }
+
+    /* ===== ถัง ALUM/PACL: ที่มาของระดับ (CHEMview.js renderTanks) =====
+       สีทึบ = ระดับปัจจุบัน, ลายปะเหนือสีทึบ = ใช้ไปแล้วตั้งแต่ระดับฐาน (API หรือระดับหลังเติม) — มีเฉพาะถังที่ ON */
+    section.chem-block .chem-used {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: calc(var(--fill, 0) * 1%);
+        height: calc(var(--used, 0) * 1%);
+        background: repeating-linear-gradient(135deg, rgba(95,228,255,.38) 0 3px, transparent 3px 7px);
+        border-top: 1.5px dashed rgba(95,228,255,.85);
+        box-sizing: border-box;
+        pointer-events: none;
+    }
+
+    section.chem-block .chem-used[hidden] { display: none; }
+
+    /* ตัวเลขอยู่กลางถัง: ระดับต่ำกว่าครึ่ง = ตกบนพื้นมืด/ลายปะ → ตัวอ่อน */
+    section.chem-block .chem-tank.read-light .chem-read {
+        color: rgba(255,255,255,.92);
+        text-shadow: 0 0 3px rgba(0,0,0,.9), 0 1px 2px rgba(0,0,0,.8);
+    }
+
+    section.chem-block .chem-src {
+        display: inline-block;
+        margin-top: 2px;
+        padding: 0 4px;
+        border-radius: 4px;
+        white-space: nowrap;
+    }
+
+    section.chem-block .chem-src.src-api {
+        color: rgba(255,255,255,.72);
+        background: rgba(255,255,255,.08);
+    }
+
+    section.chem-block .chem-src.src-refill {
+        color: #0b2a33;
+        background: rgba(95,228,255,.85);
+        font-weight: 700;
+    }
 </style>
 
 <section class="bb-section chem-block"
@@ -83,7 +124,7 @@
                             <div class="chem-fill"></div>
                             <div class="chem-read" data-bind="ALUM1.TANKA.READ">-</div>
                         </div>
-                        <div class="chem-cap"><b>TANK A</b><br />750 m³</div>
+                        <div class="chem-cap"><b>TANK A</b><br /><span class="chem-src">750 m³</span></div>
                     </div>
 
                     <div class="chem-tank" style="--fill:0;" data-bind-fill="ALUM1.TANKB.FILL">
@@ -91,7 +132,7 @@
                             <div class="chem-fill"></div>
                             <div class="chem-read" data-bind="ALUM1.TANKB.READ">-</div>
                         </div>
-                        <div class="chem-cap"><b>TANK B</b><br />750 m³</div>
+                        <div class="chem-cap"><b>TANK B</b><br /><span class="chem-src">750 m³</span></div>
                     </div>
                 </div>
             </div>
@@ -143,14 +184,14 @@
                             <div class="chem-fill"></div>
                             <div class="chem-read" data-bind="PACL1.TANKA.READ">-</div>
                         </div>
-                        <div class="chem-cap"><b>TANK A</b><br />25 m³</div>
+                        <div class="chem-cap"><b>TANK A</b><br /><span class="chem-src">25 m³</span></div>
                     </div>
                     <div class="chem-tank" style="--fill:0;" data-bind-fill="PACL1.TANKB.FILL">
                         <div class="chem-well">
                             <div class="chem-fill"></div>
                             <div class="chem-read" data-bind="PACL1.TANKB.READ">-</div>
                         </div>
-                        <div class="chem-cap"><b>TANK B</b><br />25 m³</div>
+                        <div class="chem-cap"><b>TANK B</b><br /><span class="chem-src">25 m³</span></div>
                     </div>
                 </div>
             </div>
@@ -293,7 +334,7 @@
                             <div class="chem-fill"></div>
                             <div class="chem-read" data-bind="ALUM2.TANKA.READ">-</div>
                         </div>
-                        <div class="chem-cap"><b>TANK C</b><br />750 m³</div>
+                        <div class="chem-cap"><b>TANK C</b><br /><span class="chem-src">750 m³</span></div>
                     </div>
 
                     <div class="chem-tank" style="--fill:0;" data-bind-fill="ALUM2.TANKB.FILL">
@@ -301,7 +342,7 @@
                             <div class="chem-fill"></div>
                             <div class="chem-read" data-bind="ALUM2.TANKB.READ">-</div>
                         </div>
-                        <div class="chem-cap"><b>TANK D</b><br />750 m³</div>
+                        <div class="chem-cap"><b>TANK D</b><br /><span class="chem-src">750 m³</span></div>
                     </div>
                 </div>
             </div>
@@ -353,7 +394,7 @@
                             <div class="chem-fill"></div>
                             <div class="chem-read" data-bind="PACL2.TANKA.READ">-</div>
                         </div>
-                        <div class="chem-cap"><b>TANK C</b><br />25 m³</div>
+                        <div class="chem-cap"><b>TANK C</b><br /><span class="chem-src">25 m³</span></div>
                     </div>
 
                     <div class="chem-tank" style="--fill:0;" data-bind-fill="PACL2.TANKB.FILL">
@@ -361,7 +402,7 @@
                             <div class="chem-fill"></div>
                             <div class="chem-read" data-bind="PACL2.TANKB.READ">-</div>
                         </div>
-                        <div class="chem-cap"><b>TANK D</b><br />24 m³</div>
+                        <div class="chem-cap"><b>TANK D</b><br /><span class="chem-src">24 m³</span></div>
                     </div>
                 </div>
             </div>
