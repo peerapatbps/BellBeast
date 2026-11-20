@@ -1,18 +1,28 @@
-{
-  "version": "0.0.1",
-  "configurations": [
-    {
-      "name": "bellbeast",
-      "runtimeExecutable": "dotnet",
-      "runtimeArgs": [
-        "run",
-        "--project",
-        "BellBeast/BellBeast.csproj",
-        "--no-launch-profile",
-        "--",
-        "--Kestrel:Endpoints:Http:Url=http://localhost:5077"
-      ],
-      "port": 5077
-    }
-  ]
+﻿{
+    "version":  "0.0.1",
+    "configurations":  [
+                           {
+                               "name":  "bellbeast",
+                               "runtimeExecutable":  "dotnet",
+                               "runtimeArgs":  [
+                                                   "run",
+                                                   "--project",
+                                                   "BellBeast/BellBeast.csproj",
+                                                   "--no-launch-profile",
+                                                   "--",
+                                                   "--Kestrel:Endpoints:Http:Url=http://localhost:5077"
+                                               ],
+                               "port":  5077
+                           },
+                           {
+                               "name":  "bellbeast-play",
+                               "runtimeExecutable":  "C:\\Users\\peera\\AppData\\Local\\Temp\\claude\\b34fe33e6fec40f1\\de754407-1321-4e67-8ef3-18d47303dfdf\\scratchpad\\play_bb\\BellBeast.exe",
+                               "runtimeArgs":  [
+                                                   "--contentRoot",
+                                                   "C:\\Users\\peera\\AppData\\Local\\Temp\\claude\\b34fe33e6fec40f1\\de754407-1321-4e67-8ef3-18d47303dfdf\\scratchpad\\play_bb",
+                                                   "--Kestrel:Endpoints:Http:Url=http://localhost:5078"
+                                               ],
+                               "port":  5078
+                           }
+                       ]
 }

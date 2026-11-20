@@ -36,8 +36,9 @@ const btnSelNext = document.getElementById("btnSelNext");
 const selPageInfo = document.getElementById("selPageInfo");
 const selTotalEl = document.getElementById("selTotal");
 
-const plantChipsEl = document.getElementById("plantChips");
-const stationChipsEl = document.getElementById("stationChips");
+const plantSelectEl = document.getElementById("plantSelect");
+const plantFullNameEl = document.getElementById("plantFullName");
+const stationSwitchesEl = document.getElementById("stationSwitches");
 
 const btnSaveTemplate = document.getElementById("btnSaveTemplate");
 const btnLoadTemplate = document.getElementById("btnLoadTemplate");
@@ -58,7 +59,9 @@ let currentPage = 1;
 let pageSize = 50;
 let lastTotal = 0;
 
-let activePlant = "";               // empty = all
+// activePlant: null = ยังไม่ได้เลือก, "" = ทุกโรงงาน, อื่นๆ = plant_en
+// (null กับ "" query เหมือนกัน — ต่างกันแค่สิ่งที่ dropdown แสดง)
+let activePlant = null;
 const activeStations = new Set();   // station_code multi-toggle
 
 const checkedMap = new Map();       // key: configID, value: row
@@ -68,8 +71,39 @@ const selectedMap = new Map();      // key: configID, value: row
 const SELECTED_PAGE_SIZE = 10;
 let selectedPage = 1;
 
-const PLANTS = ["ทุกโรงงาน", "MS", "BK", "SS", "SS1", "SS2", "SS3", "SS4", "TB", "WQ"];
-const STATIONS = ["TPS", "DPS", "RWS", "CDS", "CTS", "QWS", "FWS", "CWS"];
+// ลำดับที่อยากให้แสดง — ตัวที่มีจริงมาจาก /api/stations (ตัวที่ไม่อยู่ในลิสต์นี้จะต่อท้าย)
+const PLANT_ORDER = ["MS", "BK", "SS", "SS1", "SS2", "SS3", "SS4", "TB", "WQ", "SL", "PS"];
+const STATION_ORDER = ["TPS", "DPS", "RWS", "SRWS", "CDS", "CTS", "QWS", "FWS", "CWS"];
+const ALL_PLANTS_LABEL = "ทุกโรงงาน";
+
+// ชื่อเต็มของโรงงาน (จาก Plant export; aqtable เก็บแค่ code — SS* ในแอป = SM* ใน source)
+const PLANT_NAMES = {
+    BK: ["โรงงานผลิตน้ำบางเขน", "Bangkhen"],
+    MS: ["โรงงานผลิตน้ำมหาสวัสดิ์", "Mahasawat"],
+    SS: ["โรงงานผลิตน้ำสามเสน", "Samsen"],
+    SS1: ["โรงงานผลิตน้ำสามเสน 1", "Samsen 1"],
+    SS2: ["โรงงานผลิตน้ำสามเสน 2", "Samsen 2"],
+    SS3: ["โรงงานผลิตน้ำสามเสน 3", "Samsen 3"],
+    SS4: ["โรงงานผลิตน้ำสามเสน 4", "Samsen 4"],
+    TB: ["โรงงานผลิตน้ำธนบุรี", "Thonburi"],
+    WQ: ["ฝ่ายคุณภาพน้ำ (ฝคภ.)", "Water Quality"],
+    PL: ["ฝ่ายทรัพยากรน้ำและสิ่งแวดล้อม (ฝนส.)", ""],
+    PS: ["ฝ่ายระบบส่งน้ำดิบ (ฝรด.)", ""],
+    SL: ["ส่วนสถานีสูบน้ำดิบสำแล กองระบบส่งน้ำดิบฝั่งตะวันออก", "Samlae Raw Water Pumping Station"],
+};
+
+// plant_en -> Set(station_code)   และ station_code -> Set(station_name) (ไว้ทำ tooltip)
+// ถ้าโหลด /api/stations ไม่ได้ จะใช้ ORDER ข้างบนแบบไม่กรองสถานี
+let plantStations = new Map();
+let stationNames = new Map();
+let PLANTS = [...PLANT_ORDER];
+let STATIONS = [...STATION_ORDER];
+
+const byOrder = (order) => (a, b) => {
+    const ia = order.indexOf(a), ib = order.indexOf(b);
+    if (ia !== ib) return (ia < 0 ? 1e9 : ia) - (ib < 0 ? 1e9 : ib);
+    return a.localeCompare(b);
+};
 
 // auth cache
 let authUser = "";
@@ -221,54 +255,138 @@ function renderSelectedTable() {
 // --------------------------
 // Chips render
 // --------------------------
+// โหลด plant -> stations จาก aqtable (ผ่าน /api/stations)
+async function loadStationMap() {
+    const res = await fetch("/api/stations");
+    if (!res.ok) throw new Error(`stations ${res.status}`);
+    const data = await res.json();
+
+    const ps = new Map(), names = new Map();
+    for (const r of data.rows || []) {
+        const plant = r.plant || "", code = r.stationCode || "";
+        if (!plant || !code) continue;
+        if (!ps.has(plant)) ps.set(plant, new Set());
+        ps.get(plant).add(code);
+        if (!names.has(code)) names.set(code, new Set());
+        if (r.stationName) names.get(code).add(`${plant}: ${r.stationName}`);
+    }
+    if (ps.size === 0) return;
+
+    plantStations = ps;
+    stationNames = names;
+    PLANTS = [...ps.keys()].sort(byOrder(PLANT_ORDER));
+    STATIONS = [...new Set([...ps.values()].flatMap(s => [...s]))].sort(byOrder(STATION_ORDER));
+}
+
+// สถานีที่เกี่ยวข้องกับ plant ที่เลือก (ไม่เลือก / ทุกโรงงาน = ทั้งหมด)
+function visibleStations() {
+    if (!activePlant || !plantStations.has(activePlant)) return STATIONS;
+    const set = plantStations.get(activePlant);
+    return STATIONS.filter(s => set.has(s));
+}
+
+function onFilterChanged() {
+    currentPage = 1;
+    clearChecked();
+    renderChips();
+    loadAqTable();
+}
+
+function renderPlantSelect() {
+    if (!plantSelectEl) return;
+    plantSelectEl.innerHTML = "";
+
+    const add = (value, label) => {
+        const o = document.createElement("option");
+        o.value = value;
+        o.textContent = label;
+        plantSelectEl.appendChild(o);
+        return o;
+    };
+
+    if (activePlant === null) {
+        const ph = add("__none__", "— เลือกโรงงาน —");
+        ph.disabled = true;
+    }
+    add("", ALL_PLANTS_LABEL);
+    for (const p of PLANTS) add(p, p);
+
+    plantSelectEl.value = activePlant === null ? "__none__" : activePlant;
+
+    if (plantFullNameEl) {
+        plantFullNameEl.innerHTML = "";
+        const [th, en] = PLANT_NAMES[activePlant] || [];
+        if (activePlant && th) {
+            const t = document.createElement("div");
+            t.className = "plant-name-th";
+            t.textContent = th;
+            plantFullNameEl.appendChild(t);
+            if (en) {
+                const e = document.createElement("div");
+                e.className = "plant-name-en";
+                e.textContent = en;
+                plantFullNameEl.appendChild(e);
+            }
+        }
+    }
+}
+
+function renderStationSwitches() {
+    if (!stationSwitchesEl) return;
+    stationSwitchesEl.innerHTML = "";
+    // คอลัมน์คงที่ตามจำนวนสถานีทั้งหมด -> filter แล้ว toggle ไม่ยืดขนาด
+    stationSwitchesEl.style.setProperty("--station-cols", String(Math.max(STATIONS.length, 1)));
+
+    for (const s of visibleStations()) {
+        const isOn = activeStations.has(s);
+
+        const label = document.createElement("label");
+        label.className = "switch" + (isOn ? " on" : "");
+        const names = stationNames.get(s);
+        if (names && names.size) label.title = [...names].join("\n");
+
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.setAttribute("role", "switch");
+        input.checked = isOn;
+        input.value = s;
+
+        const track = document.createElement("span");
+        track.className = "switch-track";
+        track.setAttribute("aria-hidden", "true");
+
+        const text = document.createElement("span");
+        text.className = "switch-label";
+        text.textContent = s;
+
+        input.addEventListener("change", () => {
+            if (input.checked) activeStations.add(s);
+            else activeStations.delete(s);
+
+            // เลือกสถานีก่อน plant -> plant = ทุกโรงงาน อัตโนมัติ
+            if (activePlant === null) activePlant = "";
+
+            onFilterChanged();
+        });
+
+        label.append(input, track, text);
+        stationSwitchesEl.appendChild(label);
+    }
+}
+
+plantSelectEl?.addEventListener("change", () => {
+    activePlant = plantSelectEl.value;
+
+    // เลือก plant -> ตัดสถานีที่ไม่เกี่ยวข้องออก (ทั้งที่แสดงและที่เลือกค้างไว้)
+    const keep = new Set(visibleStations());
+    for (const s of [...activeStations]) if (!keep.has(s)) activeStations.delete(s);
+
+    onFilterChanged();
+});
+
 function renderChips() {
-    // plant chips
-    if (plantChipsEl) {
-        plantChipsEl.innerHTML = "";
-        for (const p of PLANTS) {
-            const isOn = (p === "ทุกโรงงาน" && !activePlant) || (p === activePlant);
-
-            const chip = document.createElement("button");
-            chip.type = "button";
-            chip.className = "chip" + (isOn ? " on" : "");
-            chip.textContent = p;
-
-            chip.addEventListener("click", () => {
-                activePlant = (p === "ทุกโรงงาน") ? "" : p;
-                currentPage = 1;
-                clearChecked();
-                renderChips();
-                loadAqTable();
-            });
-
-            plantChipsEl.appendChild(chip);
-        }
-    }
-
-    // station chips (multi-toggle by station_code)
-    if (stationChipsEl) {
-        stationChipsEl.innerHTML = "";
-        for (const s of STATIONS) {
-            const isOn = activeStations.has(s);
-
-            const chip = document.createElement("button");
-            chip.type = "button";
-            chip.className = "chip" + (isOn ? " on" : "");
-            chip.textContent = s;
-
-            chip.addEventListener("click", () => {
-                if (activeStations.has(s)) activeStations.delete(s);
-                else activeStations.add(s);
-
-                currentPage = 1;
-                clearChecked();
-                renderChips();
-                loadAqTable();
-            });
-
-            stationChipsEl.appendChild(chip);
-        }
-    }
+    renderPlantSelect();
+    renderStationSwitches();
 }
 
 // --------------------------
@@ -307,7 +425,7 @@ async function loadAqTable() {
             `/api/aqtable?page=${currentPage}` +
             `&pageSize=${pageSize}` +
             `&q=${encodeURIComponent(q)}` +
-            `&plant=${encodeURIComponent(activePlant)}` +
+            `&plant=${encodeURIComponent(activePlant || "")}` +
             `&station=${encodeURIComponent(stationCsv)}`;
 
         const res = await fetch(url);
@@ -452,7 +570,7 @@ function buildCsvFilename() {
 // --------------------------
 btnReset?.addEventListener("click", () => {
     if (qEl) qEl.value = "";
-    activePlant = "";
+    activePlant = null;
     activeStations.clear();
     renderChips();
     currentPage = 1;
@@ -733,6 +851,7 @@ endDateEl?.addEventListener("change", () => {
 (async function boot() {
     await loadAuthMe().catch(() => null);
     await loadBackendConfig().catch(() => null);
+    await loadStationMap().catch(e => console.warn("station map:", e));
 
     renderChips();
     setCheckedCount(0);

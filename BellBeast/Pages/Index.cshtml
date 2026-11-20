@@ -2,6 +2,7 @@
 @model IndexModel
 @{
     ViewData["Title"] = "AQ Table";
+    ViewData["ContentClass"] = "content content-aq"; // กว้างเกือบเต็มจอ คงที่ (site.css)
 }
 
 @section Styles {
@@ -36,16 +37,19 @@
             <!-- Plant block -->
             <div class="filter-card">
                 <div class="filter-title">โรงงาน (Plant)</div>
-                <div class="chip-row" id="plantChips">
-                    <!-- JS จะเติมปุ่มให้ -->
+                <div class="plant-row">
+                    <select id="plantSelect" class="input plant-select" aria-label="เลือกโรงงาน">
+                        <!-- JS จะเติมตัวเลือกให้ -->
+                    </select>
+                    <div class="plant-fullname" id="plantFullName"></div>
                 </div>
             </div>
 
             <!-- Station block -->
             <div class="filter-card">
                 <div class="filter-title">สถานี (Station – toggle)</div>
-                <div class="chip-row" id="stationChips">
-                    <!-- JS จะเติมปุ่มให้ -->
+                <div class="switch-row" id="stationSwitches">
+                    <!-- JS จะเติม toggle ให้ -->
                 </div>
             </div>
 
