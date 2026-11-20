@@ -242,7 +242,7 @@
     function row(label, n, detail, cls) {
         var r = el("div", "chg-row");
         r.appendChild(el("span", "s", label));
-        r.appendChild(el("span", "n" + (n ? "" : " z"), String(n)));
+        r.appendChild(el("span", "n" + (n ? "" : " z"), n == null ? "" : String(n)));   // null = ไม่แสดงตัวเลข (แถวเที่ยวรถ)
         r.appendChild(el("span", "d " + (cls || ""), detail));
         return r;
     }
@@ -288,7 +288,7 @@
         list.forEach(function (t) {
             var parts = ["1 คัน", t.tonnes.toFixed(1) + " ตัน"];
             if (t.tanks.length) parts.push("ถัง " + t.tanks.join(" "));
-            sec.appendChild(row(t.time || "—", 1, parts.join(" · ")));
+            sec.appendChild(row(t.time || "—", null, parts.join(" · ")));
         });
         return sec;
     }
