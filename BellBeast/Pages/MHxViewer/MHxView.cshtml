@@ -466,6 +466,16 @@
             line-height: 1;
         }
 
+        /* กระดิ่ง SVG: แดง = IoT alarm, น้ำเงิน = การเปลี่ยนแปลงวันนี้ */
+        .bb-ico .bb-bell { display: flex; }
+        .bb-ico .bb-bell svg { width: 16px; height: 16px; fill: currentColor; }
+        #btnIotAlarm { color: #ff5b5b; }
+        #btnIotAlarm.is-muted .bb-bell::after {
+            content: ""; position: absolute; left: 50%; top: 50%; width: 20px; height: 2px;
+            background: #ff5b5b; transform: translate(-50%, -50%) rotate(-45deg); border-radius: 2px;
+        }
+        #btnChangeBell { color: #4da3ff; position: relative; }
+
         .bb-ico.is-muted {
             background: rgba(255,255,255,.06);
             border-color: rgba(255,255,255,.08);
@@ -2417,7 +2427,8 @@
     <div class="title">Main</div>
     <div class="lv-marquee" id="lvMarquee" hidden aria-label="ข้อความประกาศจาก LabVenture"></div>
     <div class="right">
-        <div class="bb-ico" id="btnIotAlarm" title="IoT alarm" role="button" tabindex="0" aria-label="IoT alarm list"><span>🔔</span></div>
+        <div class="bb-ico" id="btnIotAlarm" title="IoT alarm" role="button" tabindex="0" aria-label="IoT alarm list"><span class="bb-bell"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a6 6 0 0 0-6 6v3.6L4.3 15A1 1 0 0 0 5.2 16.5h13.6a1 1 0 0 0 .9-1.5L18 11.6V8a6 6 0 0 0-6-6Zm-2.6 16a2.7 2.7 0 0 0 5.2 0Z"/></svg></span></div>
+        <div class="bb-ico" id="btnChangeBell" title="การเปลี่ยนแปลงวันนี้" role="button" tabindex="0" aria-label="การเปลี่ยนแปลงคลอรีนและสารเคมีวันนี้"><span class="bb-bell"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a6 6 0 0 0-6 6v3.6L4.3 15A1 1 0 0 0 5.2 16.5h13.6a1 1 0 0 0 .9-1.5L18 11.6V8a6 6 0 0 0-6-6Zm-2.6 16a2.7 2.7 0 0 0 5.2 0Z"/></svg></span></div>
         <div class="bb-ico" id="btnFeedback" title="Rate us / Bug report" role="button" tabindex="0" aria-label="Rate us or report a bug"><span>🙂</span></div>
         <div class="bb-ico" id="btnSettings" title="Settings"><span>⚙️</span><i class="bb-eng-dot" id="engineDot" title="Engine paused"></i></div>
     </div>
@@ -3234,6 +3245,7 @@
 <script src="~/js/dps_summary.js" asp-append-version="true"></script>
 <script src="~/js/bb-alerts.js" asp-append-version="true"></script>
 <script src="~/js/MHxIotAlarm.js" asp-append-version="true"></script>
+<script src="~/js/MHxChangeBell.js" asp-append-version="true"></script>
 <script src="~/js/TPS_settings.js"></script>
 <script src="~/js/TPS_summary.js"></script>
 <script src="~/js/RWS_summary.js" asp-append-version="true"></script>

@@ -538,7 +538,7 @@
             ui.badge.classList.toggle("on", all.length > 0);
         }
         if (ui.dot) ui.dot.classList.toggle("on", link.state !== "ok" && link.state !== "init");
-        if (ui.icon) ui.icon.textContent = muted ? "🔕" : "🔔";
+        // icon = red SVG bell in the markup; muted shows as a slash via #btnIotAlarm.is-muted
         if (ui.bell) {
             ui.bell.classList.toggle("is-muted", muted);
             ui.bell.title = "IoT alarm: " + (real ? real + " รายการ" : "ไม่มี")
