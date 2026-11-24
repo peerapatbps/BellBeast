@@ -28,21 +28,21 @@ namespace BellBeast.Pages
             //     Uroboros's session and every data query would then fail with HTTP 401 / 407
             //     ("บัญชีนี้มีการเข้าสู่ระบบจากที่อื่น"). Bypass gets a cookie identity with no
             //     aquadat2 token; data flows through Uroboros's own session (see /api/process).
-            var (iniUser, _) = AdfsLogin.ReadBypassCredential();
+            // Sapphire: the bypass identity is the dedicated aquadat2 account 000102616 (no longer
+            // the media/aquadat2.ini AD account), and the old interlock that forced the ini id
+            // (00102616) into bypass is removed — only the checkbox selects bypass now; 00102616
+            // logs in normally via /api/Authen/Login like any other id.
+            const string BypassUser = "000102616";
             var typedUser = (Username ?? "").Trim();
 
-            // The checkbox forces bypass; so does typing the built-in test account's id in the
-            // normal box — that account must go through bypass, never a real ADFS login, or it
-            // would evict Uroboros's single aquadat2 session (HTTP 401 / 407 on every query).
-            bool useBypass = UseDefaultAd || AdfsLogin.SameAccount(typedUser, iniUser);
+            bool useBypass = UseDefaultAd;
 
             AdfsLogin.Result? login;
 
             if (useBypass)
             {
-                var name = string.IsNullOrWhiteSpace(iniUser) ? "bypass" : iniUser;
                 login = new AdfsLogin.Result(
-                    Token: "", RefreshToken: null, Username: name,
+                    Token: "", RefreshToken: null, Username: BypassUser,
                     DisplayName: "", Position: "", Organization: "");
             }
             else
