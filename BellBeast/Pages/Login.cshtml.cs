@@ -30,12 +30,15 @@ namespace BellBeast.Pages
             //     aquadat2 token; data flows through Uroboros's own session (see /api/process).
             // Sapphire: the bypass identity is the dedicated aquadat2 account 000102616 (no longer
             // the media/aquadat2.ini AD account), and the old interlock that forced the ini id
-            // (00102616) into bypass is removed — only the checkbox selects bypass now; 00102616
-            // logs in normally via /api/Authen/Login like any other id.
+            // (00102616) into bypass is removed — 00102616 logs in normally via
+            // /api/Authen/Login like any other id; the interlock now guards 000102616 instead.
             const string BypassUser = "000102616";
             var typedUser = (Username ?? "").Trim();
 
-            bool useBypass = UseDefaultAd;
+            // Interlock (same rule as before, now on 000102616): typing the bypass account's id in
+            // the normal box also forces bypass — a real /api/Authen/Login with it could evict the
+            // single aquadat2 session Uroboros holds on that same account.
+            bool useBypass = UseDefaultAd || AdfsLogin.SameAccount(typedUser, BypassUser);
 
             AdfsLogin.Result? login;
 
