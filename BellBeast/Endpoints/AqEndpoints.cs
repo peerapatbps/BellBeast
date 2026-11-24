@@ -211,8 +211,12 @@ public static class AqEndpoints
             using var reader = new StreamReader(ctx.Request.Body);
             var rawBody = await reader.ReadToEndAsync();
 
-            // The Aquadat token stays server-side: inject it (and the user) from the session
-            // instead of trusting whatever the browser sent.
+            // aquadat2 allows ONE session per account, and Uroboros (the backend at :8888)
+            // owns that session using its own media/aquadat2.ini account. BellBeast must NOT
+            // forward a per-login aquadat2 token here: doing so made Uroboros call aquadat2 with
+            // a token that its own login had already evicted → HTTP 401 messageCode 407
+            // ("บัญชีนี้มีการเข้าสู่ระบบจากที่อื่น"). We only pass the signed-in user for logging;
+            // the dashboard/report proxies already run tokenless on Uroboros's own session.
             System.Text.Json.Nodes.JsonObject? payload;
             try { payload = System.Text.Json.Nodes.JsonNode.Parse(rawBody) as System.Text.Json.Nodes.JsonObject; }
             catch (JsonException) { payload = null; }
@@ -222,7 +226,7 @@ public static class AqEndpoints
                 await ctx.Response.WriteAsJsonAsync(new { error = "bad_json" }, ctx.RequestAborted);
                 return;
             }
-            payload["token"] = ctx.User.FindFirst("AquadatToken")?.Value ?? "";
+            payload.Remove("token");
             payload["user"] = ctx.User.Identity?.Name ?? "";
             rawBody = payload.ToJsonString();
 

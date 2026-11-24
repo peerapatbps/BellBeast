@@ -810,10 +810,35 @@ btnProceed?.addEventListener("click", async () => {
     }
 });
 
-// Logout
-btnLogout?.addEventListener("click", async () => {
-    if (!confirm("ต้องการออกจากระบบหรือไม่?")) return;
-    await doLogout();
+// Logout — styled confirm modal (replaces window.confirm)
+const logoutModal = document.getElementById("logoutModal");
+const logoutCancel = document.getElementById("logoutCancel");
+const logoutConfirm = document.getElementById("logoutConfirm");
+
+function openLogoutModal() {
+    if (!logoutModal) { if (confirm("ต้องการออกจากระบบหรือไม่?")) doLogout(); return; }
+    logoutModal.hidden = false;
+    logoutConfirm?.focus();
+    document.addEventListener("keydown", onLogoutKey);
+}
+function closeLogoutModal() {
+    if (!logoutModal) return;
+    logoutModal.hidden = true;
+    document.removeEventListener("keydown", onLogoutKey);
+    btnLogout?.focus();
+}
+function onLogoutKey(e) {
+    if (e.key === "Escape") closeLogoutModal();
+}
+
+btnLogout?.addEventListener("click", openLogoutModal);
+logoutCancel?.addEventListener("click", closeLogoutModal);
+// click on the dimmed backdrop (outside the dialog) closes it
+logoutModal?.addEventListener("click", (e) => { if (e.target === logoutModal) closeLogoutModal(); });
+logoutConfirm?.addEventListener("click", async () => {
+    logoutConfirm.disabled = true;
+    try { await doLogout(); }
+    finally { logoutConfirm.disabled = false; }
 });
 
 // Fix bug calendar

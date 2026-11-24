@@ -16,6 +16,104 @@
         .table-wrap.small.sel-paged { max-height: none; overflow-y: visible; }
         .sel-pager { margin-top: 10px; }
         .sel-count { color: var(--muted); font-weight: 700; }
+
+        /* ===== signed-in badge (name + position from the ADFS token) ===== */
+        .toolbar-right { display: inline-flex; align-items: center; gap: 12px; }
+
+        .user-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            max-width: 280px;
+            padding: 6px 12px 6px 6px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: var(--card2);
+        }
+
+        .user-badge-avatar {
+            flex: 0 0 auto;
+            width: 30px; height: 30px;
+            display: inline-flex; align-items: center; justify-content: center;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #2563eb, #0ea5e9);
+            color: #eff6ff;
+            font-weight: 800; font-size: 14px;
+        }
+
+        .user-badge-text { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+
+        .user-badge-name {
+            color: var(--text); font-weight: 700; font-size: 13px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        .user-badge-pos {
+            color: var(--muted); font-size: 11px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        /* bypass / test-account badge — amber, visually distinct from a real AD login */
+        .user-badge-bypass {
+            border-color: rgba(245, 158, 11, 0.45);
+            background: rgba(245, 158, 11, 0.12);
+        }
+        .user-badge-bypass .user-badge-avatar {
+            background: linear-gradient(135deg, #d97706, #f59e0b);
+            color: #1f1300;
+        }
+        .user-badge-bypass .user-badge-name { color: #fcd34d; }
+        .user-badge-bypass .user-badge-pos { color: #fbbf24; }
+
+        @@media (max-width: 640px) {
+            .user-badge-text { display: none; }
+            .user-badge { padding: 5px; }
+        }
+
+        /* ===== logout confirm modal ===== */
+        .bb-modal-overlay {
+            position: fixed; inset: 0; z-index: 1000;
+            display: flex; align-items: center; justify-content: center;
+            padding: 20px;
+            background: rgba(2, 6, 23, 0.62);
+            backdrop-filter: blur(4px);
+            animation: bbFade 0.14s ease;
+        }
+        .bb-modal-overlay[hidden] { display: none; }
+
+        .bb-modal {
+            width: 100%; max-width: 380px;
+            padding: 26px 24px 20px;
+            border-radius: 18px;
+            border: 1px solid var(--line);
+            background: linear-gradient(180deg, rgba(17, 24, 39, 0.98), rgba(15, 23, 42, 0.96));
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            animation: bbPop 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .bb-modal-icon {
+            width: 52px; height: 52px; margin: 0 auto 14px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 50%;
+            background: rgba(248, 113, 113, 0.14);
+            color: #f87171;
+        }
+
+        .bb-modal-title { margin: 0 0 8px; color: var(--text); font-size: 19px; font-weight: 800; }
+        .bb-modal-text { margin: 0 0 22px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+
+        .bb-modal-actions { display: flex; gap: 10px; justify-content: center; }
+        .bb-modal-actions .btn { min-width: 120px; }
+
+        .bb-btn-danger {
+            background: linear-gradient(135deg, #dc2626, #ef4444);
+            color: #fff; border: 0;
+        }
+        .bb-btn-danger:hover { filter: brightness(1.06); }
+
+        @@keyframes bbFade { from { opacity: 0; } to { opacity: 1; } }
+        @@keyframes bbPop { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
     </style>
 }
 
@@ -27,7 +125,44 @@
 
         <!-- ✅ ลบปุ่มเพิ่มเข้าจาก toolbar ออก (กันซ้ำ id + ให้ไปอยู่แถว keyword ตามรูป 2) -->
         <div class="toolbar-right">
+            @if (User?.Identity?.IsAuthenticated == true)
+            {
+                var displayName = User.FindFirst("DisplayName")?.Value;
+                if (string.IsNullOrWhiteSpace(displayName)) displayName = User.Identity?.Name ?? "";
+                var position = User.FindFirst("Position")?.Value ?? "";
+                var isBypass = string.Equals(User.FindFirst("LoginKind")?.Value, "bypass", StringComparison.OrdinalIgnoreCase);
+                var initial = string.IsNullOrWhiteSpace(displayName) ? "?" : displayName.Trim()[..1].ToUpperInvariant();
+                <div class="user-badge@(isBypass ? " user-badge-bypass" : "")" title="@displayName@(string.IsNullOrWhiteSpace(position) ? "" : " · " + position)">
+                    <span class="user-badge-avatar" aria-hidden="true">@(isBypass ? "⚙" : initial)</span>
+                    <span class="user-badge-text">
+                        <span class="user-badge-name">@displayName</span>
+                        @if (!string.IsNullOrWhiteSpace(position))
+                        {
+                            <span class="user-badge-pos">@position</span>
+                        }
+                    </span>
+                </div>
+            }
             <button id="btnLogout" class="btn btn-secondary" type="button">Logout</button>
+        </div>
+    </div>
+
+    <!-- Logout confirm dialog (replaces the browser confirm() popup) -->
+    <div id="logoutModal" class="bb-modal-overlay" hidden>
+        <div class="bb-modal" role="dialog" aria-modal="true" aria-labelledby="logoutModalTitle">
+            <div class="bb-modal-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+            </div>
+            <h3 id="logoutModalTitle" class="bb-modal-title">ออกจากระบบ</h3>
+            <p class="bb-modal-text">ต้องการออกจากระบบใช่หรือไม่? คุณจะต้องเข้าสู่ระบบด้วยบัญชี AD อีกครั้ง</p>
+            <div class="bb-modal-actions">
+                <button type="button" class="btn btn-secondary" id="logoutCancel">ยกเลิก</button>
+                <button type="button" class="btn bb-btn-danger" id="logoutConfirm">ออกจากระบบ</button>
+            </div>
         </div>
     </div>
 

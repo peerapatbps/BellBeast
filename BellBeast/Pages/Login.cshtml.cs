@@ -1,5 +1,5 @@
-﻿using System.Net.Http.Json;
-using System.Security.Claims;
+﻿using System.Security.Claims;
+using BellBeast.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
@@ -9,13 +9,6 @@ namespace BellBeast.Pages
 {
     public class LoginModel : PageModel
     {
-        private readonly IHttpClientFactory _httpFactory;
-
-        public LoginModel(IHttpClientFactory httpFactory)
-        {
-            _httpFactory = httpFactory;
-        }
-
         [BindProperty] public string Username { get; set; } = "";
         [BindProperty] public string Password { get; set; } = "";
         [BindProperty] public bool UseDefaultAd { get; set; }
@@ -26,136 +19,78 @@ namespace BellBeast.Pages
 
         public async Task<IActionResult> OnPostAsync()
         {
+            // AquaDAT 2.0 moved to ADFS (SOP_Aquadat2_Read_Write_Remark.docx §การเข้าสู่ระบบ):
+            //   • Normal login — the user's own AD account via the ADFS SAML flow, tried ONCE
+            //     (a wrong AD password counts toward AD lockout).
+            //   • Built-in test account (bypass) — app access only. Uroboros owns the single
+            //     aquadat2 session (one session per account), so BellBeast must NOT run its own
+            //     ADFS login with the shared media/aquadat2.ini account: that login would evict
+            //     Uroboros's session and every data query would then fail with HTTP 401 / 407
+            //     ("บัญชีนี้มีการเข้าสู่ระบบจากที่อื่น"). Bypass gets a cookie identity with no
+            //     aquadat2 token; data flows through Uroboros's own session (see /api/process).
+            var (iniUser, _) = AdfsLogin.ReadBypassCredential();
+            var typedUser = (Username ?? "").Trim();
 
-            string user;
-            string pass;
+            // The checkbox forces bypass; so does typing the built-in test account's id in the
+            // normal box — that account must go through bypass, never a real ADFS login, or it
+            // would evict Uroboros's single aquadat2 session (HTTP 401 / 407 on every query).
+            bool useBypass = UseDefaultAd || AdfsLogin.SameAccount(typedUser, iniUser);
 
-            // 1) เลือก Credential จากการติ๊ก Checkbox หรือการกรอก
-            if (UseDefaultAd)
+            AdfsLogin.Result? login;
+
+            if (useBypass)
             {
-                // บัญชีทดสอบถูกเก็บไว้ที่ Server-side ปลอดภัยกว่า
-                user = "00102616";
-                pass = "99999999";
+                var name = string.IsNullOrWhiteSpace(iniUser) ? "bypass" : iniUser;
+                login = new AdfsLogin.Result(
+                    Token: "", RefreshToken: null, Username: name,
+                    DisplayName: "", Position: "", Organization: "");
             }
             else
             {
-                // ใช้ค่าจาก Input (ใส่ ?? "" เพื่อกัน Error กรณีค่าเป็น null)
-                user = (Username ?? "").Trim();
-                pass = (Password ?? "").Trim();
+                var pass = (Password ?? "").Trim();
+                if (string.IsNullOrWhiteSpace(typedUser) || string.IsNullOrWhiteSpace(pass))
+                {
+                    ErrorMessage = "กรุณากรอก AD Username และ Password หรือเลือกบัญชีทดสอบ";
+                    return Page();
+                }
+                // User types only the employee id; prepend the AD domain (ADFS needs domain\user).
+                var adUser = AdfsLogin.NormalizeUsername(typedUser);
+                login = await AdfsLogin.LoginAsync(adUser, pass, HttpContext.RequestAborted);
             }
 
-            // ตรวจสอบความว่างเปล่า
-            if (string.IsNullOrWhiteSpace(user) || string.IsNullOrWhiteSpace(pass))
+            if (login is null)
             {
-                ErrorMessage = "กรุณากรอก Username และ Password หรือเลือกบัญชีทดสอบ";
+                ErrorMessage = "Login ไม่สำเร็จ (ADFS ปฏิเสธ หรือขอ token ไม่ได้)";
                 return Page();
             }
 
-            // 2) ขอ token จาก Aquadat
-            var token = await TryLogin(user, pass);
+            // Cookie identity. The JWT stays server-side (injected by /api/process); the browser only
+            // ever sees the display name + position, which feed the signed-in badge on /Index.
+            // Built-in test account: the real AD user is kept in Name, but the badge shows a fixed
+            // "bypass" label (LoginKind=bypass) instead of that account's own name/position.
+            const string BypassName = "โหมดทดสอบ (Bypass)";
+            const string BypassPosition = "บัญชีทดสอบระบบ";
 
-            // fallback: brute force (ถ้าไม่ได้รหัสแรก ลองรหัส 1111-9999)
-            if (token == null)
-            {
-                token = await BruteforceLogin(user, pass);
-            }
+            var displayName = useBypass ? BypassName : login.DisplayName;
+            var position = useBypass ? BypassPosition : login.Position;
 
-            if (token == null)
-            {
-                ErrorMessage = "Login ไม่สำเร็จ (ไม่สามารถขอ token ได้)";
-                return Page();
-            }
-
-            // 3) Sign in (Cookie + Claim)
             var claims = new List<Claim>
-    {
-        new Claim(ClaimTypes.Name, user),
-        new Claim("AquadatToken", token)
-    };
+            {
+                new(ClaimTypes.Name, login.Username),
+                new("AquadatToken", login.Token),
+                new("DisplayName", displayName),
+                new("Position", position),
+                new("Organization", login.Organization),
+                new("LoginKind", useBypass ? "bypass" : "adfs"),
+            };
+            if (!string.IsNullOrEmpty(login.RefreshToken))
+                claims.Add(new Claim("AquadatRefreshToken", login.RefreshToken));
 
             var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-            await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
+            await HttpContext.SignInAsync(
+                CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
 
             return Redirect("/Index");
-        }
-
-        // =====================================================
-        // Call Aquadat Enroll
-        // =====================================================
-        private async Task<string?> TryLogin(string username, string password)
-        {
-            try
-            {
-                var client = _httpFactory.CreateClient("aquadat");
-
-                var res = await client.PostAsJsonAsync(
-                    "http://aquadat.mwa.co.th:12007/api/aquaDATService/Enroll",
-                    new { username, password }
-                );
-
-                if (!res.IsSuccessStatusCode)
-                    return null;
-
-                var json = await res.Content.ReadFromJsonAsync<AquadatResponse>();
-                if (json?.status == 200 && !string.IsNullOrEmpty(json.results?.token))
-                    return json.results.token;
-
-                return null;
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        // =====================================================
-        // Bruteforce fallback (จำกัด, ปลอดภัย)
-        // =====================================================
-        private async Task<string?> BruteforceLogin(string username, string lastPassword)
-        {
-            // ตัวเลขที่จะใช้สร้างรหัสผ่าน 8 หลัก (1-9)
-            int[] digits = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-
-            // หาว่ารหัสล่าสุดที่ส่งมา ขึ้นต้นด้วยเลขอะไร (ถ้าไม่ใช่ตัวเลขให้เริ่มที่ 0)
-            int currentDigit = 0;
-            if (!string.IsNullOrEmpty(lastPassword) && char.IsDigit(lastPassword[0]))
-            {
-                currentDigit = int.Parse(lastPassword[0].ToString());
-            }
-
-            // วนทดสอบ 9 ครั้ง (เพื่อให้ครบทุกความเป็นไปได้ 11111111 ถึง 99999999)
-            for (int i = 1; i <= 9; i++)
-            {
-                // คำนวณเลขถัดไป: (เลขปัจจุบัน + i - 1) % 9 + 1 
-                // เช่น ถ้าล่าสุดคือ 9 ตัวถัดไปจะเป็น 1
-                int nextDigit = (currentDigit + i - 1) % 9 + 1;
-
-                // สร้าง String เลขซ้ำกัน 8 ตัว เช่น "11111111"
-                var pwd = new string(nextDigit.ToString()[0], 8);
-
-                // ลอง Login ด้วยรหัสที่สร้างขึ้น
-                var token = await TryLogin(username, pwd);
-                if (token != null)
-                {
-                    return token; // ถ้าสำเร็จ ส่ง Token กลับทันที
-                }
-
-                // รอ 300ms เพื่อไม่ให้ยิง API ถี่เกินไปจนโดน Block
-                await Task.Delay(300);
-            }
-
-            return null; // ถ้าครบ 9 ครั้งแล้วยังไม่ได้ ก็ส่ง null
-        }
-
-        private class AquadatResponse
-        {
-            public int status { get; set; }
-            public Result? results { get; set; }
-
-            public class Result
-            {
-                public string? token { get; set; }
-            }
         }
     }
 }
