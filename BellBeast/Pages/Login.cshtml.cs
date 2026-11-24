@@ -50,17 +50,25 @@ namespace BellBeast.Pages
                 var pass = (Password ?? "").Trim();
                 if (string.IsNullOrWhiteSpace(typedUser) || string.IsNullOrWhiteSpace(pass))
                 {
-                    ErrorMessage = "กรุณากรอก AD Username และ Password หรือเลือกบัญชีทดสอบ";
+                    ErrorMessage = "กรุณากรอก Username และ Password หรือเลือกบัญชีทดสอบ";
                     return Page();
                 }
-                // User types only the employee id; prepend the AD domain (ADFS needs domain\user).
-                var adUser = AdfsLogin.NormalizeUsername(typedUser);
-                login = await AdfsLogin.LoginAsync(adUser, pass, HttpContext.RequestAborted);
+                // Sapphire: direct aquadat2 account login (POST /api/Authen/Login) with the bare
+                // user id — replaces the ADFS SAML flow (AdfsLogin.LoginAsync) for normal users.
+                var (direct, err) = await AdfsLogin.DirectLoginAsync(typedUser, pass, HttpContext.RequestAborted);
+                login = direct;
+                if (login is null)
+                {
+                    ErrorMessage = string.IsNullOrWhiteSpace(err)
+                        ? "Login ไม่สำเร็จ (Username/Password ไม่ถูกต้อง หรือขอ token ไม่ได้)"
+                        : $"Login ไม่สำเร็จ: {err}";
+                    return Page();
+                }
             }
 
             if (login is null)
             {
-                ErrorMessage = "Login ไม่สำเร็จ (ADFS ปฏิเสธ หรือขอ token ไม่ได้)";
+                ErrorMessage = "Login ไม่สำเร็จ (ขอ token ไม่ได้)";
                 return Page();
             }
 
@@ -81,7 +89,7 @@ namespace BellBeast.Pages
                 new("DisplayName", displayName),
                 new("Position", position),
                 new("Organization", login.Organization),
-                new("LoginKind", useBypass ? "bypass" : "adfs"),
+                new("LoginKind", useBypass ? "bypass" : "direct"),
             };
             if (!string.IsNullOrEmpty(login.RefreshToken))
                 claims.Add(new Claim("AquadatRefreshToken", login.RefreshToken));

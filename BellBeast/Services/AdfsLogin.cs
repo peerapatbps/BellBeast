@@ -38,6 +38,63 @@ public static class AdfsLogin
     // Public entry points
     // ---------------------------------------------------------------------------------------------
 
+    /// <summary>
+    /// Direct (non-AD) aquadat2 login — branch Sapphire. One POST, no ADFS/SAML:
+    ///   POST /api/Authen/Login  { username, password }
+    ///   → { success, data: { token (JWT, ~12 h), refreshToken, fullName, positionName, organizationName, … } }
+    /// The username is the bare aquadat2 user id (e.g. 000102616) — no AD domain prefix.
+    /// Tried ONCE per form submit (loginAttemptCount is tracked server-side). Null on failure;
+    /// <paramref name="error"/> carries the server's message when it sent one.
+    /// </summary>
+    public static async Task<(Result? result, string? error)> DirectLoginAsync(
+        string user, string password, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(user) || string.IsNullOrEmpty(password)) return (null, null);
+        using var http = NewClient();
+        using var body = new StringContent(
+            JsonSerializer.Serialize(new { username = user, password }), Encoding.UTF8, "application/json");
+        string json;
+        try
+        {
+            using var resp = await http.PostAsync($"{BaseUrl}/api/Authen/Login", body, ct).ConfigureAwait(false);
+            json = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+        }
+        catch (HttpRequestException ex) { return (null, "เชื่อมต่อ aquadat2 ไม่ได้: " + ex.Message); }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested) { return (null, "aquadat2 ไม่ตอบสนอง (timeout)"); }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return (null, null);
+            string? message = root.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.String
+                ? m.GetString() : null;
+            bool success = root.TryGetProperty("success", out var s) && s.ValueKind == JsonValueKind.True;
+            if (!success || !root.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
+                return (null, message);
+
+            string Get(string name) =>
+                data.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? (v.GetString() ?? "").Trim() : "";
+            var token = Get("token");
+            if (string.IsNullOrWhiteSpace(token)) return (null, message);
+
+            var userId = Get("userId");
+            var display = Get("fullName");
+            if (display.Length == 0) display = $"{Get("firstName")} {Get("lastName")}".Trim();
+            if (display.Length == 0) display = userId.Length > 0 ? userId : user;
+
+            var refresh = Get("refreshToken");
+            return (new Result(
+                Token: token,
+                RefreshToken: refresh.Length > 0 ? refresh : null,
+                Username: userId.Length > 0 ? userId : user,
+                DisplayName: display,
+                Position: Get("positionName"),
+                Organization: Get("organizationName")), null);
+        }
+        catch (JsonException) { return (null, null); }
+    }
+
     /// <summary>One ADFS login with a single password (the interactive form path). Null on failure.</summary>
     public static Task<Result?> LoginAsync(string user, string password, CancellationToken ct = default) =>
         LoginWithCandidatesAsync(user, new[] { password }, delayMs: 0, ct);

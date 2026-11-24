@@ -17,22 +17,22 @@
         <div class="login-card">
             <div class="login-card-head">
                 <div class="login-kicker">BellBeast</div>
-                <h1 class="login-title">Login AD เพื่อใช้งานระบบ</h1>
+                <h1 class="login-title">Login เพื่อใช้งานระบบ</h1>
                 <p class="login-subtitle">
-                    กรุณาเข้าสู่ระบบด้วยบัญชี AD ของคุณเพื่อเข้าใช้งาน
+                    กรุณาเข้าสู่ระบบด้วยบัญชี AquaDAT ของคุณเพื่อเข้าใช้งาน
                 </p>
             </div>
 
             <form method="post" id="loginForm" class="login-form">
                 <div class="form-field">
-                    <label class="form-label" for="txtUsername">AD Username</label>
+                    <label class="form-label" for="txtUsername">Username</label>
                     <input class="form-input" asp-for="Username" id="txtUsername" autocomplete="username"
-                           placeholder="ใส่เฉพาะรหัสพนักงาน เช่น 00102616" />
-                    <small class="form-hint">ใส่เฉพาะรหัสพนักงาน ระบบจะเติมโดเมน water.mwa\ ให้อัตโนมัติ</small>
+                           placeholder="รหัสผู้ใช้ AquaDAT เช่น 000102616" />
+                    <small class="form-hint">ใช้บัญชี AquaDAT (ไม่ใช่ AD) ไม่ต้องใส่โดเมน</small>
                 </div>
 
                 <div class="form-field">
-                    <label class="form-label" for="txtPassword">AD Password</label>
+                    <label class="form-label" for="txtPassword">Password</label>
                     <input class="form-input" asp-for="Password" id="txtPassword" type="password" autocomplete="current-password" />
                 </div>
 
