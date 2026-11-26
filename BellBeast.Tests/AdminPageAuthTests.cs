@@ -95,6 +95,23 @@ public sealed class AdminPageAuthTests : IClassFixture<BellBeastBaseFactory>
     }
 
     [Fact]
+    public async Task ConnectorBox_Page_Needs_Admin_And_Has_Tab_And_Script()
+    {
+        var anon = _factory.CreateClient(new() { AllowAutoRedirect = false });
+        var r = await anon.GetAsync("/Admin/ConnectorBox");
+        Assert.Equal(HttpStatusCode.Redirect, r.StatusCode);
+        Assert.Contains("/Admin/Login", r.Headers.Location?.ToString() ?? "", StringComparison.OrdinalIgnoreCase);
+
+        await using var factory = new BellBeastAdminFactory();
+        var html = await factory.CreateClient().GetStringAsync("/Admin/ConnectorBox");
+        Assert.Contains("id=\"v-registry\"", html);
+        Assert.Contains("/js/cbadmin.js", html);
+        Assert.Contains("href=\"/Admin/ConnectorBox\"", html);         // tab in the admin strip
+        var tasks = await factory.CreateClient().GetStringAsync("/Admin/AdminPage");
+        Assert.Contains("href=\"/Admin/ConnectorBox\"", tasks);          // reachable from AdminPage
+    }
+
+    [Fact]
     public async Task AdminMe_AuthenticatedAdmin_ReturnsOk()
     {
         await using var factory = new BellBeastAdminFactory();

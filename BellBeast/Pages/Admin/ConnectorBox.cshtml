@@ -1,0 +1,162 @@
+@page
+@model BellBeast.Pages.Admin.ConnectorBoxModel
+@{
+    ViewData["Title"] = "Connector Box";
+    ViewData["ContentClass"] = "content content-admin";
+}
+
+@section Styles {
+<style>
+    .cb-wrap {
+        --cb-panel: rgba(15,23,42,.78); --cb-panel2: rgba(30,41,59,.55); --cb-line: rgba(148,163,184,.2);
+        --cb-fg: #e6ecf8; --cb-muted: #94a3b8; --cb-faint: #64748b; --cb-bg: #0b1220;
+        --cb-accent: #5cb8f0; --cb-accent-bg: rgba(92,184,240,.13);
+        --cb-ok: #3fcf7f; --cb-ok-bg: rgba(63,207,127,.14); --cb-warn: #f2b33d; --cb-warn-bg: rgba(242,179,61,.14);
+        --cb-bad: #f06a6a; --cb-bad-bg: rgba(240,106,106,.13);
+        --cb-mono: ui-monospace, Consolas, "IBM Plex Mono", monospace;
+        width: 90%; margin: 0 auto; padding: 0 0 40px; color: var(--cb-fg); font-size: 14px; line-height: 1.55;
+    }
+    .cb-wrap * { box-sizing: border-box; }
+    .cb-wrap [hidden] { display: none !important; }
+    .cb-wrap button, .cb-wrap input, .cb-wrap select, .cb-wrap textarea { font: inherit; color: inherit; }
+    .cb-wrap button { cursor: pointer; }
+    .cb-mono { font-family: var(--cb-mono); font-size: 12.5px; }
+    .cb-muted { color: var(--cb-muted); } .cb-faint { color: var(--cb-faint); }
+
+    .cb-head { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 16px; margin-bottom: 16px; }
+    .cb-head h1 { margin: 0; font-size: clamp(22px, 2.2vw, 28px); font-weight: 800; }
+    .cb-head p { margin: 0; color: var(--cb-muted); font-size: 13px; }
+    .cb-head .sp { flex: 1; }
+    .cb-rev { font-family: var(--cb-mono); font-size: 12px; color: var(--cb-faint); }
+    .cb-msg { padding: 9px 14px; border-radius: 10px; margin-bottom: 12px; font-size: 13px; background: var(--cb-bad-bg); color: #fca5a5; white-space: pre-wrap; }
+
+    .cb-tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--cb-line); margin-bottom: 16px; }
+    .cb-tab { background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 14px; color: var(--cb-muted); font-weight: 600; }
+    .cb-tab:hover { color: var(--cb-fg); }
+    .cb-tab[aria-selected="true"] { color: var(--cb-fg); border-bottom-color: var(--cb-accent); }
+
+    .cb-btn { border: 1px solid var(--cb-line); background: var(--cb-panel2); border-radius: 8px; padding: 6px 14px; font-weight: 600; white-space: nowrap; }
+    .cb-btn:hover { border-color: var(--cb-accent); }
+    .cb-btn:disabled { opacity: .5; cursor: default; }
+    .cb-btn.primary { background: var(--cb-accent); border-color: var(--cb-accent); color: var(--cb-bg); }
+    .cb-btn.bad { color: var(--cb-bad); border-color: transparent; background: none; }
+    .cb-btn.bad:hover { border-color: var(--cb-bad); }
+    .cb-btn.sm { padding: 3px 10px; font-size: 13px; }
+    .cb-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+    .cb-toolbar .sp { flex: 1; }
+
+    .cb-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .cb-stat { background: var(--cb-panel); border: 1px solid var(--cb-line); border-radius: 12px; padding: 12px 14px; }
+    .cb-stat .k { font-size: 12px; color: var(--cb-muted); }
+    .cb-stat .v { font-size: 22px; font-weight: 800; }
+    .cb-stat .s { font-size: 12px; color: var(--cb-faint); }
+    .cb-card { background: var(--cb-panel); border: 1px solid var(--cb-line); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; }
+    .cb-card h3 { margin: 0 0 10px; font-size: 15px; }
+    .cb-card.warn { border-color: var(--cb-warn); background: var(--cb-warn-bg); }
+
+    .cb-badge { display: inline-block; border-radius: 999px; padding: 0 9px; font-size: 12px; font-weight: 600; background: var(--cb-panel2); color: var(--cb-muted); }
+    .cb-badge.ok { background: var(--cb-ok-bg); color: var(--cb-ok); }
+    .cb-badge.warn { background: var(--cb-warn-bg); color: var(--cb-warn); }
+    .cb-badge.bad { background: var(--cb-bad-bg); color: var(--cb-bad); }
+    .cb-badge.info { background: var(--cb-accent-bg); color: var(--cb-accent); }
+
+    .cb-split { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 14px; align-items: start; }
+    @@media (max-width: 860px) { .cb-split { grid-template-columns: 1fr; } }
+    .cb-ents { display: grid; gap: 2px; background: var(--cb-panel); border: 1px solid var(--cb-line); border-radius: 12px; padding: 6px; }
+    .cb-ent { display: flex; justify-content: space-between; gap: 8px; background: none; border: 0; border-radius: 8px; padding: 7px 10px; color: var(--cb-muted); text-align: left; font-weight: 600; }
+    .cb-ent:hover { background: rgba(148,163,184,.1); color: var(--cb-fg); }
+    .cb-ent[aria-current="true"] { background: var(--cb-accent-bg); color: var(--cb-fg); }
+    .cb-ent .n { font-size: 12px; color: var(--cb-faint); font-weight: 500; }
+    .cb-hint { font-size: 12.5px; color: var(--cb-muted); margin: 0 0 10px; }
+
+    .cb-table { width: 100%; border-collapse: collapse; background: var(--cb-panel); border: 1px solid var(--cb-line); border-radius: 12px; overflow: hidden; }
+    .cb-table th { text-align: left; font-size: 12px; color: var(--cb-muted); font-weight: 600; padding: 8px 12px; border-bottom: 1px solid var(--cb-line); }
+    .cb-table td { padding: 7px 12px; border-bottom: 1px solid rgba(148,163,184,.08); vertical-align: top; }
+    .cb-table tbody tr { cursor: pointer; }
+    .cb-table tbody tr:hover td { background: rgba(148,163,184,.06); }
+    .cb-table tr.sel td { background: var(--cb-accent-bg); }
+    .cb-table tr.off td { opacity: .55; }
+    .cb-table td.code { font-family: var(--cb-mono); font-size: 12.5px; white-space: nowrap; }
+    .cb-scroll { overflow-x: auto; }
+    .cb-empty { color: var(--cb-muted); padding: 18px; text-align: center; }
+    .cb-chips { display: flex; flex-wrap: wrap; gap: 3px; }
+    .cb-chips span { font-family: var(--cb-mono); font-size: 11.5px; background: var(--cb-panel2); border-radius: 6px; padding: 0 6px; }
+
+    .cb-switch { position: relative; width: 38px; height: 22px; border-radius: 999px; border: 0; background: rgba(148,163,184,.35); padding: 0; flex: none; vertical-align: middle; }
+    .cb-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; }
+    .cb-switch[aria-checked="true"] { background: var(--cb-ok); }
+    .cb-switch[aria-checked="true"]::after { left: 19px; }
+
+    .cb-editor { margin-top: 14px; background: var(--cb-panel); border: 1px solid var(--cb-accent); border-radius: 12px; padding: 14px 16px; }
+    .cb-editor h3 { margin: 0; font-size: 15px; }
+    .cb-ed-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .cb-ed-head .sp { flex: 1; }
+    .cb-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px 14px; }
+    .cb-f { display: grid; gap: 3px; align-content: start; font-size: 12px; color: var(--cb-muted); min-width: 0; }
+    .cb-f > .lbl { display: flex; gap: 6px; align-items: baseline; }
+    .cb-f > .lbl b { color: var(--cb-fg); font-family: var(--cb-mono); font-weight: 600; font-size: 12.5px; }
+    .cb-f > .lbl .req { color: var(--cb-warn); }
+    .cb-f .desc { font-size: 11.5px; color: var(--cb-faint); }
+    .cb-f input, .cb-f select, .cb-f textarea, .cb-in { width: 100%; background: var(--cb-bg); border: 1px solid var(--cb-line); border-radius: 8px; padding: 6px 10px; font-size: 13.5px; color: var(--cb-fg); }
+    .cb-f input[readonly] { opacity: .65; }
+    .cb-f input[type="checkbox"] { width: auto; justify-self: start; }
+    .cb-f textarea { font-family: var(--cb-mono); font-size: 12.5px; min-height: 70px; resize: vertical; }
+    .cb-f.err input, .cb-f.err select, .cb-f.err textarea { border-color: var(--cb-bad); }
+    .cb-f .emsg { color: var(--cb-bad); font-size: 12px; }
+    .cb-f.group { grid-column: 1 / -1; border: 1px solid var(--cb-line); border-radius: 10px; padding: 10px 12px; background: rgba(11,18,32,.45); }
+    .cb-f.group > .cb-form { margin-top: 6px; }
+    .cb-rows { display: grid; gap: 6px; }
+    .cb-row { display: flex; gap: 6px; align-items: center; }
+    .cb-row > * { flex: 1; }
+    .cb-row > .cb-btn { flex: none; }
+    .cb-json { width: 100%; min-height: 340px; font-family: var(--cb-mono); font-size: 12.5px; background: var(--cb-bg); border: 1px solid var(--cb-line); border-radius: 10px; padding: 10px 12px; color: var(--cb-fg); resize: vertical; }
+    .cb-errors { margin: 12px 0 0; padding: 10px 14px; border-radius: 10px; background: var(--cb-bad-bg); color: #fca5a5; font-size: 13px; }
+    .cb-errors ul { margin: 4px 0 0; padding-left: 18px; }
+    .cb-errors code { font-family: var(--cb-mono); font-size: 12px; color: #fecaca; }
+    .cb-okbox { margin: 12px 0 0; padding: 10px 14px; border-radius: 10px; background: var(--cb-ok-bg); color: var(--cb-ok); font-size: 13px; }
+
+    .cb-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px 14px; margin: 8px 0 12px; }
+    .cb-verdict { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; font-size: 13px; margin-bottom: 10px; }
+    .cb-verdict dt { color: var(--cb-muted); }
+    .cb-verdict dd { margin: 0; font-family: var(--cb-mono); }
+
+    .cb-toast { position: fixed; right: 20px; bottom: 20px; background: #1e293b; border: 1px solid var(--cb-line); color: var(--cb-fg); padding: 10px 16px; border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.4); z-index: 50; }
+    .cb-toast[hidden] { display: none; }
+</style>
+}
+
+<partial name="_AdminTabs" model='"cb"' />
+
+<div class="cb-wrap">
+    <div class="cb-head">
+        <div>
+            <h1>Connector Box</h1>
+            <p>ตั้งค่า registry ของ Uroboros (signal, กลุ่ม, detector, กฎ, sink, param) · ทุกการแก้ผ่าน schema และตรวจได้ก่อนบันทึก</p>
+        </div>
+        <span class="sp"></span>
+        <span class="cb-rev" id="rev"></span>
+        <button class="cb-btn sm" id="reload" type="button">รีเฟรช</button>
+    </div>
+
+    <div class="cb-msg" id="msg" hidden></div>
+
+    <div class="cb-tabs" role="tablist">
+        <button class="cb-tab" role="tab" type="button" data-tab="overview">ภาพรวม</button>
+        <button class="cb-tab" role="tab" type="button" data-tab="registry">ตั้งค่า</button>
+        <button class="cb-tab" role="tab" type="button" data-tab="rules">กฎ</button>
+        <button class="cb-tab" role="tab" type="button" data-tab="tester">ทดสอบกฎ</button>
+        <button class="cb-tab" role="tab" type="button" data-tab="io">นำเข้า / ส่งออก</button>
+    </div>
+
+    <section id="v-overview"></section>
+    <section id="v-registry" hidden></section>
+    <section id="v-rules" hidden></section>
+    <section id="v-tester" hidden></section>
+    <section id="v-io" hidden></section>
+</div>
+
+<div class="cb-toast" id="toast" hidden></div>
+
+@section Scripts {
+<script src="~/js/cbadmin.js" asp-append-version="true"></script>
+}

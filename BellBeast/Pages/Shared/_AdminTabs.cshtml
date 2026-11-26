@@ -1,7 +1,7 @@
 @model string
 @*
     แถบ tab ย่อยของ Admin — Tasks (/Admin/AdminPage) เป็นหน้าหลัก
-    ใช้: <partial name="_AdminTabs" model='"tasks"' />   (tasks | iot | alarm | audio | fleet | ann | api)
+    ใช้: <partial name="_AdminTabs" model='"tasks"' />   (tasks | iot | alarm | audio | fleet | ann | api | cb)
     แต่ละหน้ายังอยู่ URL เดิม (อุปกรณ์/ลิงก์ภายนอกที่ใช้ /IotRoom, /AlarmMonitor ไม่พัง)
 *@
 @{
@@ -14,6 +14,7 @@
         ("fleet", "/Admin/Fleet", "Fleet"),
         ("ann", "/Admin/Annunciator", "Annunciator"),
         ("api", "/Admin/Api", "API Access"),
+        ("cb", "/Admin/ConnectorBox", "Connector Box"),
     };
 }
 
