@@ -282,6 +282,7 @@ app.MapReportEndpoints(api);
 app.MapEngineEndpoints(api);
 app.MapIotEndpoints(api);
 app.MapAlarmEndpoints(api);
+app.MapCbEndpoints(api);
 app.MapAudioEndpoints(api);
 app.MapFleetEndpoints(api);
 app.MapApiAdminEndpoints(api);

@@ -13,5 +13,6 @@
   "eventSummaryPath": "/api/event/summary",
   "labSummaryPath": "/api/lab/summary",
   "cldetectorPath": "/api/cldetector/summary",
-  "wayfarerApiPath": "/api/wayfarer"
+  "wayfarerApiPath": "/api/wayfarer",
+  "cbApiPath": "/api/cb"
 }

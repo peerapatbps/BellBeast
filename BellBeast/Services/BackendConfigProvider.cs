@@ -16,7 +16,8 @@ public sealed record BackendConfig(
     string EventSummaryPath,
     string LabSummaryPath,
     string ClDetectorPath,
-    string WayfarerApiPath);
+    string WayfarerApiPath,
+    string CbApiPath = BackendConfigProvider.DefaultCbApiPath);
 
 /// <summary>
 /// Reads App_Data/backend-config.json and caches it until the file changes (mtime/size),
@@ -25,6 +26,9 @@ public sealed record BackendConfig(
 /// </summary>
 public sealed class BackendConfigProvider
 {
+    /// <summary>Uroboros connector box API root (events, cases, monitor, registry), proxied by Endpoints/CbEndpoints.cs.</summary>
+    public const string DefaultCbApiPath = "/api/cb";
+
     private readonly string _path;
     private (DateTime Mtime, long Size, BackendConfig Cfg)? _cache;
 
@@ -87,6 +91,7 @@ public sealed class BackendConfigProvider
             EventSummaryPath: NormPath(GetStr("eventSummaryPath"), SummaryProxyService.DefaultEventPath),
             LabSummaryPath: NormPath(GetStr("labSummaryPath"), SummaryProxyService.DefaultLabPath),
             ClDetectorPath: NormPath(GetStr("cldetectorPath"), SummaryProxyService.DefaultClDetectorPath),
-            WayfarerApiPath: NormPath(GetStr("wayfarerApiPath"), "/api/wayfarer"));
+            WayfarerApiPath: NormPath(GetStr("wayfarerApiPath"), "/api/wayfarer"),
+            CbApiPath: NormPath(GetStr("cbApiPath"), DefaultCbApiPath).TrimEnd('/'));
     }
 }
